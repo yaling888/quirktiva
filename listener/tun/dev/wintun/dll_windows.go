@@ -7,12 +7,12 @@ package wintun
 
 import (
 	"fmt"
+	"github.com/Dreamacro/clash/listener/tun/dev/wintun/embed_dll"
+	"golang.zx2c4.com/wireguard/windows/driver/memmod"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"unsafe"
-
-	C "github.com/Dreamacro/clash/constant"
-	"golang.org/x/sys/windows"
 )
 
 func newLazyDLL(name string, onLoad func(d *lazyDLL)) *lazyDLL {
@@ -64,7 +64,7 @@ func (p *lazyProc) Addr() uintptr {
 type lazyDLL struct {
 	Name   string
 	mu     sync.Mutex
-	module windows.Handle
+	module *memmod.Module
 	onLoad func(d *lazyDLL)
 }
 
@@ -74,16 +74,11 @@ func (d *lazyDLL) Load() error {
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if d.module != 0 {
+	if d.module != nil {
 		return nil
 	}
 
-	//const (
-	//	LOAD_LIBRARY_SEARCH_APPLICATION_DIR = 0x00000200
-	//	LOAD_LIBRARY_SEARCH_SYSTEM32        = 0x00000800
-	//)
-	//module, err := windows.LoadLibraryEx(d.Name, 0, LOAD_LIBRARY_SEARCH_APPLICATION_DIR|LOAD_LIBRARY_SEARCH_SYSTEM32)
-	module, err := windows.LoadLibraryEx(C.Path.GetAssetLocation(d.Name), 0, windows.LOAD_WITH_ALTERED_SEARCH_PATH)
+	module, err := memmod.LoadLibrary(embed_dll.DLLContent)
 	if err != nil {
 		return fmt.Errorf("Unable to load library: %w", err)
 	}
@@ -96,35 +91,42 @@ func (d *lazyDLL) Load() error {
 }
 
 func (p *lazyProc) nameToAddr() (uintptr, error) {
-	return windows.GetProcAddress(p.dll.module, p.Name)
+	return p.dll.module.ProcAddressByName(p.Name)
 }
 
 // Version returns the version of the Wintun DLL.
-func Version() string {
-	if modwintun.Load() != nil {
-		return "unknown"
+func Version() (version uint32, err error) {
+	//if modwintun.Load() != nil {
+	//	return "unknown"
+	//}
+	//resInfo, err := windows.FindResource(modwintun.module, windows.ResourceID(1), windows.RT_VERSION)
+	//if err != nil {
+	//	return "unknown"
+	//}
+	//data, err := windows.LoadResourceData(modwintun.module, resInfo)
+	//if err != nil {
+	//	return "unknown"
+	//}
+	//
+	//var fixedInfo *windows.VS_FIXEDFILEINFO
+	//fixedInfoLen := uint32(unsafe.Sizeof(*fixedInfo))
+	//err = windows.VerQueryValue(unsafe.Pointer(&data[0]), `\`, unsafe.Pointer(&fixedInfo), &fixedInfoLen)
+	//if err != nil {
+	//	return "unknown"
+	//}
+	//version := fmt.Sprintf("%d.%d", (fixedInfo.FileVersionMS>>16)&0xff, (fixedInfo.FileVersionMS>>0)&0xff)
+	//if nextNibble := (fixedInfo.FileVersionLS >> 16) & 0xff; nextNibble != 0 {
+	//	version += fmt.Sprintf(".%d", nextNibble)
+	//}
+	//if nextNibble := (fixedInfo.FileVersionLS >> 0) & 0xff; nextNibble != 0 {
+	//	version += fmt.Sprintf(".%d", nextNibble)
+	//}
+	//return version
+	r0, _, e1 := syscall.Syscall(procWintunGetRunningDriverVersion.Addr(), 0, 0, 0, 0)
+	version = uint32(r0)
+	if version == 0 {
+		err = e1
 	}
-	resInfo, err := windows.FindResource(modwintun.module, windows.ResourceID(1), windows.RT_VERSION)
-	if err != nil {
-		return "unknown"
-	}
-	data, err := windows.LoadResourceData(modwintun.module, resInfo)
-	if err != nil {
-		return "unknown"
-	}
+	return
 
-	var fixedInfo *windows.VS_FIXEDFILEINFO
-	fixedInfoLen := uint32(unsafe.Sizeof(*fixedInfo))
-	err = windows.VerQueryValue(unsafe.Pointer(&data[0]), `\`, unsafe.Pointer(&fixedInfo), &fixedInfoLen)
-	if err != nil {
-		return "unknown"
-	}
-	version := fmt.Sprintf("%d.%d", (fixedInfo.FileVersionMS>>16)&0xff, (fixedInfo.FileVersionMS>>0)&0xff)
-	if nextNibble := (fixedInfo.FileVersionLS >> 16) & 0xff; nextNibble != 0 {
-		version += fmt.Sprintf(".%d", nextNibble)
-	}
-	if nextNibble := (fixedInfo.FileVersionLS >> 0) & 0xff; nextNibble != 0 {
-		version += fmt.Sprintf(".%d", nextNibble)
-	}
-	return version
 }
