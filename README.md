@@ -78,7 +78,7 @@ tun:
   stack: gvisor # System or gVisor
   # device: tun://utun8 # or fd://xxx, it's optional
   dns-hijack: 
-    - 0.0.0.0:53 # hijack all
+    - 0.0.0.0:53 # hijack all [not work at macos 12.x]
   auto-route: true # auto set global route
 ```
 ### Rules configuration
