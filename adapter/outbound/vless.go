@@ -46,6 +46,7 @@ type VlessOption struct {
 	UUID           string            `proxy:"uuid"`
 	Flow           string            `proxy:"flow,omitempty"`
 	FlowShow       bool              `proxy:"flow-show,omitempty"`
+	TLS            bool              `proxy:"tls,omitempty"`
 	UDP            bool              `proxy:"udp,omitempty"`
 	Network        string            `proxy:"network,omitempty"`
 	HTTPOpts       HTTPOptions       `proxy:"http-opts,omitempty"`
@@ -166,7 +167,7 @@ func (v *Vless) streamTLSOrXTLSConn(conn net.Conn, isH2 bool) (net.Conn, error) 
 
 		return vless.StreamXTLSConn(conn, &xtlsOpts)
 
-	} else {
+	} else if v.option.TLS {
 		tlsOpts := vmess.TLSConfig{
 			Host:           host,
 			SkipCertVerify: v.option.SkipCertVerify,
@@ -182,6 +183,8 @@ func (v *Vless) streamTLSOrXTLSConn(conn net.Conn, isH2 bool) (net.Conn, error) 
 
 		return vmess.StreamTLSConn(conn, &tlsOpts)
 	}
+
+	return conn, nil
 }
 
 func (v *Vless) isXTLSEnabled() bool {
