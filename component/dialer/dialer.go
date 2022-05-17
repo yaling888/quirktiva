@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/netip"
+	"time"
 
 	"github.com/Dreamacro/clash/component/resolver"
 )
@@ -90,7 +91,9 @@ func ListenPacket(ctx context.Context, network, address string, options ...Optio
 }
 
 func dialContext(ctx context.Context, network string, destination netip.Addr, port string, opt *option) (net.Conn, error) {
-	dialer := &net.Dialer{}
+	dialer := &net.Dialer{
+		Timeout: 5 * time.Second,
+	}
 	if opt.interfaceName != "" {
 		if err := bindIfaceToDialer(opt.interfaceName, dialer, network, destination); err != nil {
 			return nil, err
