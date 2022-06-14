@@ -101,7 +101,7 @@ jobs:
             -T "bin/clash-plus-pro-windows-amd64-$version.zip" `
             -H "Accept: application/vnd.github.v3+json" `
             -H "Authorization: token $env:GITHUB_TOKEN" `
-            "$plus_pro_upload_url?name=clash-plus-pro-windows-amd64-$version.zip" | Out-Null
+            "$($plus_pro_upload_url)?name=clash-plus-pro-windows-amd64-$version.zip" | Out-Null
 
           curl `
             -X POST `
@@ -109,7 +109,7 @@ jobs:
             -T "bin/clash-plus-pro-windows-amd64-v3-$version.zip" `
             -H "Accept: application/vnd.github.v3+json" `
             -H "Authorization: token $env:GITHUB_TOKEN" `
-            "$plus_pro_upload_url?name=clash-plus-pro-windows-amd64-v3-$version.zip" | Out-Null
+            "$($plus_pro_upload_url)?name=clash-plus-pro-windows-amd64-v3-$version.zip" | Out-Null
 
           curl `
             -X POST `
@@ -117,7 +117,7 @@ jobs:
             -T "bin/version.txt" `
             -H "Accept: application/vnd.github.v3+json" `
             -H "Authorization: token $env:GITHUB_TOKEN" `
-            "$plus_pro_upload_url?name=version.txt" | Out-Null
+            "$($plus_pro_upload_url)?name=version.txt" | Out-Null
 
       #- name: Upload files to Artifacts
       #  uses: actions/upload-artifact@v2
