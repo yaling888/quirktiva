@@ -84,7 +84,7 @@ func ApplyConfig(cfg *config.Config, force bool) {
 	updateHosts(cfg.Hosts)
 	updateMitm(cfg.Mitm)
 	updateProfile(cfg)
-	updateDNS(cfg.DNS, cfg.General.Tun)
+	updateDNS(cfg.DNS, &cfg.General.Tun)
 	updateGeneral(cfg.General, force)
 	updateIPTables(cfg)
 	updateExperimental(cfg)
@@ -123,7 +123,7 @@ func GetGeneral() *config.General {
 
 func updateExperimental(_ *config.Config) {}
 
-func updateDNS(c *config.DNS, t config.Tun) {
+func updateDNS(c *config.DNS, t *config.Tun) {
 	cfg := dns.Config{
 		Main:         c.NameServer,
 		Fallback:     c.Fallback,
@@ -181,7 +181,7 @@ func updateDNS(c *config.DNS, t config.Tun) {
 	}
 
 	if cfg.Pool != nil {
-		P.SetTunAddressPrefix(cfg.Pool.IPNet())
+		t.TunAddressPrefix = cfg.Pool.IPNet()
 	}
 }
 
