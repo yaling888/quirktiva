@@ -55,6 +55,10 @@ func (t *TUN) Name() string {
 	return t.name
 }
 
+func (t *TUN) MTU() uint32 {
+	return t.mtu
+}
+
 func (t *TUN) Read(packet []byte) (int, error) {
 	n, gvErr := rawfile.BlockingRead(t.fd, packet)
 	if gvErr != nil {
@@ -122,7 +126,9 @@ func setMTU(name string, n uint32) error {
 		return err
 	}
 
-	defer unix.Close(fd)
+	defer func() {
+		_ = unix.Close(fd)
+	}()
 
 	const ifReqSize = unix.IFNAMSIZ + 64
 

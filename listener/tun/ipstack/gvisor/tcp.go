@@ -1,6 +1,7 @@
 package gvisor
 
 import (
+	"net"
 	"time"
 
 	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/adapter"
@@ -70,6 +71,7 @@ func withTCPHandler(handle adapter.TCPHandleFunc) option.Option {
 
 			conn := &tcpConn{
 				TCPConn: gonet.NewTCPConn(&wq, ep),
+				id:      id,
 			}
 			handle(conn)
 		})
@@ -112,4 +114,23 @@ func setSocketOptions(s *stack.Stack, ep tcpip.Endpoint) tcpip.Error {
 
 type tcpConn struct {
 	*gonet.TCPConn
+	id stack.TransportEndpointID
+}
+
+func (c *tcpConn) ID() *stack.TransportEndpointID {
+	return &c.id
+}
+
+func (c *tcpConn) LocalAddr() net.Addr {
+	return &net.TCPAddr{
+		IP:   net.IP(c.id.LocalAddress),
+		Port: int(c.id.LocalPort),
+	}
+}
+
+func (c *tcpConn) RemoteAddr() net.Addr {
+	return &net.TCPAddr{
+		IP:   net.IP(c.id.RemoteAddress),
+		Port: int(c.id.RemotePort),
+	}
 }

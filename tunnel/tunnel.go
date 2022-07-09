@@ -226,7 +226,7 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 
 	// local resolve UDP dns
 	if !metadata.Resolved() {
-		ip, err := resolver.ResolveIP(metadata.Host)
+		ip, err := resolver.ResolveFirstIP(metadata.Host)
 		if err != nil {
 			return
 		}

@@ -25,6 +25,8 @@ var (
 
 	uiPath = ""
 
+	bootTime = time.Now()
+
 	upgrader = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
 			return true
@@ -66,6 +68,7 @@ func Start(addr string, secret string) {
 		r.Get("/logs", getLogs)
 		r.Get("/traffic", traffic)
 		r.Get("/version", version)
+		r.Get("/uptime", uptime)
 		r.Mount("/configs", configRouter())
 		r.Mount("/configs/geo", configGeoRouter())
 		r.Mount("/proxies", proxyRouter())
@@ -254,4 +257,8 @@ func getLogs(w http.ResponseWriter, r *http.Request) {
 
 func version(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, render.M{"version": C.Version})
+}
+
+func uptime(w http.ResponseWriter, r *http.Request) {
+	render.JSON(w, r, render.M{"uptime": time.Since(bootTime).String()})
 }
