@@ -5,6 +5,7 @@ import (
 	"net/netip"
 
 	"github.com/Dreamacro/clash/adapter/inbound"
+	"github.com/Dreamacro/clash/common/nnip"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/listener/tun/device"
 	"github.com/Dreamacro/clash/listener/tun/ipstack"
@@ -60,6 +61,7 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 
 	handler := &gvHandler{
 		gateway:   tunAddress.Masked().Addr().Next(),
+		broadcast: nnip.UnMasked(tunAddress),
 		dnsHijack: dnsHijack,
 		tcpIn:     tcpIn,
 		udpIn:     udpIn,

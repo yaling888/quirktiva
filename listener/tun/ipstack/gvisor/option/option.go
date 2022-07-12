@@ -3,6 +3,8 @@ package option
 import (
 	"fmt"
 
+	"github.com/Dreamacro/clash/common/pool"
+
 	"golang.org/x/time/rate"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
@@ -50,15 +52,15 @@ const (
 	tcpMinBufferSize = tcp.MinBufferSize
 
 	// tcpMaxBufferSize is the maximum permitted size of a send/recv buffer.
-	tcpMaxBufferSize = tcp.MaxBufferSize
+	tcpMaxBufferSize = pool.RelayBufferSize
 
 	// tcpDefaultBufferSize is the default size of the send buffer for
 	// a transport endpoint.
-	tcpDefaultSendBufferSize = tcp.DefaultSendBufferSize
+	tcpDefaultSendBufferSize = pool.RelayBufferSize
 
 	// tcpDefaultReceiveBufferSize is the default size of the receive buffer
 	// for a transport endpoint.
-	tcpDefaultReceiveBufferSize = tcp.DefaultReceiveBufferSize
+	tcpDefaultReceiveBufferSize = pool.RelayBufferSize
 )
 
 type Option func(*stack.Stack) error
