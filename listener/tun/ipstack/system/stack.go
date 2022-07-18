@@ -132,14 +132,13 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 			}
 
 			metadata := &C.Metadata{
-				NetWork:  C.TCP,
-				Type:     C.TUN,
-				SrcIP:    lAddr.Addr(),
-				DstIP:    rAddr.Addr(),
-				SrcPort:  strconv.FormatUint(uint64(lAddr.Port()), 10),
-				DstPort:  strconv.FormatUint(uint64(rAddr.Port()), 10),
-				AddrType: C.AtypIPv4,
-				Host:     "",
+				NetWork: C.TCP,
+				Type:    C.TUN,
+				SrcIP:   lAddr.Addr(),
+				DstIP:   rAddr.Addr(),
+				SrcPort: strconv.FormatUint(uint64(lAddr.Port()), 10),
+				DstPort: strconv.FormatUint(uint64(rAddr.Port()), 10),
+				Host:    "",
 			}
 
 			tcpIn <- context.NewConnContext(conn, metadata)

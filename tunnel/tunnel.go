@@ -165,11 +165,6 @@ func preHandleMetadata(metadata *C.Metadata) error {
 	if ip, err := netip.ParseAddr(metadata.Host); err == nil {
 		metadata.DstIP = ip
 		metadata.Host = ""
-		if ip.Is4() {
-			metadata.AddrType = C.AtypIPv4
-		} else {
-			metadata.AddrType = C.AtypIPv6
-		}
 	}
 
 	// preprocess enhanced-mode metadata
@@ -177,7 +172,6 @@ func preHandleMetadata(metadata *C.Metadata) error {
 		host, exist := resolver.FindHostByIP(metadata.DstIP)
 		if exist {
 			metadata.Host = host
-			metadata.AddrType = C.AtypDomainName
 			metadata.DNSMode = C.DNSMapping
 			if resolver.FakeIPEnabled() {
 				metadata.DstIP = netip.Addr{}
@@ -223,14 +217,23 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 	}
 
 	// make a fAddr if request ip is fakeip
-	var fAddr net.Addr
+	var fAddr netip.Addr
 	if resolver.IsExistFakeIP(metadata.DstIP) {
-		fAddr = metadata.UDPAddr()
+		fAddr = metadata.DstIP
 	}
 
 	if err := preHandleMetadata(metadata); err != nil {
 		log.Debugln("[Metadata PreHandle] error: %s", err)
 		return
+	}
+
+	// local resolve UDP dns
+	if !metadata.Resolved() {
+		ip, err := resolver.ResolveFirstIP(metadata.Host)
+		if err != nil {
+			return
+		}
+		metadata.DstIP = ip
 	}
 
 	key := packet.LocalAddr().String()
@@ -299,7 +302,8 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 			log.Infoln("[UDP] %s(%s) --> %s doesn't match any rule using DIRECT", metadata.SourceAddress(), metadata.Process, metadata.RemoteAddress())
 		}
 
-		go handleUDPToLocal(packet.UDPPacket, pc, key, fAddr)
+		oAddr := metadata.DstIP
+		go handleUDPToLocal(packet.UDPPacket, pc, key, oAddr, fAddr)
 
 		natTable.Set(key, pc)
 		handle()

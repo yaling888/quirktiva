@@ -107,7 +107,7 @@ type Tun struct {
 	DNSHijack           []C.DNSUrl    `yaml:"dns-hijack" json:"dns-hijack"`
 	AutoRoute           bool          `yaml:"auto-route" json:"auto-route"`
 	AutoDetectInterface bool          `yaml:"auto-detect-interface" json:"auto-detect-interface"`
-	TunAddressPrefix    *netip.Prefix `yaml:"_" json:"_"`
+	TunAddressPrefix    *netip.Prefix `yaml:"-" json:"-"`
 }
 
 // Script config

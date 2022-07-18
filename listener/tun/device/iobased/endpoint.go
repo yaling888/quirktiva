@@ -20,7 +20,7 @@ import (
 const (
 	// Queue length for outbound packet, arriving for read. Overflow
 	// causes packet drops.
-	defaultOutQueueLen = 1 << 10
+	defaultOutQueueLen = 1 << 9
 )
 
 // Endpoint implements the interface of stack.LinkEndpoint from io.ReadWriter.
@@ -113,6 +113,19 @@ func (e *Endpoint) dispatchLoop(cancel context.CancelFunc) {
 			continue /* unattached, drop packet */
 		}
 
+		var p tcpip.NetworkProtocolNumber = 0x0000
+		switch header.IPVersion(data) {
+		case header.IPv4Version:
+			p = header.IPv4ProtocolNumber
+		case header.IPv6Version:
+			p = header.IPv6ProtocolNumber
+		}
+
+		if p == 0x0000 {
+			_ = pool.Put(data)
+			continue
+		}
+
 		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
 			Payload: buffer.NewWithData(data[:n]),
 			OnRelease: func() {
@@ -120,14 +133,8 @@ func (e *Endpoint) dispatchLoop(cancel context.CancelFunc) {
 			},
 		})
 
-		switch header.IPVersion(data) {
-		case header.IPv4Version:
-			e.InjectInbound(header.IPv4ProtocolNumber, pkt)
-		case header.IPv6Version:
-			e.InjectInbound(header.IPv6ProtocolNumber, pkt)
-		default:
-			_ = pool.Put(data)
-		}
+		e.InjectInbound(p, pkt)
+
 		pkt.DecRef()
 	}
 }

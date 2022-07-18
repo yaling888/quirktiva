@@ -29,6 +29,7 @@ func withUDPHandler(handle adapter.UDPHandleFunc) option.Option {
 
 			conn := &udpConn{
 				UDPConn: gonet.NewUDPConn(s, &wq, ep),
+				id:      id,
 			}
 			handle(conn)
 		})
@@ -39,6 +40,25 @@ func withUDPHandler(handle adapter.UDPHandleFunc) option.Option {
 
 type udpConn struct {
 	*gonet.UDPConn
+	id stack.TransportEndpointID
+}
+
+func (c *udpConn) ID() *stack.TransportEndpointID {
+	return &c.id
+}
+
+func (c *udpConn) LocalAddr() net.Addr {
+	return &net.UDPAddr{
+		IP:   net.IP(c.id.LocalAddress),
+		Port: int(c.id.LocalPort),
+	}
+}
+
+func (c *udpConn) RemoteAddr() net.Addr {
+	return &net.UDPAddr{
+		IP:   net.IP(c.id.RemoteAddress),
+		Port: int(c.id.RemotePort),
+	}
 }
 
 type packet struct {

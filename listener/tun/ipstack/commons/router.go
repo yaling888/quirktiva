@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"sync"
 	"time"
 
@@ -22,6 +23,13 @@ var (
 	tunChangeCallback    C.TUNChangeCallback
 	errInterfaceNotFound = errors.New("default interface not found")
 )
+
+type DefaultInterface struct {
+	Name    string
+	Index   int
+	IP      netip.Addr
+	Gateway netip.Addr
+}
 
 func ipv4MaskString(bits int) string {
 	m := net.CIDRMask(bits, 32)

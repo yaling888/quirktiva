@@ -8,6 +8,7 @@ import (
 
 	"github.com/Dreamacro/clash/listener/tun/device"
 
+	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip/link/fdbased"
 	"gvisor.dev/gvisor/pkg/tcpip/link/rawfile"
@@ -55,6 +56,10 @@ func (t *TUN) Name() string {
 	return t.name
 }
 
+func (t *TUN) MTU() uint32 {
+	return t.mtu
+}
+
 func (t *TUN) Read(packet []byte) (int, error) {
 	n, gvErr := rawfile.BlockingRead(t.fd, packet)
 	if gvErr != nil {
@@ -78,6 +83,10 @@ func (t *TUN) Write(packet []byte) (int, error) {
 }
 
 func (t *TUN) Close() error {
+	if link, err := netlink.LinkByName(t.name); err == nil {
+		_ = netlink.LinkDel(link)
+	}
+
 	return unix.Close(t.fd)
 }
 
@@ -122,7 +131,9 @@ func setMTU(name string, n uint32) error {
 		return err
 	}
 
-	defer unix.Close(fd)
+	defer func() {
+		_ = unix.Close(fd)
+	}()
 
 	const ifReqSize = unix.IFNAMSIZ + 64
 

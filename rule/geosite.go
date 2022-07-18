@@ -21,11 +21,10 @@ func (gs *GEOSITE) RuleType() C.RuleType {
 }
 
 func (gs *GEOSITE) Match(metadata *C.Metadata) bool {
-	if metadata.AddrType != C.AtypDomainName {
+	domain := metadata.Host
+	if domain == "" {
 		return false
 	}
-
-	domain := metadata.Host
 	return gs.matcher.ApplyDomain(domain)
 }
 

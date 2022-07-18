@@ -133,13 +133,10 @@ func patchConfigs(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if dialer.DefaultInterface.Load() == "" && tunConf.Enable {
-			outboundInterface, err := commons.GetAutoDetectInterface()
-			if err != nil {
-				render.Status(r, http.StatusBadRequest)
-				render.JSON(w, r, newError("Get auto detect interface fail: "+err.Error()))
-				return
+			outboundInterface, _ := commons.GetAutoDetectInterface()
+			if outboundInterface != "" {
+				dialer.DefaultInterface.Store(outboundInterface)
 			}
-			dialer.DefaultInterface.Store(outboundInterface)
 		}
 
 		P.ReCreateTun(&tunConf, tcpIn, udpIn)

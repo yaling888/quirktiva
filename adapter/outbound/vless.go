@@ -16,6 +16,7 @@ import (
 	"github.com/Dreamacro/clash/component/resolver"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/transport/gun"
+	"github.com/Dreamacro/clash/transport/socks5"
 	"github.com/Dreamacro/clash/transport/vless"
 	"github.com/Dreamacro/clash/transport/vmess"
 
@@ -285,16 +286,16 @@ func (v *Vless) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 func parseVlessAddr(metadata *C.Metadata) *vless.DstAddr {
 	var addrType byte
 	var addr []byte
-	switch metadata.AddrType {
-	case C.AtypIPv4:
+	switch metadata.AddrType() {
+	case socks5.AtypIPv4:
 		addrType = byte(vless.AtypIPv4)
 		addr = make([]byte, net.IPv4len)
 		copy(addr[:], metadata.DstIP.AsSlice())
-	case C.AtypIPv6:
+	case socks5.AtypIPv6:
 		addrType = byte(vless.AtypIPv6)
 		addr = make([]byte, net.IPv6len)
 		copy(addr[:], metadata.DstIP.AsSlice())
-	case C.AtypDomainName:
+	case socks5.AtypDomainName:
 		addrType = byte(vless.AtypDomainName)
 		addr = make([]byte, len(metadata.Host)+1)
 		addr[0] = byte(len(metadata.Host))

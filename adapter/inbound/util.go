@@ -7,15 +7,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Dreamacro/clash/common/nnip"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/transport/socks5"
 )
 
 func parseSocksAddr(target socks5.Addr) *C.Metadata {
-	metadata := &C.Metadata{
-		AddrType: int(target[0]),
-	}
+	metadata := &C.Metadata{}
 
 	switch target[0] {
 	case socks5.AtypDomainName:
@@ -23,10 +20,11 @@ func parseSocksAddr(target socks5.Addr) *C.Metadata {
 		metadata.Host = strings.TrimRight(string(target[2:2+target[1]]), ".")
 		metadata.DstPort = strconv.Itoa((int(target[2+target[1]]) << 8) | int(target[2+target[1]+1]))
 	case socks5.AtypIPv4:
-		metadata.DstIP = nnip.IpToAddr(net.IP(target[1 : 1+net.IPv4len]))
+		metadata.DstIP, _ = netip.AddrFromSlice(target[1 : 1+net.IPv4len])
 		metadata.DstPort = strconv.Itoa((int(target[1+net.IPv4len]) << 8) | int(target[1+net.IPv4len+1]))
 	case socks5.AtypIPv6:
-		metadata.DstIP = nnip.IpToAddr(net.IP(target[1 : 1+net.IPv6len]))
+		ip6, _ := netip.AddrFromSlice(target[1 : 1+net.IPv6len])
+		metadata.DstIP = ip6.Unmap()
 		metadata.DstPort = strconv.Itoa((int(target[1+net.IPv6len]) << 8) | int(target[1+net.IPv6len+1]))
 	}
 
@@ -44,21 +42,13 @@ func parseHTTPAddr(request *http.Request) *C.Metadata {
 	host = strings.TrimRight(host, ".")
 
 	metadata := &C.Metadata{
-		NetWork:  C.TCP,
-		AddrType: C.AtypDomainName,
-		Host:     host,
-		DstIP:    netip.Addr{},
-		DstPort:  port,
+		NetWork: C.TCP,
+		Host:    host,
+		DstIP:   netip.Addr{},
+		DstPort: port,
 	}
 
-	ip, err := netip.ParseAddr(host)
-	if err == nil {
-		switch {
-		case ip.Is6():
-			metadata.AddrType = C.AtypIPv6
-		default:
-			metadata.AddrType = C.AtypIPv4
-		}
+	if ip, err := netip.ParseAddr(host); err == nil {
 		metadata.DstIP = ip
 	}
 
