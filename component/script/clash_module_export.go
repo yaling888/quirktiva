@@ -92,20 +92,10 @@ func ruleProviderCallbackFn(cProviderName *C.char, cMetadata *C.struct_Metadata)
 	dstIp := C.GoString(cMetadata.dst_ip)
 	dstPort := strconv.Itoa(int(cMetadata.dst_port))
 
-	addrType := constant.AtypDomainName
-	if h, err := netip.ParseAddr(host); err == nil {
-		if h.Is4() {
-			addrType = constant.AtypIPv4
-		} else {
-			addrType = constant.AtypIPv6
-		}
-	}
-
 	src, _ := netip.ParseAddr(srcIp)
 	dst, _ := netip.ParseAddr(dstIp)
 
 	metadata := &constant.Metadata{
-		AddrType:    addrType,
 		SrcIP:       src,
 		DstIP:       dst,
 		SrcPort:     srcPort,
@@ -127,7 +117,6 @@ func ruleProviderCallbackFn(cProviderName *C.char, cMetadata *C.struct_Metadata)
 		if len(host) == 0 {
 			return C.int(0)
 		}
-		metadata.AddrType = constant.AtypDomainName
 	}
 
 	rs := rule.Match(metadata)
