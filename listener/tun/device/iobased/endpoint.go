@@ -8,8 +8,10 @@ import (
 	"io"
 	"sync"
 
+	"github.com/Dreamacro/clash/common/pool"
+
+	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
-	"gvisor.dev/gvisor/pkg/tcpip/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -18,7 +20,7 @@ import (
 const (
 	// Queue length for outbound packet, arriving for read. Overflow
 	// causes packet drops.
-	defaultOutQueueLen = 1 << 10
+	defaultOutQueueLen = 1 << 9
 )
 
 // Endpoint implements the interface of stack.LinkEndpoint from io.ReadWriter.
@@ -93,31 +95,46 @@ func (e *Endpoint) dispatchLoop(cancel context.CancelFunc) {
 
 	mtu := int(e.mtu)
 	for {
-		data := make([]byte, mtu)
+		data := pool.Get(mtu)
 
 		n, err := e.rw.Read(data)
 		if err != nil {
+			_ = pool.Put(data)
 			break
 		}
 
 		if n == 0 || n > mtu {
+			_ = pool.Put(data)
 			continue
 		}
 
 		if !e.IsAttached() {
+			_ = pool.Put(data)
 			continue /* unattached, drop packet */
 		}
 
-		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
-			Data: buffer.View(data[:n]).ToVectorisedView(),
-		})
-
+		var p tcpip.NetworkProtocolNumber = 0x0000
 		switch header.IPVersion(data) {
 		case header.IPv4Version:
-			e.InjectInbound(header.IPv4ProtocolNumber, pkt)
+			p = header.IPv4ProtocolNumber
 		case header.IPv6Version:
-			e.InjectInbound(header.IPv6ProtocolNumber, pkt)
+			p = header.IPv6ProtocolNumber
 		}
+
+		if p == 0x0000 {
+			_ = pool.Put(data)
+			continue
+		}
+
+		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
+			Payload: buffer.NewWithData(data[:n]),
+			OnRelease: func() {
+				_ = pool.Put(data)
+			},
+		})
+
+		e.InjectInbound(p, pkt)
+
 		pkt.DecRef()
 	}
 }
@@ -138,11 +155,8 @@ func (e *Endpoint) outboundLoop(ctx context.Context) {
 func (e *Endpoint) writePacket(pkt *stack.PacketBuffer) tcpip.Error {
 	defer pkt.DecRef()
 
-	size := pkt.Size()
-	views := pkt.Views()
-
-	vView := buffer.NewVectorisedView(size, views)
-	if _, err := e.rw.Write(vView.ToView()); err != nil {
+	buf := pkt.Buffer()
+	if _, err := e.rw.Write(buf.Flatten()); err != nil {
 		return &tcpip.ErrInvalidEndpointState{}
 	}
 	return nil

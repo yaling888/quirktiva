@@ -1,19 +1,35 @@
 package commons
 
 import (
+	"context"
 	"fmt"
+	"net"
 	"net/netip"
-	"time"
+	"sync"
 
-	"github.com/Dreamacro/clash/common/cmd"
+	"github.com/Dreamacro/clash/common/nnip"
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/iface"
+	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/listener/tun/device"
 	"github.com/Dreamacro/clash/log"
+
+	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
+)
+
+var (
+	routeCtx       context.Context
+	routeCancel    context.CancelFunc
+	routeChangeMux sync.Mutex
 )
 
 func GetAutoDetectInterface() (string, error) {
-	return cmd.ExecCmd("bash -c ip route show | grep 'default via' | awk -F ' ' 'NR==1{print $5}' | xargs echo -n")
+	ifaceM, err := defaultRouteInterface()
+	if err != nil {
+		return "", err
+	}
+	return ifaceM.Name, nil
 }
 
 func ConfigInterfaceAddress(dev device.Device, addr netip.Prefix, _ int, autoRoute bool) error {
@@ -22,26 +38,52 @@ func ConfigInterfaceAddress(dev device.Device, addr netip.Prefix, _ int, autoRou
 		ip            = addr.Masked().Addr().Next()
 	)
 
-	_, err := cmd.ExecCmd(fmt.Sprintf("ip addr add %s dev %s", ip.String(), interfaceName))
+	devInterface, err := netlink.LinkByName(interfaceName)
 	if err != nil {
 		return err
 	}
 
-	_, err = cmd.ExecCmd(fmt.Sprintf("ip link set %s up", interfaceName))
-	if err != nil {
+	bits := ip.BitLen()
+	ones := addr.Bits()
+	if bits > 32 {
+		ones += 96
+	}
+
+	address := &netlink.Addr{
+		IPNet: &net.IPNet{
+			IP:   ip.AsSlice(),
+			Mask: net.CIDRMask(ones, bits),
+		},
+	}
+
+	if err = netlink.LinkSetUp(devInterface); err != nil {
+		return err
+	}
+
+	if err = netlink.AddrAdd(devInterface, address); err != nil {
 		return err
 	}
 
 	if autoRoute {
-		err = configInterfaceRouting(interfaceName, addr)
+		err = configInterfaceRouting(devInterface.Attrs().Index, addr)
 	}
 	return err
 }
 
-func configInterfaceRouting(interfaceName string, addr netip.Prefix) error {
-	linkIP := addr.Masked().Addr().Next()
+func configInterfaceRouting(interfaceIndex int, addr netip.Prefix) error {
+	linkIP := addr.Masked().Addr().Next().AsSlice()
 	for _, route := range defaultRoutes {
-		if err := execRouterCmd("add", route, interfaceName, linkIP.String()); err != nil {
+		_, dst, _ := net.ParseCIDR(route)
+		rt := &netlink.Route{
+			Src:       linkIP,
+			Dst:       dst,
+			Table:     unix.RT_TABLE_MAIN,
+			Scope:     unix.RT_SCOPE_LINK,
+			Protocol:  unix.RTPROT_KERNEL,
+			LinkIndex: interfaceIndex,
+		}
+
+		if err := netlink.RouteAdd(rt); err != nil {
 			return err
 		}
 	}
@@ -49,51 +91,129 @@ func configInterfaceRouting(interfaceName string, addr netip.Prefix) error {
 	return nil
 }
 
-func execRouterCmd(action, route string, interfaceName string, linkIP string) error {
-	cmdStr := fmt.Sprintf("ip route %s %s dev %s proto kernel scope link src %s", action, route, interfaceName, linkIP)
+func defaultRouteInterface() (*DefaultInterface, error) {
+	routes, err := netlink.RouteListFiltered(unix.AF_INET, &netlink.Route{Dst: nil}, netlink.RT_FILTER_DST)
+	if err != nil {
+		return nil, err
+	}
 
-	_, err := cmd.ExecCmd(cmdStr)
-	return err
+	for _, route := range routes {
+		if route.LinkIndex != 0 && route.Gw != nil {
+			link, err := netlink.LinkByIndex(route.LinkIndex)
+			if err != nil {
+				return nil, err
+			}
+
+			if link.Type() != "device" && link.Type() != "bridge" && link.Type() != "veth" {
+				continue
+			}
+
+			ip := route.Src
+			if ip == nil {
+				addrs, err := netlink.AddrList(link, unix.AF_INET)
+				if err != nil {
+					return nil, err
+				}
+				if len(addrs) == 0 {
+					return nil, fmt.Errorf("interface address not found")
+				}
+				ip = addrs[0].IP
+			}
+
+			return &DefaultInterface{
+				Name:    link.Attrs().Name,
+				Index:   route.LinkIndex,
+				IP:      nnip.IpToAddr(ip),
+				Gateway: nnip.IpToAddr(route.Gw),
+			}, nil
+		}
+	}
+
+	return nil, errInterfaceNotFound
+}
+
+func defaultRouteChangeCallback(update netlink.RouteUpdate) {
+	routeChangeMux.Lock()
+	defer routeChangeMux.Unlock()
+
+	route := update.Route
+	if route.Family != unix.AF_INET || route.Dst != nil || route.Gw == nil {
+		return
+	}
+
+	routeInterface, err := defaultRouteInterface()
+	if err != nil {
+		if err == errInterfaceNotFound && tunStatus == C.TunEnabled {
+			log.Warnln("[TUN] lost the default interface, pause tun adapter")
+
+			tunStatus = C.TunPaused
+			tunChangeCallback.Pause()
+		}
+		return
+	}
+
+	ifaceM, err := netlink.LinkByIndex(route.LinkIndex)
+	if err != nil {
+		log.Warnln("[TUN] default interface monitor err: %v", err)
+		return
+	}
+
+	interfaceName := routeInterface.Name
+
+	if ifaceM.Attrs().Name != interfaceName {
+		return
+	}
+
+	dialer.DefaultInterface.Store(interfaceName)
+
+	iface.FlushCache()
+
+	if tunStatus == C.TunPaused {
+		log.Warnln("[TUN] found interface %s(%s), resume tun adapter", interfaceName, routeInterface.IP)
+
+		tunStatus = C.TunEnabled
+		tunChangeCallback.Resume()
+		return
+	}
+
+	log.Warnln("[TUN] default interface changed to %s(%s) by monitor", interfaceName, routeInterface.IP)
 }
 
 func StartDefaultInterfaceChangeMonitor() {
 	monitorMux.Lock()
-	if monitorStarted {
+	if routeCancel != nil {
 		monitorMux.Unlock()
 		return
 	}
-	monitorStarted = true
+
+	routeCtx, routeCancel = context.WithCancel(context.Background())
 	monitorMux.Unlock()
 
-	select {
-	case <-monitorStop:
-	default:
+	routeChan := make(chan netlink.RouteUpdate)
+	closeChan := make(chan struct{})
+
+	if err := netlink.RouteSubscribe(routeChan, closeChan); err != nil {
+		routeCancel()
+		routeCancel = nil
+		routeCtx = nil
+
+		log.Errorln("[TUN] subscribe route change notifications failed: %v", err)
+		return
 	}
 
-	t := time.NewTicker(monitorDuration)
-	defer t.Stop()
+	tunStatus = C.TunEnabled
+
+	log.Infoln("[TUN] subscribe route change notifications")
 
 	for {
 		select {
-		case <-t.C:
-			interfaceName, err := GetAutoDetectInterface()
-			if err != nil {
-				log.Warnln("[TUN] default interface monitor err: %v", err)
-				continue
+		case update := <-routeChan:
+			defaultRouteChangeCallback(update)
+		case <-routeCtx.Done():
+			close(closeChan)
+			for range routeChan {
 			}
-
-			old := dialer.DefaultInterface.Load()
-			if interfaceName == old {
-				continue
-			}
-
-			dialer.DefaultInterface.Store(interfaceName)
-
-			iface.FlushCache()
-
-			log.Warnln("[TUN] default interface changed by monitor, %s => %s", old, interfaceName)
-		case <-monitorStop:
-			break
+			return
 		}
 	}
 }
@@ -102,8 +222,14 @@ func StopDefaultInterfaceChangeMonitor() {
 	monitorMux.Lock()
 	defer monitorMux.Unlock()
 
-	if monitorStarted {
-		monitorStop <- struct{}{}
-		monitorStarted = false
+	if routeCancel == nil || tunStatus == C.TunPaused {
+		return
 	}
+
+	routeCancel()
+	routeCancel = nil
+	routeCtx = nil
+
+	tunChangeCallback = nil
+	tunStatus = C.TunDisabled
 }

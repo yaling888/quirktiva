@@ -8,6 +8,7 @@ import (
 
 	"github.com/Dreamacro/clash/listener/tun/device"
 
+	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip/link/fdbased"
 	"gvisor.dev/gvisor/pkg/tcpip/link/rawfile"
@@ -82,6 +83,10 @@ func (t *TUN) Write(packet []byte) (int, error) {
 }
 
 func (t *TUN) Close() error {
+	if link, err := netlink.LinkByName(t.name); err == nil {
+		_ = netlink.LinkDel(link)
+	}
+
 	return unix.Close(t.fd)
 }
 

@@ -4,6 +4,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/Dreamacro/clash/common/pool"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/adapter"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/option"
 	"github.com/Dreamacro/clash/log"
@@ -19,17 +20,17 @@ import (
 const (
 	// defaultWndSize if set to zero, the default
 	// receive window buffer size is used instead.
-	defaultWndSize = 0
+	defaultWndSize = pool.RelayBufferSize
 
 	// maxConnAttempts specifies the maximum number
 	// of in-flight tcp connection attempts.
-	maxConnAttempts = 2 << 10
+	maxConnAttempts = 1 << 10
 
 	// tcpKeepaliveCount is the maximum number of
 	// TCP keep-alive probes to send before giving up
 	// and killing the connection if no response is
 	// obtained from the other end.
-	tcpKeepaliveCount = 9
+	tcpKeepaliveCount = 8
 
 	// tcpKeepaliveIdle specifies the time a connection
 	// must remain idle before the first TCP keepalive
@@ -65,14 +66,26 @@ func withTCPHandler(handle adapter.TCPHandleFunc) option.Option {
 				r.Complete(true)
 				return
 			}
-			defer r.Complete(false)
 
 			err = setSocketOptions(s, ep)
+			if err != nil {
+				ep.Close()
+				r.Complete(true)
+				return
+			}
+			defer r.Complete(false)
 
 			conn := &tcpConn{
 				TCPConn: gonet.NewTCPConn(&wq, ep),
 				id:      id,
 			}
+
+			if conn.RemoteAddr() == nil {
+				log.Warnln("[STACK] endpoint is not connected, current state: %v", tcp.EndpointState(ep.State()))
+				_ = conn.Close()
+				return
+			}
+
 			handle(conn)
 		})
 		s.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
