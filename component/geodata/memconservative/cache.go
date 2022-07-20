@@ -5,11 +5,11 @@ import (
 	"os"
 	"strings"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/Dreamacro/clash/component/geodata/router"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/log"
-
-	"google.golang.org/protobuf/proto"
 )
 
 type GeoIPCache map[string]*router.GeoIP

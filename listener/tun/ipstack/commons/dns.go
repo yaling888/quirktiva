@@ -4,10 +4,10 @@ import (
 	"net/netip"
 	"time"
 
+	D "github.com/miekg/dns"
+
 	"github.com/Dreamacro/clash/component/resolver"
 	C "github.com/Dreamacro/clash/constant"
-
-	D "github.com/miekg/dns"
 )
 
 const DefaultDnsReadTimeout = time.Second * 10

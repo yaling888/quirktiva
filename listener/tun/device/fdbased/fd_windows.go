@@ -3,9 +3,9 @@ package fdbased
 import (
 	"errors"
 
-	"github.com/Dreamacro/clash/listener/tun/device"
-
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
+
+	"github.com/Dreamacro/clash/listener/tun/device"
 )
 
 type FD struct {

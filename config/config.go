@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/Dreamacro/clash/adapter"
 	"github.com/Dreamacro/clash/adapter/outbound"
 	"github.com/Dreamacro/clash/adapter/outboundgroup"
@@ -31,8 +33,6 @@ import (
 	rewrites "github.com/Dreamacro/clash/rewrite"
 	R "github.com/Dreamacro/clash/rule"
 	T "github.com/Dreamacro/clash/tunnel"
-
-	"gopkg.in/yaml.v3"
 )
 
 // General config

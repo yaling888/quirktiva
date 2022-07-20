@@ -4,11 +4,11 @@ import (
 	"errors"
 	"net"
 
+	D "github.com/miekg/dns"
+
 	"github.com/Dreamacro/clash/common/sockopt"
 	"github.com/Dreamacro/clash/context"
 	"github.com/Dreamacro/clash/log"
-
-	D "github.com/miekg/dns"
 )
 
 var (

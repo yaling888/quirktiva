@@ -8,10 +8,10 @@ import (
 	"net/netip"
 	"strings"
 
+	D "github.com/miekg/dns"
+
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"
-
-	D "github.com/miekg/dns"
 )
 
 type client struct {

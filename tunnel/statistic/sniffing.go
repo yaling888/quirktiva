@@ -3,12 +3,12 @@ package statistic
 import (
 	"errors"
 
+	"go.uber.org/atomic"
+
 	"github.com/Dreamacro/clash/common/snifer/tls"
 	"github.com/Dreamacro/clash/component/resolver"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/log"
-
-	"go.uber.org/atomic"
 )
 
 type sniffing struct {

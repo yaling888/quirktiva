@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Dreamacro/clash/common/observable"
+	"github.com/sirupsen/logrus"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/Dreamacro/clash/common/observable"
 )
 
 var (
@@ -16,8 +16,8 @@ var (
 )
 
 func init() {
-	log.SetOutput(os.Stdout)
-	log.SetLevel(log.DebugLevel)
+	logrus.SetOutput(os.Stdout)
+	logrus.SetLevel(logrus.DebugLevel)
 }
 
 type Event struct {
@@ -54,7 +54,7 @@ func Debugln(format string, v ...any) {
 }
 
 func Fatalln(format string, v ...any) {
-	log.Fatalf(format, v...)
+	logrus.Fatalf(format, v...)
 }
 
 func Subscribe() observable.Subscription[Event] {
@@ -81,13 +81,13 @@ func print(data Event) {
 
 	switch data.LogLevel {
 	case INFO:
-		log.Infoln(data.Payload)
+		logrus.Infoln(data.Payload)
 	case WARNING:
-		log.Warnln(data.Payload)
+		logrus.Warnln(data.Payload)
 	case ERROR:
-		log.Errorln(data.Payload)
+		logrus.Errorln(data.Payload)
 	case DEBUG:
-		log.Debugln(data.Payload)
+		logrus.Debugln(data.Payload)
 	}
 }
 

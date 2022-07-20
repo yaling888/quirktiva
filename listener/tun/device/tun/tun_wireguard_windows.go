@@ -1,10 +1,10 @@
 package tun
 
 import (
-	"github.com/Dreamacro/clash/listener/tun/device/tun/driver"
-
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wireguard/tun"
+
+	"github.com/Dreamacro/clash/listener/tun/device/tun/driver"
 )
 
 const (

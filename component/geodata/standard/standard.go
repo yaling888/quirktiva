@@ -6,11 +6,11 @@ import (
 	"os"
 	"strings"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/Dreamacro/clash/component/geodata"
 	"github.com/Dreamacro/clash/component/geodata/router"
 	C "github.com/Dreamacro/clash/constant"
-
-	"google.golang.org/protobuf/proto"
 )
 
 func ReadFile(path string) ([]byte, error) {

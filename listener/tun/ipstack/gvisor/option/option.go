@@ -3,14 +3,14 @@ package option
 import (
 	"fmt"
 
-	"github.com/Dreamacro/clash/common/pool"
-
 	"golang.org/x/time/rate"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
+
+	"github.com/Dreamacro/clash/common/pool"
 )
 
 const (

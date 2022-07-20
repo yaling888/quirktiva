@@ -17,11 +17,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Dreamacro/clash/common/pool"
-	C "github.com/Dreamacro/clash/constant"
-
 	"go.uber.org/atomic"
 	"golang.org/x/net/http2"
+
+	"github.com/Dreamacro/clash/common/pool"
+	C "github.com/Dreamacro/clash/constant"
 )
 
 var (

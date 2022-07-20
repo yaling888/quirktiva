@@ -3,10 +3,10 @@ package gvisor
 import (
 	"fmt"
 
-	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/option"
-
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
+
+	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/option"
 )
 
 const (

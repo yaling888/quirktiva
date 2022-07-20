@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
+
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"
 	"github.com/Dreamacro/clash/config"
@@ -14,9 +17,6 @@ import (
 	"github.com/Dreamacro/clash/listener/tun/ipstack/commons"
 	"github.com/Dreamacro/clash/log"
 	"github.com/Dreamacro/clash/tunnel"
-
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 )
 
 func configRouter() http.Handler {

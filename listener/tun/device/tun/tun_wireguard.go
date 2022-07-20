@@ -7,10 +7,10 @@ import (
 	"os"
 	"runtime"
 
+	"golang.zx2c4.com/wireguard/tun"
+
 	"github.com/Dreamacro/clash/listener/tun/device"
 	"github.com/Dreamacro/clash/listener/tun/device/iobased"
-
-	"golang.zx2c4.com/wireguard/tun"
 )
 
 type TUN struct {

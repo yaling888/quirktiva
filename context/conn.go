@@ -3,9 +3,9 @@ package context
 import (
 	"net"
 
-	C "github.com/Dreamacro/clash/constant"
-
 	"github.com/gofrs/uuid"
+
+	C "github.com/Dreamacro/clash/constant"
 )
 
 type ConnContext struct {

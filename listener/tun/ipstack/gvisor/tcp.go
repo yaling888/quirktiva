@@ -4,17 +4,17 @@ import (
 	"net"
 	"time"
 
-	"github.com/Dreamacro/clash/common/pool"
-	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/adapter"
-	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/option"
-	"github.com/Dreamacro/clash/log"
-
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/waiter"
+
+	"github.com/Dreamacro/clash/common/pool"
+	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/adapter"
+	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/option"
+	"github.com/Dreamacro/clash/log"
 )
 
 const (

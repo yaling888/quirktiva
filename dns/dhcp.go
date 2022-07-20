@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
+	D "github.com/miekg/dns"
+
 	"github.com/Dreamacro/clash/component/dhcp"
 	"github.com/Dreamacro/clash/component/iface"
 	"github.com/Dreamacro/clash/component/resolver"
-
-	D "github.com/miekg/dns"
 )
 
 const (

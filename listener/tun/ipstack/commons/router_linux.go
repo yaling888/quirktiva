@@ -2,10 +2,13 @@ package commons
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/netip"
 	"sync"
+	"time"
+
+	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 
 	"github.com/Dreamacro/clash/common/nnip"
 	"github.com/Dreamacro/clash/component/dialer"
@@ -13,9 +16,6 @@ import (
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/listener/tun/device"
 	"github.com/Dreamacro/clash/log"
-
-	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 )
 
 var (
@@ -25,9 +25,25 @@ var (
 )
 
 func GetAutoDetectInterface() (string, error) {
+	var (
+		retryOnFailure = true
+		tryTimes       = 0
+	)
+startOver:
+	if tryTimes > 0 {
+		log.Infoln("[TUN] Start tun retrying lookup default interface after failure because system just booted")
+		time.Sleep(time.Second)
+		retryOnFailure = retryOnFailure && tryTimes < 15
+	}
+	tryTimes++
+
 	ifaceM, err := defaultRouteInterface()
 	if err != nil {
-		return "", err
+		if err == errInterfaceNotFound && retryOnFailure {
+			goto startOver
+		} else {
+			return "", err
+		}
 	}
 	return ifaceM.Name, nil
 }
@@ -43,16 +59,10 @@ func ConfigInterfaceAddress(dev device.Device, addr netip.Prefix, _ int, autoRou
 		return err
 	}
 
-	bits := ip.BitLen()
-	ones := addr.Bits()
-	if bits > 32 {
-		ones += 96
-	}
-
 	address := &netlink.Addr{
 		IPNet: &net.IPNet{
 			IP:   ip.AsSlice(),
-			Mask: net.CIDRMask(ones, bits),
+			Mask: net.CIDRMask(addr.Bits(), ip.BitLen()),
 		},
 	}
 
@@ -66,6 +76,8 @@ func ConfigInterfaceAddress(dev device.Device, addr netip.Prefix, _ int, autoRou
 
 	if autoRoute {
 		err = configInterfaceRouting(devInterface.Attrs().Index, addr)
+	} else {
+		_, err = GetAutoDetectInterface()
 	}
 	return err
 }
@@ -115,7 +127,7 @@ func defaultRouteInterface() (*DefaultInterface, error) {
 					return nil, err
 				}
 				if len(addrs) == 0 {
-					return nil, fmt.Errorf("interface address not found")
+					continue
 				}
 				ip = addrs[0].IP
 			}

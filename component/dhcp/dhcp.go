@@ -6,10 +6,10 @@ import (
 	"net"
 	"net/netip"
 
+	"github.com/insomniacslk/dhcp/dhcpv4"
+
 	"github.com/Dreamacro/clash/common/nnip"
 	"github.com/Dreamacro/clash/component/iface"
-
-	"github.com/insomniacslk/dhcp/dhcpv4"
 )
 
 var (

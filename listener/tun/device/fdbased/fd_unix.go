@@ -7,10 +7,10 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/Dreamacro/clash/listener/tun/device"
-
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
+
+	"github.com/Dreamacro/clash/listener/tun/device"
 )
 
 type FD struct {

@@ -5,10 +5,10 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/oschwald/geoip2-golang"
+
 	"github.com/Dreamacro/clash/component/geodata"
 	C "github.com/Dreamacro/clash/constant"
-
-	"github.com/oschwald/geoip2-golang"
 )
 
 func UpdateGeoDatabases() error {

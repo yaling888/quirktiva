@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"unsafe"
 
-	"github.com/Dreamacro/clash/listener/tun/device"
-
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip/link/fdbased"
 	"gvisor.dev/gvisor/pkg/tcpip/link/rawfile"
 	"gvisor.dev/gvisor/pkg/tcpip/link/tun"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
+
+	"github.com/Dreamacro/clash/listener/tun/device"
 )
 
 type TUN struct {
