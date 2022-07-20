@@ -23,7 +23,7 @@ func withUDPHandler(handle adapter.UDPHandleFunc) option.Option {
 			)
 			ep, err := r.CreateEndpoint(&wq)
 			if err != nil {
-				log.Warnln("[STACK] udp forwarder request %s:%d->%s:%d: %s", id.RemoteAddress, id.RemotePort, id.LocalAddress, id.LocalPort, err)
+				log.Warnln("[Stack] udp forwarder request %s:%d->%s:%d: %s", id.RemoteAddress, id.RemotePort, id.LocalAddress, id.LocalPort, err)
 				return
 			}
 

@@ -42,18 +42,18 @@ func updateGeoDatabases(w http.ResponseWriter, r *http.Request) {
 			updatingGeo = false
 		}()
 
-		log.Warnln("[REST-API] updating GEO databases...")
+		log.Warnln("[RESTful API] updating GEO databases...")
 
 		if err := config.UpdateGeoDatabases(); err != nil {
-			log.Errorln("[REST-API] update GEO databases failed: %v", err)
+			log.Errorln("[RESTful API] update GEO databases failed: %v", err)
 			return
 		}
 
-		log.Warnln("[REST-API] update GEO databases successful, apply config...")
+		log.Warnln("[RESTful API] update GEO databases successful, apply config...")
 
 		cfg, err := executor.ParseWithPath(constant.Path.Config())
 		if err != nil {
-			log.Errorln("[REST-API] update GEO databases failed: %v", err)
+			log.Errorln("[RESTful API] update GEO databases failed: %v", err)
 			return
 		}
 

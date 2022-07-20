@@ -55,7 +55,7 @@ func withTCPHandler(handle adapter.TCPHandleFunc) option.Option {
 
 			defer func() {
 				if err != nil {
-					log.Warnln("[STACK] forward tcp request %s:%d->%s:%d: %s", id.RemoteAddress, id.RemotePort, id.LocalAddress, id.LocalPort, err)
+					log.Warnln("[Stack] forward tcp request %s:%d->%s:%d: %s", id.RemoteAddress, id.RemotePort, id.LocalAddress, id.LocalPort, err)
 				}
 			}()
 

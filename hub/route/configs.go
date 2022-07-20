@@ -143,7 +143,7 @@ func patchConfigs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	msg, _ := json.Marshal(general)
-	log.Warnln("[REST-API] patch config by: %s", string(msg))
+	log.Warnln("[RESTful API] patch config by: %s", string(msg))
 
 	render.NoContent(w, r)
 }
@@ -166,7 +166,7 @@ func updateConfigs(w http.ResponseWriter, r *http.Request) {
 	var err error
 
 	if req.Payload != "" {
-		log.Warnln("[REST-API] update config by payload")
+		log.Warnln("[RESTful API] update config by payload")
 		cfg, err = executor.ParseWithBytes([]byte(req.Payload))
 		if err != nil {
 			render.Status(r, http.StatusBadRequest)
@@ -183,7 +183,7 @@ func updateConfigs(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		log.Warnln("[REST-API] reload config from path: %s", req.Path)
+		log.Warnln("[RESTful API] reload config from path: %s", req.Path)
 		cfg, err = executor.ParseWithPath(req.Path)
 		if err != nil {
 			render.Status(r, http.StatusBadRequest)

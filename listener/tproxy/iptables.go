@@ -175,11 +175,11 @@ func addLocalnetworkToChain(chain string) {
 }
 
 func execCmd(cmdStr string) error {
-	log.Debugln("[IPTABLES] %s", cmdStr)
+	log.Debugln("[iptables] %s", cmdStr)
 
 	_, err := cmd.ExecCmd(cmdStr)
 	if err != nil {
-		log.Warnln("[IPTABLES] exec cmd: %v", err)
+		log.Warnln("[iptables] exec cmd: %v", err)
 	}
 
 	return err

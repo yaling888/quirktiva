@@ -1,70 +1,119 @@
-GOCMD=go
-XGOCMD=xgo -go=go-1.18.x
-GOBUILD=CGO_ENABLED=1 $(GOCMD) build -trimpath
-GOCLEAN=$(GOCMD) clean
-NAME=clash
-BINDIR=$(shell pwd)/bin
-VERSION=$(shell git describe --tags --always 2>/dev/null ||  date +%F)
+NAME=clash-plus-pro
+BINDIR=bin
+VERSION=$(shell git describe --tags --always || echo "unknown version")
 BUILDTIME=$(shell date -u)
-BUILD_PACKAGE=.
-RELEASE_LDFLAGS='-X "github.com/Dreamacro/clash/constant.Version=$(VERSION)" \
-                		-X "github.com/Dreamacro/clash/constant.BuildTime=$(BUILDTIME)" \
-                		-w -s -buildid='
-STATIC_LDFLAGS='-X "github.com/Dreamacro/clash/constant.Version=$(VERSION)" \
-               		-X "github.com/Dreamacro/clash/constant.BuildTime=$(BUILDTIME)" \
-               		-extldflags "-static" \
-               		-w -s -buildid='
+GOBUILD=CGO_ENABLED=0 go build -trimpath -ldflags '-X "github.com/Dreamacro/clash/constant.Version=$(VERSION)" \
+		-X "github.com/Dreamacro/clash/constant.BuildTime=$(BUILDTIME)" \
+		-w -s -buildid='
 
 PLATFORM_LIST = \
 	darwin-amd64 \
+	darwin-amd64-v3 \
 	darwin-arm64 \
-	linux-amd64
-#	linux-arm64
-#	linux-386
+	linux-386 \
+	linux-amd64 \
+	linux-amd64-v3 \
+	linux-armv5 \
+	linux-armv6 \
+	linux-armv7 \
+	linux-armv8 \
+	linux-mips-softfloat \
+	linux-mips-hardfloat \
+	linux-mipsle-softfloat \
+	linux-mipsle-hardfloat \
+	linux-mips64 \
+	linux-mips64le \
+	freebsd-386 \
+	freebsd-amd64 \
+	freebsd-amd64-v3 \
+	freebsd-arm64
 
 WINDOWS_ARCH_LIST = \
+	windows-386 \
 	windows-amd64 \
-	windows-386
-#	windows-arm64
+	windows-amd64-v3 \
+	windows-arm64 \
+	windows-arm32v7
 
 all: linux-amd64 darwin-amd64 windows-amd64 # Most used
 
-local:
-	$(GOBUILD) -ldflags $(RELEASE_LDFLAGS) -tags build_local -o $(BINDIR)/$(NAME)-$@
-
-local-v3:
-	 GOAMD64=v3 $(GOBUILD) -ldflags $(RELEASE_LDFLAGS) -tags build_local -o $(BINDIR)/$(NAME)-$@
+docker:
+	$(GOBUILD) -o $(BINDIR)/$(NAME)-$@
 
 darwin-amd64:
-	$(XGOCMD) -dest=$(BINDIR) -out=$(NAME) -trimpath=true -ldflags=$(RELEASE_LDFLAGS) -targets=darwin-10.12/amd64 $(BUILD_PACKAGE) && \
-	mv $(BINDIR)/$(NAME)-darwin-10.12-amd64 $(BINDIR)/$(NAME)-darwin-amd64
+	GOARCH=amd64 GOOS=darwin $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
+
+darwin-amd64-v3:
+	GOARCH=amd64 GOOS=darwin GOAMD64=v3 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
 
 darwin-arm64:
-	$(XGOCMD) -dest=$(BINDIR) -out=$(NAME) -trimpath=true -ldflags=$(RELEASE_LDFLAGS) -targets=darwin-11.1/arm64 $(BUILD_PACKAGE) && \
-	mv $(BINDIR)/$(NAME)-darwin-11.1-arm64 $(BINDIR)/$(NAME)-darwin-arm64
+	GOARCH=arm64 GOOS=darwin $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
 
 linux-386:
-	$(XGOCMD) -dest=$(BINDIR) -out=$(NAME) -trimpath=true -ldflags=$(STATIC_LDFLAGS) -targets=linux/386 $(BUILD_PACKAGE)
+	GOARCH=386 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
 
 linux-amd64:
-	$(GOBUILD) -ldflags $(RELEASE_LDFLAGS) -o $(BINDIR)/$(NAME)-$@
-	#GOARCH=amd64 GOOS=linux $(GOBUILD) -ldflags $(RELEASE_LDFLAGS) -o $(BINDIR)/$(NAME)-$@
-	#$(XGOCMD) -dest=$(BINDIR) -out=$(NAME) -trimpath=true -ldflags=$(STATIC_LDFLAGS) -targets=linux/amd64 $(BUILD_PACKAGE)
+	GOARCH=amd64 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
 
-linux-arm64:
-	$(XGOCMD) -dest=$(BINDIR) -out=$(NAME) -trimpath=true -ldflags=$(STATIC_LDFLAGS) -targets=linux/arm64 $(BUILD_PACKAGE)
+linux-amd64-v3:
+	GOARCH=amd64 GOOS=linux GOAMD64=v3 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
+
+linux-armv5:
+	GOARCH=arm GOOS=linux GOARM=5 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
+
+linux-armv6:
+	GOARCH=arm GOOS=linux GOARM=6 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
+
+linux-armv7:
+	GOARCH=arm GOOS=linux GOARM=7 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
+
+linux-armv8:
+	GOARCH=arm64 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
+
+linux-mips-softfloat:
+	GOARCH=mips GOMIPS=softfloat GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
+
+linux-mips-hardfloat:
+	GOARCH=mips GOMIPS=hardfloat GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
+
+linux-mipsle-softfloat:
+	GOARCH=mipsle GOMIPS=softfloat GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
+
+linux-mipsle-hardfloat:
+	GOARCH=mipsle GOMIPS=hardfloat GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
+
+linux-mips64:
+	GOARCH=mips64 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
+
+linux-mips64le:
+	GOARCH=mips64le GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
+
+freebsd-386:
+	GOARCH=386 GOOS=freebsd $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
+
+freebsd-amd64:
+	GOARCH=amd64 GOOS=freebsd $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
+
+freebsd-amd64-v3:
+	GOARCH=amd64 GOOS=freebsd GOAMD64=v3 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
+
+freebsd-arm64:
+	GOARCH=arm64 GOOS=freebsd $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
 
 windows-386:
-	$(XGOCMD) -dest=$(BINDIR) -out=$(NAME) -trimpath=true -ldflags=$(RELEASE_LDFLAGS) -targets=windows-6.0/386 $(BUILD_PACKAGE) && \
-	mv $(BINDIR)/$(NAME)-windows-6.0-386.exe $(BINDIR)/$(NAME)-windows-386.exe
+	GOARCH=386 GOOS=windows $(GOBUILD) -o $(BINDIR)/$(NAME)-$@.exe
 
 windows-amd64:
-	$(XGOCMD) -dest=$(BINDIR) -out=$(NAME) -trimpath=true -ldflags=$(RELEASE_LDFLAGS) -targets=windows-6.0/amd64 $(BUILD_PACKAGE) && \
-	mv $(BINDIR)/$(NAME)-windows-6.0-amd64.exe $(BINDIR)/$(NAME)-windows-amd64.exe
+	GOARCH=amd64 GOOS=windows $(GOBUILD) -o $(BINDIR)/$(NAME)-$@.exe
 
-#windows-arm64:
-#	$(XGOCMD) -dest=$(BINDIR) -out=$(NAME) -trimpath=true -ldflags=$(RELEASE_LDFLAGS) -targets=windows/arm64 $(BUILD_PACKAGE)
-#	mv $(NAME)-windows-4.0-arm64.exe $(NAME)-windows-arm64.exe
+windows-amd64-v3:
+	GOARCH=amd64 GOOS=windows GOAMD64=v3 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@.exe
+
+windows-arm64:
+	GOARCH=arm64 GOOS=windows $(GOBUILD) -o $(BINDIR)/$(NAME)-$@.exe
+
+windows-arm32v7:
+	GOARCH=arm GOOS=windows GOARM=7 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@.exe
 
 gz_releases=$(addsuffix .gz, $(PLATFORM_LIST))
 zip_releases=$(addsuffix .zip, $(WINDOWS_ARCH_LIST))
@@ -81,17 +130,14 @@ all-arch: $(PLATFORM_LIST) $(WINDOWS_ARCH_LIST)
 releases: $(gz_releases) $(zip_releases)
 
 vet:
-	$(GOCMD) test -tags build_local ./...
+	go test ./...
 
 lint:
-	golangci-lint run --build-tags=build_local ./...
+	GOOS=darwin golangci-lint run ./...
+	GOOS=windows golangci-lint run ./...
+	GOOS=linux golangci-lint run ./...
+	GOOS=freebsd golangci-lint run ./...
+	GOOS=openbsd golangci-lint run ./...
 
 clean:
-	rm -rf $(BINDIR)/
-	mkdir -p $(BINDIR)
-
-cleancache:
-	# go build cache may need to cleanup if changing C source code
-	$(GOCLEAN) -cache
-	rm -rf $(BINDIR)/
-	mkdir -p $(BINDIR)
+	rm -rf $(BINDIR)/*

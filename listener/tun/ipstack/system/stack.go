@@ -77,7 +77,7 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 		for !ipStack.closed {
 			conn, err := stack.TCP().Accept()
 			if err != nil {
-				log.Debugln("[STACK] accept connection error: %v", err)
+				log.Debugln("[Stack] accept connection error: %v", err)
 				continue
 			}
 

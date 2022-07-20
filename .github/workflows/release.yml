@@ -73,7 +73,7 @@ jobs:
       - name: Build
         #if: startsWith(github.ref, 'refs/tags/')
         env:
-          NAME: clash
+          NAME: clash-plus-pro
           BINDIR: bin
         run: |
           make -j releases
@@ -100,10 +100,10 @@ jobs:
         with:
           files: bin/*
           draft: true
-          prerelease: true
+          prerelease: false
           generate_release_notes: true
 
-      #- name: Delete workflow runs
+      # - name: Delete workflow runs
       #  uses: GitRML/delete-workflow-runs@main
       #  with:
       #    retain_days: 1
