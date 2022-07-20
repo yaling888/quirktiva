@@ -16,7 +16,6 @@ import (
 	"github.com/Dreamacro/clash/component/nat"
 	P "github.com/Dreamacro/clash/component/process"
 	"github.com/Dreamacro/clash/component/resolver"
-	S "github.com/Dreamacro/clash/component/script"
 	"github.com/Dreamacro/clash/component/trie"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/constant/provider"
@@ -47,6 +46,17 @@ var (
 
 	// mitmProxy mitm proxy
 	mitmProxy C.Proxy
+
+	// scriptMainMatcher script main function eval
+	scriptMainMatcher C.Matcher
+
+	scriptProxyProvidersGetter = func() map[string][]C.Proxy {
+		providersMap := make(map[string][]C.Proxy)
+		for k, v := range providers {
+			providersMap[k] = v.Proxies()
+		}
+		return providersMap
+	}
 )
 
 func init() {
@@ -90,6 +100,7 @@ func UpdateProxies(newProxies map[string]C.Proxy, newProviders map[string]provid
 	configMux.Lock()
 	proxies = newProxies
 	providers = newProviders
+	C.GetScriptProxyProviders = scriptProxyProvidersGetter
 	configMux.Unlock()
 }
 
@@ -130,6 +141,14 @@ func UpdateRewrites(hosts *trie.DomainTrie[bool], rules C.RewriteRule) {
 	configMux.Lock()
 	rewriteHosts = hosts
 	rewrites = rules
+	configMux.Unlock()
+}
+
+// UpdateScript update script config
+func UpdateScript(providers map[string]C.Rule, matcher C.Matcher) {
+	configMux.Lock()
+	C.SetScriptRuleProviders(providers)
+	scriptMainMatcher = matcher
 	configMux.Unlock()
 }
 
@@ -462,13 +481,13 @@ func matchScript(metadata *C.Metadata) (C.Proxy, error) {
 		metadata.DstIP = node.Data
 	}
 
-	adapter, err := S.CallPyMainFunction(metadata)
+	adapter, err := scriptMainMatcher.Eval(metadata)
 	if err != nil {
 		return nil, err
 	}
 
 	if _, ok := proxies[adapter]; !ok {
-		return nil, fmt.Errorf("proxy [%s] not found by script", adapter)
+		return nil, fmt.Errorf("proxy adapter [%s] not found by script", adapter)
 	}
 
 	return proxies[adapter], nil

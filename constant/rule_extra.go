@@ -7,8 +7,6 @@ import (
 	"github.com/Dreamacro/clash/component/geodata/router"
 )
 
-const ScriptRuleGeoSiteTarget = "__WhateverTarget__"
-
 type RuleExtra struct {
 	Network      NetWork
 	SourceIPs    []*netip.Prefix

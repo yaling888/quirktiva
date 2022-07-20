@@ -5,9 +5,21 @@ import (
 	"net"
 	"net/netip"
 	"strconv"
+	"strings"
 
 	"github.com/Dreamacro/clash/transport/socks5"
 )
+
+var MetadataTypeMapping = map[string]Type{
+	strings.ToLower(HTTP.String()):        HTTP,
+	strings.ToLower(HTTPCONNECT.String()): HTTPCONNECT,
+	strings.ToLower(SOCKS4.String()):      SOCKS4,
+	strings.ToLower(SOCKS5.String()):      SOCKS5,
+	strings.ToLower(REDIR.String()):       REDIR,
+	strings.ToLower(TPROXY.String()):      TPROXY,
+	strings.ToLower(TUN.String()):         TUN,
+	strings.ToLower(MITM.String()):        MITM,
+}
 
 // Socks addr type
 const (
@@ -142,4 +154,23 @@ func (m *Metadata) String() string {
 
 func (m *Metadata) Valid() bool {
 	return m.Host != "" || m.DstIP.IsValid()
+}
+
+func (m *Metadata) TypeFromString(s string) {
+	if _type, ok := MetadataTypeMapping[strings.ToLower(s)]; ok {
+		m.Type = _type
+	} else {
+		m.Type = -1
+	}
+}
+
+func (m *Metadata) NetworkFromString(s string) {
+	switch strings.ToLower(s) {
+	case "tcp":
+		m.NetWork = TCP
+	case "udp":
+		m.NetWork = UDP
+	default:
+		m.NetWork = ALLNet
+	}
 }

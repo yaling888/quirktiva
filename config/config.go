@@ -146,6 +146,7 @@ type Config struct {
 	Users         []auth.AuthUser
 	Proxies       map[string]C.Proxy
 	Providers     map[string]providerTypes.ProxyProvider
+	MainMatcher   C.Matcher
 }
 
 type RawDNS struct {
@@ -317,13 +318,14 @@ func ParseRawConfig(rawCfg *RawConfig) (*Config, error) {
 	config.Proxies = proxies
 	config.Providers = providers
 
-	rawRules, err := parseScript(rawCfg.Script, rawCfg.Rule)
+	matchers, rawRules, err := parseScript(rawCfg.Script, rawCfg.Rule)
 	if err != nil {
 		return nil, err
 	}
 	rawCfg.Rule = rawRules
+	config.MainMatcher = matchers["main"]
 
-	rules, ruleProviders, err := parseRules(rawCfg, proxies)
+	rules, ruleProviders, err := parseRules(rawCfg, proxies, matchers)
 	if err != nil {
 		return nil, err
 	}
@@ -349,6 +351,10 @@ func ParseRawConfig(rawCfg *RawConfig) (*Config, error) {
 	config.Mitm = mitm
 
 	config.Users = parseAuthentication(rawCfg.Authentication)
+
+	if err = testScriptMatcher(config, matchers); err != nil {
+		return nil, err
+	}
 
 	return config, nil
 }
@@ -376,7 +382,9 @@ func parseGeneral(cfg *RawConfig) (*General, error) {
 		}
 	}
 
-	dialer.DefaultInterface.Store(cfg.Interface)
+	if dialer.DefaultInterface.Load() == "" {
+		dialer.DefaultInterface.Store(cfg.Interface)
+	}
 
 	return &General{
 		Inbound: Inbound{
@@ -512,11 +520,10 @@ func parseProxies(cfg *RawConfig) (proxies map[string]C.Proxy, providersMap map[
 	return proxies, providersMap, nil
 }
 
-func parseRules(cfg *RawConfig, proxies map[string]C.Proxy) ([]C.Rule, map[string]C.Rule, error) {
+func parseRules(cfg *RawConfig, proxies map[string]C.Proxy, matchers map[string]C.Matcher) ([]C.Rule, map[string]C.Rule, error) {
 	var (
-		rules         []C.Rule
-		providerNames []string
-		foundRP       bool
+		rules   []C.Rule
+		foundRP bool
 
 		ruleProviders = map[string]C.Rule{}
 		rulesConfig   = cfg.Rule
@@ -558,7 +565,7 @@ func parseRules(cfg *RawConfig, proxies map[string]C.Proxy) ([]C.Rule, map[strin
 			return nil, nil, fmt.Errorf("rules[%d] [%s] error: proxy [%s] not found", idx, line, target)
 		}
 
-		pvName := "geosite:" + strings.ToLower(payload)
+		pvName := payload
 		_, foundRP = ruleProviders[pvName]
 		if ruleName == "GEOSITE" && target == C.ScriptRuleGeoSiteTarget && foundRP {
 			continue
@@ -571,18 +578,19 @@ func parseRules(cfg *RawConfig, proxies map[string]C.Proxy) ([]C.Rule, map[strin
 			return nil, nil, fmt.Errorf("rules[%d] [%s] error: %s", idx, line, parseErr.Error())
 		}
 
+		if scr, ok := parsed.(*R.Script); ok {
+			m := matchers[payload]
+			if m == nil {
+				return nil, nil, fmt.Errorf("rules[%d] [%s] error: shortcut name [%s] not found", idx, line, payload)
+			}
+			scr.SetMatcher(m)
+		}
+
 		if ruleName == "GEOSITE" && !foundRP {
-			providerNames = append(providerNames, pvName)
 			ruleProviders[pvName] = parsed
 		}
 
 		rules = append(rules, parsed)
-	}
-
-	if err := S.NewClashPyContext(providerNames); err != nil {
-		return nil, nil, err
-	} else {
-		log.Infoln("Start initial script context successful, provider records: %v", len(providerNames))
 	}
 
 	runtime.GC()
@@ -854,7 +862,7 @@ func parseAuthentication(rawRecords []string) []auth.AuthUser {
 	return users
 }
 
-func parseScript(script Script, rawRules []string) ([]string, error) {
+func parseScript(script Script, rawRules []string) (map[string]C.Matcher, []string, error) {
 	var (
 		path          = script.MainPath
 		mainCode      = script.MainCode
@@ -863,15 +871,15 @@ func parseScript(script Script, rawRules []string) ([]string, error) {
 
 	if path != "" {
 		if !strings.HasSuffix(path, ".star") {
-			return nil, fmt.Errorf("initialized script file failure, script path [%s] invalid", path)
+			return nil, nil, fmt.Errorf("initialized script file failure, script path [%s] invalid", path)
 		}
 		path = C.Path.Resolve(path)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
-			return nil, fmt.Errorf("initialized script file failure, script path invalid: %w", err)
+			return nil, nil, fmt.Errorf("initialized script file failure, script path invalid: %w", err)
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {
-			return nil, fmt.Errorf("initialized script file failure, read file error: %w", err)
+			return nil, nil, fmt.Errorf("initialized script file failure, read file error: %w", err)
 		}
 		mainCode = string(data)
 	}
@@ -882,104 +890,46 @@ def main(ctx, metadata):
   return "DIRECT"
 `
 	} else {
-		mainCode = cleanPyKeywords(mainCode)
+		mainCode = cleanScriptKeywords(mainCode)
 	}
 
-	if !strings.Contains(mainCode, "def main(ctx, metadata):") {
-		return nil, fmt.Errorf(`initialized script code failure, the function 'def main(ctx, metadata):' is required`)
+	content := mainCode + "\n"
+
+	matcher, err := S.NewMatcher("main", "", mainCode)
+	if err != nil {
+		return nil, nil, fmt.Errorf("initialized script module failure, %w", err)
 	}
 
-	content := `# -*- coding: UTF-8 -*-
-
-from datetime import datetime as whatever
-
-class ClashTime:
-  def now(self):
-    return whatever.now()
-  
-  def unix(self):
-    return int(whatever.now().timestamp())
-
-  def unix_nano(self):
-    return int(round(whatever.now().timestamp() * 1000))
-
-time = ClashTime()
-
-class ClashRuleProvider:
-  def __init__(self, c, m):
-    self.__ctx = c
-    self.__metadata = m
-
-  def match_provider(self, providerName):
-    try:
-      return self.__ctx.rule_providers[providerName].match(self.__metadata)
-    except Exception as err:
-      self.__ctx.log("[SCRIPT] shortcuts error: rule provider {0} not found".format(err))
-      return False
-
-`
-
-	content += mainCode + "\n\n"
-
+	matchers := make(map[string]C.Matcher)
+	matchers["main"] = matcher
 	for k, v := range shortcutsCode {
-		v = cleanPyKeywords(v)
 		v = strings.TrimSpace(v)
 		if v == "" {
-			return nil, fmt.Errorf("initialized rule SCRIPT failure, shortcut [%s] code syntax invalid", k)
+			return nil, nil, fmt.Errorf("initialized rule SCRIPT failure, shortcut [%s] code syntax invalid", k)
 		}
 
-		content += "def " + strings.ToLower(k) + "(ctx, type, network, process_name, process_path, host, src_ip, src_port, dst_ip, dst_port):"
-		if strings.Contains(v, "match_provider") {
-			content += `
-  metadata = {
-    "type": type,
-    "network": network,
-    "process_name": process_name,
-    "process_path": process_path,
-    "host": host,
-    "src_ip": src_ip,
-    "src_port": src_port,
-    "dst_ip": dst_ip,
-    "dst_port": dst_port
-  }
-  crp = ClashRuleProvider(ctx, metadata)
-  match_provider = crp.match_provider`
+		m, err := S.NewMatcher(k, "", v)
+		if err != nil {
+			return nil, nil, fmt.Errorf("initialized script module failure, %w", err)
 		}
-		content += `
-  now = time.now()
-  return ` + v + "\n\n"
-	}
 
-	err := os.WriteFile(C.Path.Script(), []byte(content), 0o644)
-	if err != nil {
-		return nil, fmt.Errorf("initialized script module failure, %w", err)
-	}
-
-	if err = S.Py_Initialize(C.Path.GetExecutableFullPath(), C.Path.ScriptDir()); err != nil {
-		return nil, fmt.Errorf("initialized script module failure, %w", err)
-	}
-
-	if err = S.LoadMainFunction(); err != nil {
-		return nil, fmt.Errorf("initialized script module failure, %w", err)
+		matchers[k] = m
+		content += v + "\n"
 	}
 
 	rpdArr := findRuleProvidersName(content)
 	for _, v := range rpdArr {
-		if !strings.HasPrefix(v, "geosite:") {
-			return nil, fmt.Errorf("initialized script module failure, rule provider name must be start with \"geosite:\"")
-		}
-		v = strings.ToLower(v)
 		rule := fmt.Sprintf("GEOSITE,%s,%s", strings.TrimPrefix(v, "geosite:"), C.ScriptRuleGeoSiteTarget)
 		rawRules = append(rawRules, rule)
 	}
 
-	log.Infoln("Start initial script module successful, version: %s", S.Py_GetVersion())
+	log.Infoln("Start initial script module successful")
 
-	return rawRules, nil
+	return matchers, rawRules, nil
 }
 
-func cleanPyKeywords(code string) string {
-	keywords := []string{"import", "print"}
+func cleanScriptKeywords(code string) string {
+	keywords := []string{"load\\(", "def resolve_ip\\(", "def geoip\\(", "def match_provider\\(", "def in_cidr\\("}
 
 	for _, kw := range keywords {
 		reg := regexp.MustCompile("(?m)[\r\n]+^.*" + kw + ".*$")
@@ -1038,4 +988,48 @@ func parseMitm(rawMitm RawMitm) (*Mitm, error) {
 		Hosts: hosts,
 		Rules: rewrites.NewRewriteRules(req, res),
 	}, nil
+}
+
+func testScriptMatcher(config *Config, matchers map[string]C.Matcher) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("test script code panic: %v", r)
+		}
+	}()
+
+	metadata := &C.Metadata{
+		Type:    C.SOCKS5,
+		NetWork: C.TCP,
+		Host:    "www.example.com",
+		SrcIP:   netip.MustParseAddr("198.18.0.8"),
+		SrcPort: "12345",
+		DstPort: "443",
+	}
+
+	C.BackupScriptState()
+
+	C.GetScriptProxyProviders = func() map[string][]C.Proxy {
+		providersMap := make(map[string][]C.Proxy)
+		for k, v := range config.Providers {
+			providersMap[k] = v.Proxies()
+		}
+		return providersMap
+	}
+
+	C.SetScriptRuleProviders(config.RuleProviders)
+
+	for k, v := range matchers {
+		if k == "main" {
+			_, err = v.Eval(metadata)
+		} else {
+			_, err = v.Match(metadata)
+		}
+		if err != nil {
+			C.RestoreScriptState()
+			return fmt.Errorf("check script code failed: %w", err)
+		}
+	}
+
+	C.RestoreScriptState()
+	return nil
 }

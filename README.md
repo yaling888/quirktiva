@@ -36,29 +36,6 @@
 Documentations are now moved to [GitHub Wiki](https://github.com/Dreamacro/clash/wiki).
 
 ## Advanced usage for this branch
-### Build
-This branch requires cgo and Python3.9, so make sure you set up Python3.9 before building.
-
-For example, build on macOS:
-```sh
-brew update
-brew install python@3.9
-
-export PKG_CONFIG_PATH=$(find /usr/local/Cellar -name 'pkgconfig' -type d | grep lib/pkgconfig | tr '\n' ':' | sed s/.$//)
-
-git clone -b plus-pro https://github.com/yaling888/clash.git
-cd clash
-
-# build
-make local
-# or make local-v3
-
-ls bin/
-
-# run
-sudo bin/clash-local
-```
-
 ### General configuration
 ```yaml
 sniffing: true # Sniff TLS SNI
@@ -186,6 +163,7 @@ tun:
 Finally, open the Clash
 
 ### Rules configuration
+- Support rule `SCRIPT` shortcuts.
 - Support rule `GEOSITE`.
 - Support rule `USER-AGENT`.
 - Support `multiport` condition for rule `SRC-PORT` and `DST-PORT`.
@@ -200,7 +178,7 @@ The `GEOSITE` databases via [https://github.com/Loyalsoldier/v2ray-rules-dat](ht
 mode: rule
 
 script:
-  shortcuts:
+  shortcuts: # `src_port` and `dst_port` are number
     quic: 'network == "udp" and dst_port == 443'
     privacy: '"analytics" in host or "adservice" in host or "firebase" in host or "safebrowsing" in host or "doubleclick" in host'
     BilibiliUdp: |
@@ -244,9 +222,18 @@ rules:
 
   - MATCH,PROXY
 ```
+Script shortcut functions
+```ts
+type resolve_ip = (host: string) => string // ip string
+type in_cidr = (ip: string, cidr: string) => boolean // ip in cidr
+type geoip = (ip: string) => string // country code
+type match_provider = (name: string) => boolean // in rule provider
+```
 
 ### Script configuration
 Script enables users to programmatically select a policy for the packets with more flexibility.
+
+NOTE: If you want to use `ctx.geoip(ip)` you need to manually resolve ip first.
 
 ```yaml
 mode: script
@@ -255,7 +242,8 @@ script:
   # path: ./script.star
   code: |
     def main(ctx, metadata):
-      if metadata["process_name"] == 'apsd':
+      processName = ctx.resolve_process_name(metadata)
+      if processName == 'apsd':
         return "DIRECT"
 
       if metadata["network"] == 'udp' and metadata["dst_port"] == 443:
@@ -266,9 +254,9 @@ script:
         if kw in host:
           return "REJECT"
     
-      now = time.now()
-      if (now.hour < 8 or now.hour > 17) and metadata["src_ip"] == '192.168.1.99':
-        return "REJECT"
+      # now = time.now()
+      # if (now.hour < 8 or now.hour > 18) and metadata["src_ip"] == '192.168.1.99':
+      #   return "REJECT"
       
       if ctx.rule_providers["geosite:category-ads-all"].match(metadata):
         return "REJECT"
@@ -281,14 +269,18 @@ script:
         ctx.log('[Script] domain %s matched geolocation-cn' % host)
         return "DIRECT"
     
-      ip = metadata["dst_ip"] 
-      if host != "":
+      ip = metadata["dst_ip"]
+      if ip == "":
         ip = ctx.resolve_ip(host)
         if ip == "":
           return "Proxy"
-
+      
       code = ctx.geoip(ip)
-      if code == "LAN" or code == "CN":
+      if code == "TELEGRAM":
+        ctx.log('[Script] matched telegram')
+        return "Proxy"
+
+      if code == "CN" && code == "LAN" or code == "PRIVATE":
         return "DIRECT"
 
       return "Proxy" # default policy for requests which are not matched by any other script
@@ -297,20 +289,20 @@ the context and metadata
 ```ts
 interface Metadata {
   type: string // socks5、http
-  network: string // tcp
+  network: string // tcp、udp
   host: string
-  process_name: string
-  process_path: string
   src_ip: string
-  src_port: int
+  src_port: string
   dst_ip: string
-  dst_port: int
+  dst_port: string
 }
 
 interface Context {
   resolve_ip: (host: string) => string // ip string
+  resolve_process_name: (metadata: Metadata) => string
   geoip: (ip: string) => string // country code
   log: (log: string) => void
+  proxy_providers: Record<string, Array<{ name: string, alive: boolean, delay: number }>>
   rule_providers: Record<string, { match: (metadata: Metadata) => boolean }>
 }
 ```

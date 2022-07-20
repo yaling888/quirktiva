@@ -1,20 +1,15 @@
 package rules
 
 import (
-	"fmt"
-	"runtime"
-	"strings"
-
-	S "github.com/Dreamacro/clash/component/script"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/log"
 )
 
 type Script struct {
 	*Base
-	shortcut         string
-	adapter          string
-	shortcutFunction *S.PyObject
+	matcher  C.Matcher
+	shortcut string
+	adapter  string
 }
 
 func (s *Script) RuleType() C.RuleType {
@@ -22,9 +17,9 @@ func (s *Script) RuleType() C.RuleType {
 }
 
 func (s *Script) Match(metadata *C.Metadata) bool {
-	rs, err := S.CallPyShortcut(s.shortcutFunction, metadata)
+	rs, err := s.matcher.Match(metadata)
 	if err != nil {
-		log.Errorln("[Script] match rule error: %s", err.Error())
+		log.Warnln("[Shortcuts] %v", err)
 		return false
 	}
 
@@ -47,29 +42,16 @@ func (s *Script) RuleExtra() *C.RuleExtra {
 	return nil
 }
 
+func (s *Script) SetMatcher(m C.Matcher) {
+	s.matcher = m
+}
+
 func NewScript(shortcut string, adapter string) (*Script, error) {
-	shortcut = strings.ToLower(shortcut)
-	if !S.Py_IsInitialized() {
-		return nil, fmt.Errorf("load script shortcut [%s] failure, can't find any shortcuts in the config file", shortcut)
-	}
-
-	shortcutFunction, err := S.LoadShortcutFunction(shortcut)
-	if err != nil {
-		return nil, fmt.Errorf("can't find script shortcut [%s] in the config file", shortcut)
-	}
-
 	obj := &Script{
-		Base:             &Base{},
-		shortcut:         shortcut,
-		adapter:          adapter,
-		shortcutFunction: shortcutFunction,
+		Base:     &Base{},
+		shortcut: shortcut,
+		adapter:  adapter,
 	}
-
-	runtime.SetFinalizer(obj, func(s *Script) {
-		s.shortcutFunction.Clear()
-	})
-
-	log.Infoln("Start initial script shortcut rule %s => %s", shortcut, adapter)
 
 	return obj, nil
 }

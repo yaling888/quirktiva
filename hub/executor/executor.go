@@ -15,7 +15,6 @@ import (
 	"github.com/Dreamacro/clash/component/profile"
 	"github.com/Dreamacro/clash/component/profile/cachefile"
 	"github.com/Dreamacro/clash/component/resolver"
-	S "github.com/Dreamacro/clash/component/script"
 	"github.com/Dreamacro/clash/component/trie"
 	"github.com/Dreamacro/clash/config"
 	C "github.com/Dreamacro/clash/constant"
@@ -80,7 +79,7 @@ func ApplyConfig(cfg *config.Config, force bool) {
 	updateUsers(cfg.Users)
 	updateProxies(cfg.Proxies, cfg.Providers)
 	updateRules(cfg.Rules)
-	updateRuleProviders(cfg.RuleProviders)
+	updateScript(cfg.RuleProviders, cfg.MainMatcher)
 	updateHosts(cfg.Hosts)
 	updateMitm(cfg.Mitm)
 	updateProfile(cfg)
@@ -197,8 +196,8 @@ func updateRules(rules []C.Rule) {
 	tunnel.UpdateRules(rules)
 }
 
-func updateRuleProviders(providers map[string]C.Rule) {
-	S.UpdateRuleProviders(providers)
+func updateScript(providers map[string]C.Rule, matcher C.Matcher) {
+	tunnel.UpdateScript(providers, matcher)
 }
 
 func updateGeneral(general *config.General, force bool) {
@@ -300,7 +299,7 @@ func updateIPTables(cfg *config.Config) {
 	var err error
 	defer func() {
 		if err != nil {
-			log.Errorln("[IPTABLES] setting iptables failed: %s", err.Error())
+			log.Errorln("[iptables] setting iptables failed: %s", err.Error())
 			os.Exit(2)
 		}
 	}()
@@ -340,7 +339,7 @@ func updateIPTables(cfg *config.Config) {
 		return
 	}
 
-	log.Infoln("[IPTABLES] Setting iptables completed")
+	log.Infoln("[iptables] Setting iptables completed")
 }
 
 func updateMitm(mitm *config.Mitm) {
@@ -349,7 +348,6 @@ func updateMitm(mitm *config.Mitm) {
 
 func Shutdown() {
 	P.Cleanup()
-	S.Py_Finalize()
 	tproxy.CleanupTProxyIPTables()
 	resolver.StoreFakePoolState()
 
