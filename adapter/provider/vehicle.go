@@ -35,9 +35,10 @@ func NewFileVehicle(path string) *FileVehicle {
 }
 
 type HTTPVehicle struct {
-	url    string
-	path   string
-	header http.Header
+	path     string
+	url      string
+	urlProxy bool
+	header   http.Header
 }
 
 func (h *HTTPVehicle) Type() types.VehicleType {
@@ -82,7 +83,8 @@ func (h *HTTPVehicle) Read() ([]byte, error) {
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-			if req.URL.Scheme == "https" {
+			if h.urlProxy {
+				// make sure the tun device is turned on, and do not reject the Clash traffic by rule `PROCESS-NAME`
 				return (&net.Dialer{}).DialContext(ctx, network, address) // forward to tun if tun enabled
 			}
 			return dialer.DialContext(ctx, network, address, dialer.WithDirect()) // with direct
@@ -106,6 +108,6 @@ func (h *HTTPVehicle) Read() ([]byte, error) {
 	return removeComment(buf), nil
 }
 
-func NewHTTPVehicle(url string, path string, header http.Header) *HTTPVehicle {
-	return &HTTPVehicle{url, path, header}
+func NewHTTPVehicle(url string, path string, urlProxy bool, header http.Header) *HTTPVehicle {
+	return &HTTPVehicle{url, path, urlProxy, header}
 }

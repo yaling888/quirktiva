@@ -23,6 +23,7 @@ type proxyProviderSchema struct {
 	Type            string              `provider:"type"`
 	Path            string              `provider:"path"`
 	URL             string              `provider:"url,omitempty"`
+	URLProxy        bool                `provider:"url-proxy,omitempty"`
 	Interval        int                 `provider:"interval,omitempty"`
 	Filter          string              `provider:"filter,omitempty"`
 	HealthCheck     healthCheckSchema   `provider:"health-check,omitempty"`
@@ -61,7 +62,7 @@ func ParseProxyProvider(name string, mapping map[string]any, forceCertVerify boo
 	case "file":
 		vehicle = NewFileVehicle(path)
 	case "http":
-		vehicle = NewHTTPVehicle(schema.URL, path, schema.Header)
+		vehicle = NewHTTPVehicle(schema.URL, path, schema.URLProxy, schema.Header)
 	default:
 		return nil, fmt.Errorf("%w: %s", errVehicleType, schema.Type)
 	}
