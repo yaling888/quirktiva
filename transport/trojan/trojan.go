@@ -13,13 +13,13 @@ import (
 	"net/http"
 	"sync"
 
+	xtls "github.com/xtls/go"
+
 	"github.com/Dreamacro/clash/common/pool"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/transport/socks5"
 	"github.com/Dreamacro/clash/transport/vless"
 	"github.com/Dreamacro/clash/transport/vmess"
-
-	xtls "github.com/xtls/go"
 )
 
 const (

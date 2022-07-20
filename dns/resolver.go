@@ -9,6 +9,9 @@ import (
 	"strings"
 	"time"
 
+	D "github.com/miekg/dns"
+	"golang.org/x/sync/singleflight"
+
 	"github.com/Dreamacro/clash/common/cache"
 	"github.com/Dreamacro/clash/common/picker"
 	"github.com/Dreamacro/clash/component/fakeip"
@@ -16,9 +19,6 @@ import (
 	"github.com/Dreamacro/clash/component/resolver"
 	"github.com/Dreamacro/clash/component/trie"
 	C "github.com/Dreamacro/clash/constant"
-
-	D "github.com/miekg/dns"
-	"golang.org/x/sync/singleflight"
 )
 
 var _ resolver.Resolver = (*Resolver)(nil)

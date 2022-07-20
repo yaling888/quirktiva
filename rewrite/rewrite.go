@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	C "github.com/Dreamacro/clash/constant"
-
 	"github.com/gofrs/uuid"
+
+	C "github.com/Dreamacro/clash/constant"
 )
 
 var errInvalid = errors.New("invalid rewrite rule")

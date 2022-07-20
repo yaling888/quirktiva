@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	D "github.com/miekg/dns"
+
 	"github.com/Dreamacro/clash/common/cache"
 	"github.com/Dreamacro/clash/common/nnip"
 	"github.com/Dreamacro/clash/component/fakeip"
@@ -12,8 +14,6 @@ import (
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/context"
 	"github.com/Dreamacro/clash/log"
-
-	D "github.com/miekg/dns"
 )
 
 type (

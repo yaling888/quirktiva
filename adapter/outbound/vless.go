@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"sync"
 
+	"golang.org/x/net/http2"
+
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"
 	C "github.com/Dreamacro/clash/constant"
@@ -19,8 +21,6 @@ import (
 	"github.com/Dreamacro/clash/transport/socks5"
 	"github.com/Dreamacro/clash/transport/vless"
 	"github.com/Dreamacro/clash/transport/vmess"
-
-	"golang.org/x/net/http2"
 )
 
 const (

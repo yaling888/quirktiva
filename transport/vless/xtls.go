@@ -4,9 +4,9 @@ import (
 	"context"
 	"net"
 
-	C "github.com/Dreamacro/clash/constant"
-
 	xtls "github.com/xtls/go"
+
+	C "github.com/Dreamacro/clash/constant"
 )
 
 type XTLSConfig struct {

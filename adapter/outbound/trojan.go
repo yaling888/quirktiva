@@ -8,13 +8,13 @@ import (
 	"net/http"
 	"strconv"
 
+	"golang.org/x/net/http2"
+
 	"github.com/Dreamacro/clash/component/dialer"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/transport/gun"
 	"github.com/Dreamacro/clash/transport/trojan"
 	"github.com/Dreamacro/clash/transport/vless"
-
-	"golang.org/x/net/http2"
 )
 
 type Trojan struct {

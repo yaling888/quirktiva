@@ -9,6 +9,8 @@ import (
 	"net/netip"
 	"time"
 
+	D "github.com/miekg/dns"
+
 	"github.com/Dreamacro/clash/adapter"
 	"github.com/Dreamacro/clash/common/cache"
 	"github.com/Dreamacro/clash/common/nnip"
@@ -16,8 +18,6 @@ import (
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/log"
 	"github.com/Dreamacro/clash/tunnel"
-
-	D "github.com/miekg/dns"
 )
 
 var errProxyNotFound = errors.New("proxy adapter not found")

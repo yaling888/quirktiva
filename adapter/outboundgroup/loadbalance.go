@@ -7,14 +7,14 @@ import (
 	"fmt"
 	"net"
 
+	"golang.org/x/net/publicsuffix"
+
 	"github.com/Dreamacro/clash/adapter/outbound"
 	"github.com/Dreamacro/clash/common/murmur3"
 	"github.com/Dreamacro/clash/common/singledo"
 	"github.com/Dreamacro/clash/component/dialer"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/constant/provider"
-
-	"golang.org/x/net/publicsuffix"
 )
 
 type strategyFn = func(proxies []C.Proxy, metadata *C.Metadata) C.Proxy

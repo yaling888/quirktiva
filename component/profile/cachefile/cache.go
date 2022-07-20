@@ -5,11 +5,11 @@ import (
 	"sync"
 	"time"
 
+	"go.etcd.io/bbolt"
+
 	"github.com/Dreamacro/clash/component/profile"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/log"
-
-	"go.etcd.io/bbolt"
 )
 
 var (

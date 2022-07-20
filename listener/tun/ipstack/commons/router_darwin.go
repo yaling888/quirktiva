@@ -8,13 +8,13 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/net/route"
+
 	"github.com/Dreamacro/clash/common/cmd"
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/iface"
 	"github.com/Dreamacro/clash/listener/tun/device"
 	"github.com/Dreamacro/clash/log"
-
-	"golang.org/x/net/route"
 )
 
 func GetAutoDetectInterface() (string, error) {

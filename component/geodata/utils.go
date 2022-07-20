@@ -1,9 +1,9 @@
 package geodata
 
 import (
-	"github.com/Dreamacro/clash/component/geodata/router"
-
 	"golang.org/x/exp/maps"
+
+	"github.com/Dreamacro/clash/component/geodata/router"
 )
 
 func loadGeoSiteMatcher(countryCode string) (*router.DomainMatcher, int, error) {

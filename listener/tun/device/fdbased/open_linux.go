@@ -3,10 +3,10 @@ package fdbased
 import (
 	"fmt"
 
-	"github.com/Dreamacro/clash/listener/tun/device"
-
 	"gvisor.dev/gvisor/pkg/tcpip/link/fdbased"
 	"gvisor.dev/gvisor/pkg/tcpip/link/rawfile"
+
+	"github.com/Dreamacro/clash/listener/tun/device"
 )
 
 func open(fd int, mtu uint32) (device.Device, error) {

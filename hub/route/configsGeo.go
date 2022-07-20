@@ -4,13 +4,13 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
+
 	"github.com/Dreamacro/clash/config"
 	"github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/hub/executor"
 	"github.com/Dreamacro/clash/log"
-
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 )
 
 var (

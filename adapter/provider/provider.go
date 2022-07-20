@@ -8,12 +8,12 @@ import (
 	"runtime"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/Dreamacro/clash/adapter"
 	"github.com/Dreamacro/clash/common/convert"
 	C "github.com/Dreamacro/clash/constant"
 	types "github.com/Dreamacro/clash/constant/provider"
-
-	"gopkg.in/yaml.v3"
 )
 
 const (

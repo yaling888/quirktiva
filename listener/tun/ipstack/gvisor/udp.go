@@ -3,15 +3,15 @@ package gvisor
 import (
 	"net"
 
-	"github.com/Dreamacro/clash/common/pool"
-	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/adapter"
-	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/option"
-	"github.com/Dreamacro/clash/log"
-
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 	"gvisor.dev/gvisor/pkg/waiter"
+
+	"github.com/Dreamacro/clash/common/pool"
+	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/adapter"
+	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/option"
+	"github.com/Dreamacro/clash/log"
 )
 
 func withUDPHandler(handle adapter.UDPHandleFunc) option.Option {
