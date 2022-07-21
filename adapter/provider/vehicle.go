@@ -108,6 +108,6 @@ func (h *HTTPVehicle) Read() ([]byte, error) {
 	return removeComment(buf), nil
 }
 
-func NewHTTPVehicle(url string, path string, urlProxy bool, header http.Header) *HTTPVehicle {
-	return &HTTPVehicle{url, path, urlProxy, header}
+func NewHTTPVehicle(path string, url string, urlProxy bool, header http.Header) *HTTPVehicle {
+	return &HTTPVehicle{path, url, urlProxy, header}
 }

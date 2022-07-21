@@ -62,7 +62,7 @@ func ParseProxyProvider(name string, mapping map[string]any, forceCertVerify boo
 	case "file":
 		vehicle = NewFileVehicle(path)
 	case "http":
-		vehicle = NewHTTPVehicle(schema.URL, path, schema.URLProxy, schema.Header)
+		vehicle = NewHTTPVehicle(path, schema.URL, schema.URLProxy, schema.Header)
 	default:
 		return nil, fmt.Errorf("%w: %s", errVehicleType, schema.Type)
 	}
