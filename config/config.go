@@ -108,12 +108,6 @@ type Tun struct {
 	TunAddressPrefix    *netip.Prefix `yaml:"-" json:"-"`
 }
 
-// IPTables config
-type IPTables struct {
-	Enable           bool   `yaml:"enable" json:"enable"`
-	InboundInterface string `yaml:"inbound-interface" json:"inbound-interface"`
-}
-
 // Mitm config
 type Mitm struct {
 	Hosts *trie.DomainTrie[bool] `yaml:"hosts" json:"hosts"`
@@ -126,7 +120,6 @@ type Experimental struct{}
 // Config is clash config manager
 type Config struct {
 	General      *General
-	IPTables     *IPTables
 	Mitm         *Mitm
 	DNS          *DNS
 	Experimental *Experimental
@@ -192,7 +185,6 @@ type RawConfig struct {
 	Hosts         map[string]string         `yaml:"hosts"`
 	DNS           RawDNS                    `yaml:"dns"`
 	Tun           Tun                       `yaml:"tun"`
-	IPTables      IPTables                  `yaml:"iptables"`
 	MITM          RawMitm                   `yaml:"mitm"`
 	Experimental  Experimental              `yaml:"experimental"`
 	Profile       Profile                   `yaml:"profile"`
@@ -246,10 +238,6 @@ func UnmarshalRawConfig(buf []byte) (*RawConfig, error) {
 			AutoRoute:           false,
 			AutoDetectInterface: false,
 		},
-		IPTables: IPTables{
-			Enable:           false,
-			InboundInterface: "lo",
-		},
 		DNS: RawDNS{
 			Enable:       false,
 			UseHosts:     true,
@@ -291,7 +279,6 @@ func ParseRawConfig(rawCfg *RawConfig) (*Config, error) {
 
 	config.Experimental = &rawCfg.Experimental
 	config.Profile = &rawCfg.Profile
-	config.IPTables = &rawCfg.IPTables
 
 	general, err := parseGeneral(rawCfg)
 	if err != nil {

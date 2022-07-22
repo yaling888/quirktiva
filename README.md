@@ -307,43 +307,6 @@ proxy-providers:
       url: http://www.gstatic.com/generate_204
 ```
 
-### IPTABLES configuration
-Work on Linux OS who's supported `iptables`
-
-```yaml
-# Enable the TPROXY listener
-tproxy-port: 9898
-
-iptables:
-  enable: true # default is false
-  inbound-interface: eth0 # detect the inbound interface, default is 'lo'
-```
-Run Clash as a daemon.
-
-Create the systemd configuration file at /etc/systemd/system/clash.service:
-```sh
-[Unit]
-Description=Clash daemon, A rule-based proxy in Go.
-After=network.target
-
-[Service]
-Type=simple
-CapabilityBoundingSet=cap_net_admin
-Restart=always
-ExecStart=/usr/local/bin/clash -d /etc/clash
-
-[Install]
-WantedBy=multi-user.target
-```
-Launch clashd on system startup with:
-```sh
-$ systemctl enable clash
-```
-Launch clashd immediately with:
-```sh
-$ systemctl start clash
-```
-
 ### Display Process name
 To display process name online by click [http://yacd.clash-plus.cf](http://yacd.clash-plus.cf) for local API by Safari or [https://yacd.clash-plus.cf](https://yacd.clash-plus.cf) for local API by Chrome.
 
