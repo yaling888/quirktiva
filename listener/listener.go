@@ -12,11 +12,15 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/Dreamacro/clash/adapter/inbound"
 	"github.com/Dreamacro/clash/adapter/outbound"
 	"github.com/Dreamacro/clash/common/cert"
+	"github.com/Dreamacro/clash/component/ebpf"
 	"github.com/Dreamacro/clash/config"
 	C "github.com/Dreamacro/clash/constant"
+	"github.com/Dreamacro/clash/listener/autoredir"
 	"github.com/Dreamacro/clash/listener/http"
 	"github.com/Dreamacro/clash/listener/mitm"
 	"github.com/Dreamacro/clash/listener/mixed"
@@ -25,6 +29,7 @@ import (
 	"github.com/Dreamacro/clash/listener/tproxy"
 	"github.com/Dreamacro/clash/listener/tun"
 	"github.com/Dreamacro/clash/listener/tun/ipstack"
+	"github.com/Dreamacro/clash/listener/tun/ipstack/commons"
 	"github.com/Dreamacro/clash/log"
 	rewrites "github.com/Dreamacro/clash/rewrite"
 	"github.com/Dreamacro/clash/tunnel"
@@ -46,15 +51,20 @@ var (
 	mixedUDPLister    *socks.UDPListener
 	tunStackListener  ipstack.Stack
 	mitmListener      *mitm.Listener
+	tcProgram         *ebpf.TcEBpfProgram
+	autoRedirListener *autoredir.Listener
+	autoRedirProgram  *ebpf.TcEBpfProgram
 
 	// lock for recreate function
-	socksMux  sync.Mutex
-	httpMux   sync.Mutex
-	redirMux  sync.Mutex
-	tproxyMux sync.Mutex
-	mixedMux  sync.Mutex
-	tunMux    sync.Mutex
-	mitmMux   sync.Mutex
+	socksMux     sync.Mutex
+	httpMux      sync.Mutex
+	redirMux     sync.Mutex
+	tproxyMux    sync.Mutex
+	mixedMux     sync.Mutex
+	tunMux       sync.Mutex
+	mitmMux      sync.Mutex
+	tcMux        sync.Mutex
+	autoRedirMux sync.Mutex
 )
 
 type Ports struct {
@@ -462,6 +472,99 @@ func ReCreateMitm(port int, tcpIn chan<- C.ConnContext) {
 	log.Infoln("Mitm proxy listening at: %s", mitmListener.Address())
 }
 
+func ReCreateRedirToTun(ifaceNames []string) {
+	tcMux.Lock()
+	defer tcMux.Unlock()
+
+	nicArr := ifaceNames
+	slices.Sort(nicArr)
+	nicArr = slices.Compact(nicArr)
+
+	if tcProgram != nil {
+		if slices.Compare(tcProgram.RawNICs(), nicArr) == 0 {
+			return
+		}
+		tcProgram.Close()
+		tcProgram = nil
+	}
+
+	if len(nicArr) == 0 {
+		return
+	}
+
+	if lastTunConf == nil || !lastTunConf.Enable {
+		return
+	}
+
+	program, err := ebpf.NewTcEBpfProgram(nicArr, lastTunConf.Device)
+	if err != nil {
+		log.Errorln("Attached tc ebpf program error: %v", err)
+		return
+	}
+	tcProgram = program
+
+	log.Infoln("Attached tc ebpf program to interfaces %v", tcProgram.RawNICs())
+}
+
+func ReCreateAutoRedir(ifaceNames []string, tcpIn chan<- C.ConnContext, _ chan<- *inbound.PacketAdapter) {
+	autoRedirMux.Lock()
+	defer autoRedirMux.Unlock()
+
+	var err error
+	defer func() {
+		if err != nil {
+			if redirListener != nil {
+				_ = redirListener.Close()
+				redirListener = nil
+			}
+			if autoRedirProgram != nil {
+				autoRedirProgram.Close()
+				autoRedirProgram = nil
+			}
+			log.Errorln("Start auto redirect server error: %s", err.Error())
+		}
+	}()
+
+	nicArr := ifaceNames
+	slices.Sort(nicArr)
+	nicArr = slices.Compact(nicArr)
+
+	if redirListener != nil && autoRedirProgram != nil {
+		if slices.Compare(autoRedirProgram.RawNICs(), nicArr) == 0 {
+			return
+		}
+		_ = redirListener.Close()
+		autoRedirProgram.Close()
+		redirListener = nil
+		autoRedirProgram = nil
+	}
+
+	if len(nicArr) == 0 {
+		return
+	}
+
+	defaultRouteInterfaceName, err := commons.GetAutoDetectInterface()
+	if err != nil {
+		return
+	}
+
+	addr := genAddr("*", C.TcpAutoRedirPort, true)
+
+	autoRedirListener, err = autoredir.New(addr, tcpIn)
+	if err != nil {
+		return
+	}
+
+	autoRedirProgram, err = ebpf.NewRedirEBpfProgram(nicArr, autoRedirListener.TCPAddr().Port(), defaultRouteInterfaceName)
+	if err != nil {
+		return
+	}
+
+	autoRedirListener.SetLookupFunc(autoRedirProgram.Lookup)
+
+	log.Infoln("Auto redirect proxy listening at: %s, attached tc ebpf program to interfaces %v", autoRedirListener.Address(), autoRedirProgram.RawNICs())
+}
+
 // GetPorts return the ports of proxy servers
 func GetPorts() *Ports {
 	ports := &Ports{}
@@ -568,12 +671,14 @@ func (t *tunChangeCallback) Pause() {
 	conf := t.tunConf
 	conf.Enable = false
 	ReCreateTun(&conf, t.tcpIn, t.udpIn)
+	ReCreateRedirToTun([]string{})
 }
 
 func (t *tunChangeCallback) Resume() {
 	conf := t.tunConf
 	conf.Enable = true
 	ReCreateTun(&conf, t.tcpIn, t.udpIn)
+	ReCreateRedirToTun(conf.RedirectToTun)
 }
 
 func initCert() error {
@@ -590,6 +695,12 @@ func initCert() error {
 }
 
 func Cleanup() {
+	if tcProgram != nil {
+		tcProgram.Close()
+	}
+	if autoRedirProgram != nil {
+		autoRedirProgram.Close()
+	}
 	if tunStackListener != nil {
 		_ = tunStackListener.Close()
 	}

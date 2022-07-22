@@ -16,9 +16,6 @@
   <a href="https://github.com/yaling888/clash/releases">
     <img src="https://img.shields.io/github/release/yaling888/clash/all.svg?style=flat-square">
   </a>
-  <a href="https://github.com/yaling888/clash/releases/tag/plus_pro">
-    <img src="https://img.shields.io/badge/release-Plus Pro-00b4f0?style=flat-square">
-  </a>
 </p>
 
 ## Features
@@ -405,45 +402,48 @@ proxy-providers:
       url: http://www.gstatic.com/generate_204
 ```
 
-### IPTABLES configuration
-Work on Linux OS who's supported `iptables`
+### eBPF
+It requires Linux kernel version >= 4.5, support `redirect-to-tun` and `auto-redir` features.
 
+#### redirect-to-tun:
+only hook traffic of the egress NIC, conflict with `auto-route` and `auto-redir`.
 ```yaml
-# Enable the TPROXY listener
-tproxy-port: 9898
+interface-name: eth0
 
-iptables:
-  enable: true # default is false
-  inbound-interface: eth0 # detect the inbound interface, default is 'lo'
-```
-Run Clash as a daemon.
+ebpf:
+  redirect-to-tun:
+    - eth0
 
-Create the systemd configuration file at /etc/systemd/system/clash.service:
-```sh
-[Unit]
-Description=Clash daemon, A rule-based proxy in Go.
-After=network.target
-
-[Service]
-Type=simple
-CapabilityBoundingSet=cap_net_admin
-Restart=always
-ExecStart=/usr/local/bin/clash -d /etc/clash
-
-[Install]
-WantedBy=multi-user.target
-```
-Launch clashd on system startup with:
-```sh
-$ systemctl enable clash
-```
-Launch clashd immediately with:
-```sh
-$ systemctl start clash
+tun:
+  enable: true
+  stack: system
+  dns-hijack:
+    - any:53
+  auto-route: false
 ```
 
-### Display Process name
-To display process name online by click [http://yacd.clash-plus.cf](http://yacd.clash-plus.cf) for local API by Safari or [https://yacd.clash-plus.cf](https://yacd.clash-plus.cf) for local API by Chrome.
+#### auto-redir:
+only hook TCP traffic of the ingress NIC and conflict with `redirect-to-tun`, It can be replaced with redir-port (TCP) without any network config.
+
+It's recommended to work with TUN to handle UDP traffic. It improves the network throughput performance of some low performance devices compared to using exclusively TUN.
+```yaml
+interface-name: eth0
+
+ebpf:
+  auto-redir:
+    - eth0
+    # - wlan0
+
+tun:
+  enable: true
+  stack: system
+  dns-hijack:
+    - any:53
+  auto-route: true
+```
+
+### Web GUI
+Open the Dashboard online by click [http://yacd.clash-plus.cf](http://yacd.clash-plus.cf) for local API by Safari or [https://yacd.clash-plus.cf](https://yacd.clash-plus.cf) for local API by Chrome.
 
 You can download the [Dashboard](https://github.com/yaling888/yacd/archive/gh-pages.zip) into Clash home directory:
 ```sh
@@ -459,9 +459,6 @@ external-controller: 127.0.0.1:9090
 external-ui: dashboard
 ```
 Open [http://127.0.0.1:9090/ui/](http://127.0.0.1:9090/ui/) by web browser.
-
-## Plus Pro Release
-[Release](https://github.com/yaling888/clash/releases/tag/plus_pro)
 
 ## Development
 If you want to build an application that uses clash as a library, check out the the [GitHub Wiki](https://github.com/Dreamacro/clash/wiki/use-clash-as-a-library)

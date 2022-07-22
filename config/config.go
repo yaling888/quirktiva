@@ -46,6 +46,7 @@ type General struct {
 	Interface   string       `json:"-"`
 	RoutingMark int          `json:"-"`
 	Tun         Tun          `json:"tun"`
+	EBpf        EBpf         `json:"-"`
 }
 
 // Inbound config
@@ -108,6 +109,7 @@ type Tun struct {
 	AutoRoute           bool          `yaml:"auto-route" json:"auto-route"`
 	AutoDetectInterface bool          `yaml:"auto-detect-interface" json:"auto-detect-interface"`
 	TunAddressPrefix    *netip.Prefix `yaml:"-" json:"-"`
+	RedirectToTun       []string      `yaml:"-" json:"-"`
 }
 
 // Script config
@@ -127,6 +129,12 @@ type IPTables struct {
 type Mitm struct {
 	Hosts *trie.DomainTrie[bool] `yaml:"hosts" json:"hosts"`
 	Rules C.RewriteRule          `yaml:"rules" json:"rules"`
+}
+
+// EBpf config
+type EBpf struct {
+	RedirectToTun []string `yaml:"redirect-to-tun" json:"redirect-to-tun"`
+	AutoRedir     []string `yaml:"auto-redir" json:"auto-redir"`
 }
 
 // Experimental config
@@ -211,6 +219,7 @@ type RawConfig struct {
 	ProxyGroup    []map[string]any          `yaml:"proxy-groups"`
 	Rule          []string                  `yaml:"rules"`
 	Script        Script                    `yaml:"script"`
+	EBpf          EBpf                      `yaml:"ebpf"`
 }
 
 // Parse config
@@ -257,6 +266,10 @@ func UnmarshalRawConfig(buf []byte) (*RawConfig, error) {
 			},
 			AutoRoute:           false,
 			AutoDetectInterface: false,
+		},
+		EBpf: EBpf{
+			RedirectToTun: []string{},
+			AutoRedir:     []string{},
 		},
 		IPTables: IPTables{
 			Enable:           false,
@@ -386,6 +399,8 @@ func parseGeneral(cfg *RawConfig) (*General, error) {
 		dialer.DefaultInterface.Store(cfg.Interface)
 	}
 
+	cfg.Tun.RedirectToTun = cfg.EBpf.RedirectToTun
+
 	return &General{
 		Inbound: Inbound{
 			Port:        cfg.Port,
@@ -409,6 +424,7 @@ func parseGeneral(cfg *RawConfig) (*General, error) {
 		RoutingMark: cfg.RoutingMark,
 		Sniffing:    cfg.Sniffing,
 		Tun:         cfg.Tun,
+		EBpf:        cfg.EBpf,
 	}, nil
 }
 
@@ -1017,6 +1033,7 @@ func testScriptMatcher(config *Config, matchers map[string]C.Matcher) (err error
 	}
 
 	C.SetScriptRuleProviders(config.RuleProviders)
+	defer C.RestoreScriptState()
 
 	for k, v := range matchers {
 		if k == "main" {
@@ -1025,11 +1042,9 @@ func testScriptMatcher(config *Config, matchers map[string]C.Matcher) (err error
 			_, err = v.Match(metadata)
 		}
 		if err != nil {
-			C.RestoreScriptState()
 			return fmt.Errorf("check script code failed: %w", err)
 		}
 	}
 
-	C.RestoreScriptState()
 	return nil
 }

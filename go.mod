@@ -3,6 +3,7 @@ module github.com/Dreamacro/clash
 go 1.18
 
 require (
+	github.com/cilium/ebpf v0.9.0
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/render v1.0.1
@@ -36,7 +37,6 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/google/btree v1.0.1 // indirect
-	github.com/kr/text v0.2.0 // indirect
 	github.com/oschwald/maxminddb-golang v1.9.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/u-root/uio v0.0.0-20210528114334-82958018845c // indirect
