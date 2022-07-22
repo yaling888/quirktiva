@@ -61,6 +61,8 @@ func New(tunConf *config.Tun, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.
 		return nil, fmt.Errorf("can't open tun: %w", err)
 	}
 
+	devName = tunDevice.Name()
+
 	// new ip stack
 	switch stackType {
 	case C.TunGvisor:
@@ -99,6 +101,7 @@ func New(tunConf *config.Tun, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.
 		go commons.StartDefaultInterfaceChangeMonitor()
 	}
 
+	tunConf.Device = devName
 	setAtLatest(stackType, devName)
 
 	log.Infoln("TUN stack listening at: %s(%s), mtu: %d, auto route: %v, ip stack: %s", tunDevice.Name(), tunAddress.Masked().Addr().Next().String(), mtu, autoRoute, stackType)
@@ -140,31 +143,25 @@ func parseDevice(s string, mtu uint32) (device.Device, error) {
 }
 
 func setAtLatest(stackType C.TUNStack, devName string) {
-	if stackType != C.TunSystem {
-		return
-	}
-
 	switch runtime.GOOS {
 	case "darwin":
 		// _, _ = cmd.ExecCmd("/usr/sbin/sysctl -w net.inet.ip.forwarding=1")
 		// _, _ = cmd.ExecCmd("/usr/sbin/sysctl -w net.inet6.ip6.forwarding=1")
 		_, _ = cmd.ExecCmd("/bin/launchctl limit maxfiles 10240 unlimited")
 	case "windows":
+		if stackType != C.TunSystem {
+			return
+		}
 		_, _ = cmd.ExecCmd("ipconfig /renew")
 	case "linux":
-		// _, _ = cmd.ExecCmd("sysctl -w net.ipv4.ip_forward=1")
-		// _, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.all.forwarding = 1")
-		// _, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.all.accept_local = 1")
-		// _, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.all.accept_redirects = 1")
-		// _, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.all.rp_filter = 2")
-		// _, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.default.forwarding = 1")
-		// _, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.default.accept_local = 1")
-		// _, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.default.accept_redirects = 1")
-		// _, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.default.rp_filter = 2")
-		// _, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.forwarding = 1", devName))
-		// _, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.accept_local = 1", devName))
-		// _, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.accept_redirects = 1", devName))
-		// _, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.rp_filter = 2", devName))
-		// _, _ = cmd.ExecCmd("iptables -t filter -P FORWARD ACCEPT")
+		_, _ = cmd.ExecCmd("sysctl -w net.ipv4.ip_forward=1")
+		_, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.all.forwarding=1")
+		_, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.all.accept_local=1")
+		_, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.all.accept_redirects=1")
+		_, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.all.rp_filter=0")
+		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.forwarding=1", devName))
+		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.accept_local=1", devName))
+		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.accept_redirects=1", devName))
+		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.rp_filter=0", devName))
 	}
 }

@@ -113,15 +113,13 @@ func (e *Endpoint) dispatchLoop(cancel context.CancelFunc) {
 			continue /* unattached, drop packet */
 		}
 
-		var p tcpip.NetworkProtocolNumber = 0x0000
+		var p tcpip.NetworkProtocolNumber
 		switch header.IPVersion(data) {
 		case header.IPv4Version:
 			p = header.IPv4ProtocolNumber
 		case header.IPv6Version:
 			p = header.IPv6ProtocolNumber
-		}
-
-		if p == 0x0000 {
+		default:
 			_ = pool.Put(data)
 			continue
 		}
