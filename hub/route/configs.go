@@ -140,6 +140,7 @@ func patchConfigs(w http.ResponseWriter, r *http.Request) {
 		}
 
 		P.ReCreateTun(&tunConf, tcpIn, udpIn)
+		P.ReCreateRedirToTun(tunConf.RedirectToTun)
 	}
 
 	msg, _ := json.Marshal(general)

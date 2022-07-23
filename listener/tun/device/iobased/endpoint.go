@@ -8,13 +8,11 @@ import (
 	"io"
 	"sync"
 
-	"gvisor.dev/gvisor/pkg/buffer"
+	"gvisor.dev/gvisor/pkg/bufferv2"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
-
-	"github.com/Dreamacro/clash/common/pool"
 )
 
 const (
@@ -94,43 +92,33 @@ func (e *Endpoint) dispatchLoop(cancel context.CancelFunc) {
 	defer cancel()
 
 	mtu := int(e.mtu)
+	data := make([]byte, mtu)
 	for {
-		data := pool.Get(mtu)
-
 		n, err := e.rw.Read(data)
 		if err != nil {
-			_ = pool.Put(data)
 			break
 		}
 
 		if n == 0 || n > mtu {
-			_ = pool.Put(data)
 			continue
 		}
 
 		if !e.IsAttached() {
-			_ = pool.Put(data)
 			continue /* unattached, drop packet */
 		}
 
-		var p tcpip.NetworkProtocolNumber = 0x0000
+		var p tcpip.NetworkProtocolNumber
 		switch header.IPVersion(data) {
 		case header.IPv4Version:
 			p = header.IPv4ProtocolNumber
 		case header.IPv6Version:
 			p = header.IPv6ProtocolNumber
-		}
-
-		if p == 0x0000 {
-			_ = pool.Put(data)
+		default:
 			continue
 		}
 
 		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
-			Payload: buffer.NewWithData(data[:n]),
-			OnRelease: func() {
-				_ = pool.Put(data)
-			},
+			Payload: bufferv2.MakeWithData(data[:n]),
 		})
 
 		e.InjectInbound(p, pkt)
@@ -153,10 +141,14 @@ func (e *Endpoint) outboundLoop(ctx context.Context) {
 
 // writePacket writes outbound packets to the io.Writer.
 func (e *Endpoint) writePacket(pkt *stack.PacketBuffer) tcpip.Error {
-	defer pkt.DecRef()
+	pktView := pkt.ToView()
 
-	buf := pkt.Buffer()
-	if _, err := e.rw.Write(buf.Flatten()); err != nil {
+	defer func() {
+		pktView.Release()
+		pkt.DecRef()
+	}()
+
+	if _, err := pktView.WriteTo(e.rw); err != nil {
 		return &tcpip.ErrInvalidEndpointState{}
 	}
 	return nil

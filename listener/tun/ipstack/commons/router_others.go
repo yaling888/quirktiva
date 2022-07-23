@@ -15,7 +15,7 @@ func GetAutoDetectInterface() (string, error) {
 }
 
 func ConfigInterfaceAddress(device.Device, netip.Prefix, int, bool) error {
-	return fmt.Errorf("unsupported on this OS: %s", runtime.GOOS)
+	return nil
 }
 
 func StartDefaultInterfaceChangeMonitor() {}

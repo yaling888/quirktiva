@@ -59,10 +59,16 @@ func ConfigInterfaceAddress(dev device.Device, addr netip.Prefix, _ int, autoRou
 		return err
 	}
 
+	bits := ip.BitLen()
+	ones := addr.Bits()
+	if !autoRoute {
+		ones = bits
+	}
+
 	address := &netlink.Addr{
 		IPNet: &net.IPNet{
 			IP:   ip.AsSlice(),
-			Mask: net.CIDRMask(addr.Bits(), ip.BitLen()),
+			Mask: net.CIDRMask(ones, bits),
 		},
 	}
 

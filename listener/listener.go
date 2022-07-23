@@ -481,9 +481,6 @@ func ReCreateRedirToTun(ifaceNames []string) {
 	nicArr = slices.Compact(nicArr)
 
 	if tcProgram != nil {
-		if slices.Compare(tcProgram.RawNICs(), nicArr) == 0 {
-			return
-		}
 		tcProgram.Close()
 		tcProgram = nil
 	}
@@ -530,9 +527,6 @@ func ReCreateAutoRedir(ifaceNames []string, tcpIn chan<- C.ConnContext, _ chan<-
 	nicArr = slices.Compact(nicArr)
 
 	if redirListener != nil && autoRedirProgram != nil {
-		if slices.Compare(autoRedirProgram.RawNICs(), nicArr) == 0 {
-			return
-		}
 		_ = redirListener.Close()
 		autoRedirProgram.Close()
 		redirListener = nil

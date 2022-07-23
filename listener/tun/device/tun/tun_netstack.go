@@ -84,6 +84,7 @@ func (t *TUN) Write(packet []byte) (int, error) {
 
 func (t *TUN) Close() error {
 	if link, err := netlink.LinkByName(t.name); err == nil {
+		_ = netlink.LinkSetDown(link)
 		_ = netlink.LinkDel(link)
 	}
 
