@@ -3,6 +3,7 @@ package dns
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"io"
 	"net"
 	"net/http"
@@ -110,6 +111,9 @@ func newDoHClient(url string, r *Resolver, proxyAdapter string) *dohClient {
 				}
 
 				return dialer.DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), port))
+			},
+			TLSClientConfig: &tls.Config{
+				NextProtos: []string{"dns"},
 			},
 		},
 	}

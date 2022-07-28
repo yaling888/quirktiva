@@ -277,7 +277,7 @@ script:
         ctx.log('[Script] matched telegram')
         return "Proxy"
 
-      if code == "CN" && code == "LAN" or code == "PRIVATE":
+      if code == "CN" or code == "LAN" or code == "PRIVATE":
         return "DIRECT"
 
       return "Proxy" # default policy for requests which are not matched by any other script
@@ -384,6 +384,7 @@ proxy-providers:
   provider1:
     type: http
     url: "url" # support V2Ray subscription URL
+    # url-proxy: true # forward to tun if tun enabled
     interval: 3600
     path: ./providers/provider1.yaml
     # filter: "xxx"
