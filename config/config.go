@@ -800,19 +800,42 @@ func parseDNS(rawCfg *RawConfig, hosts *trie.DomainTrie[netip.Addr]) (*DNS, erro
 			return nil, err
 		}
 
-		var host *trie.DomainTrie[bool]
+		defaultFakeIPFilter := []string{
+			"*.lan",
+			"*.local",
+			"*.localhost",
+			"*.test",
+			"+.stun.*.*",
+			"+.stun.*.*.*",
+			"+.stun.*.*.*.*",
+			"dns.*",
+			"dns.*.*",
+			"+.msftconnecttest.com",
+			"+.msftncsi.com",
+			"localhost.ptlogin2.qq.com",
+			"localhost.sec.qq.com",
+			"xbox.*.*.microsoft.com",
+			"*.*.xboxlive.com",
+			"xbox.*.microsoft.com",
+			"xnotify.xboxlive.com",
+			"+.l.google.com",
+			"voice.telephony.goog",
+		}
+
+		host := trie.New[bool]()
+
 		// fake ip skip host filter
 		if len(cfg.FakeIPFilter) != 0 {
-			host = trie.New[bool]()
 			for _, domain := range cfg.FakeIPFilter {
 				_ = host.Insert(domain, true)
 			}
 		}
 
+		for _, domain := range defaultFakeIPFilter {
+			_ = host.Insert(domain, true)
+		}
+
 		if len(dnsCfg.Fallback) != 0 {
-			if host == nil {
-				host = trie.New[bool]()
-			}
 			for _, fb := range dnsCfg.Fallback {
 				if net.ParseIP(fb.Addr) != nil {
 					continue
