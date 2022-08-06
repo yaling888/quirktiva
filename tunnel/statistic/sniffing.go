@@ -2,6 +2,7 @@ package statistic
 
 import (
 	"errors"
+	"strings"
 
 	"go.uber.org/atomic"
 
@@ -24,16 +25,19 @@ func (r *sniffing) Read(b []byte) (int, error) {
 }
 
 func (r *sniffing) Write(b []byte) (int, error) {
-	if r.totalWrite.Load() < 128 && r.metadata.Host == "" && (r.metadata.DstPort == "443" || r.metadata.DstPort == "8443" || r.metadata.DstPort == "993" || r.metadata.DstPort == "465" || r.metadata.DstPort == "995") {
+	if r.totalWrite.Load() < 128 && r.metadata.Host == "" &&
+		(r.metadata.DstPort == "443" || r.metadata.DstPort == "8443" || r.metadata.DstPort == "993" ||
+			r.metadata.DstPort == "465" || r.metadata.DstPort == "995") {
 		header, err := tls.SniffTLS(b)
-		if err == nil {
-			resolver.InsertHostByIP(r.metadata.DstIP, header.Domain())
-			log.Debugln("[Sniffer] use sni update host: %s ip: %s", header.Domain(), r.metadata.DstIP.String())
+		domain := header.Domain()
+		if err == nil && strings.Index(domain, ".") > 0 {
+			resolver.InsertHostByIP(r.metadata.DstIP, domain)
+			log.Debugln("[Sniffer] use sni update host: %s ip: %s", domain, r.metadata.DstIP.String())
 			if r.allowBreak {
 				_ = r.Conn.Close()
 				return 0, errors.New("sni update, break current link to avoid leaks")
 			} else {
-				r.metadata.Host = header.Domain()
+				r.metadata.Host = domain
 			}
 		}
 	}
