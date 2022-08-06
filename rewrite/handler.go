@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/textproto"
 	"strconv"
@@ -157,7 +156,7 @@ func (*RewriteHandler) HandleResponse(session *mitm.Session) *http.Response {
 			return nil
 		}
 
-		response.Body = ioutil.NopCloser(bytes.NewReader(modifiedBody))
+		response.Body = io.NopCloser(bytes.NewReader(modifiedBody))
 		response.Header.Del("Content-Encoding")
 		response.ContentLength = int64(len(modifiedBody))
 	default:

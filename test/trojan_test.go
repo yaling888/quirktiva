@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Dreamacro/clash/adapter/outbound"
-	C "github.com/Dreamacro/clash/constant"
-
 	"github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Dreamacro/clash/adapter/outbound"
+	C "github.com/Dreamacro/clash/constant"
 )
 
 func TestClash_Trojan(t *testing.T) {

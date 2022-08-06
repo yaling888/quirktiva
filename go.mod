@@ -1,6 +1,6 @@
 module github.com/Dreamacro/clash
 
-go 1.18
+go 1.19
 
 require (
 	github.com/cilium/ebpf v0.9.0
@@ -17,21 +17,21 @@ require (
 	github.com/vishvananda/netlink v1.1.1-0.20220125195016-0639e7e787ba
 	github.com/xtls/go v0.0.0-20210920065950-d4af136d3672
 	go.etcd.io/bbolt v1.3.6
-	go.starlark.net v0.0.0-20220328144851-d1966c6b9fcd
+	go.starlark.net v0.0.0-20220714194419-4cadf0a12139
 	go.uber.org/atomic v1.9.0
 	go.uber.org/automaxprocs v1.5.1
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
 	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e
-	golang.org/x/net v0.0.0-20220722155237-a158d28d115b
+	golang.org/x/net v0.0.0-20220805013720-a33c5aa5df48
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
-	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f
+	golang.org/x/sys v0.0.0-20220804214406-8e32c043e418
 	golang.org/x/text v0.3.8-0.20220124021120-d1c84af989ab
 	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9
 	golang.zx2c4.com/wireguard v0.0.0-20220703234212-c31a7b1ab478
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20220328111914-004c22c5647e
-	google.golang.org/protobuf v1.28.0
+	google.golang.org/protobuf v1.28.1
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20220722234115-e3e6499abbba
+	gvisor.dev/gvisor v0.0.0-20220806021445-2efadcc075d2
 )
 
 require (

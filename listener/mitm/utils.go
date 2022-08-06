@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -26,7 +25,7 @@ func NewResponse(code int, body io.Reader, req *http.Request) *http.Response {
 
 	rc, ok := body.(io.ReadCloser)
 	if !ok {
-		rc = ioutil.NopCloser(body)
+		rc = io.NopCloser(body)
 	}
 
 	res := &http.Response{
@@ -77,12 +76,12 @@ func ReadDecompressedBody(res *http.Response) ([]byte, error) {
 			_ = gzReader.Close()
 		}(gzReader)
 	}
-	return ioutil.ReadAll(rBody)
+	return io.ReadAll(rBody)
 }
 
 func DecodeLatin1(reader io.Reader) (string, error) {
 	r := transform.NewReader(reader, charmap.ISO8859_1.NewDecoder())
-	b, err := ioutil.ReadAll(r)
+	b, err := io.ReadAll(r)
 	if err != nil {
 		return "", err
 	}

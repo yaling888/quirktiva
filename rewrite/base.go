@@ -3,7 +3,6 @@ package rewrites
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 
 	C "github.com/Dreamacro/clash/constant"
 )
@@ -25,7 +24,7 @@ type ResponseBody struct {
 }
 
 func (r *ResponseBody) Body() io.ReadCloser {
-	return ioutil.NopCloser(bytes.NewReader(r.data))
+	return io.NopCloser(bytes.NewReader(r.data))
 }
 
 func (r *ResponseBody) ContentLength() int64 {
