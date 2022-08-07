@@ -21,18 +21,16 @@ import (
 	"golang.org/x/net/http2"
 
 	"github.com/Dreamacro/clash/common/pool"
-	C "github.com/Dreamacro/clash/constant"
 )
 
 var (
 	ErrInvalidLength = errors.New("invalid length")
-	ErrSmallBuffer   = errors.New("buffer too small")
-)
 
-var defaultHeader = http.Header{
-	"content-type": []string{"application/grpc"},
-	"user-agent":   []string{"grpc-go/1.36.0"},
-}
+	defaultHeader = http.Header{
+		"content-type": []string{"application/grpc"},
+		"user-agent":   []string{"grpc-go/1.36.0"},
+	}
+)
 
 type DialFn = func(network, addr string) (net.Conn, error)
 
@@ -60,7 +58,7 @@ func (g *Conn) initRequest() {
 	response, err := g.transport.RoundTrip(g.request)
 	if err != nil {
 		g.err = err
-		g.writer.Close()
+		_ = g.writer.Close()
 		return
 	}
 
@@ -68,7 +66,7 @@ func (g *Conn) initRequest() {
 		g.response = response
 		g.br = bufio.NewReader(response.Body)
 	} else {
-		response.Body.Close()
+		_ = response.Body.Close()
 	}
 }
 
@@ -144,7 +142,7 @@ func (g *Conn) Write(b []byte) (n int, err error) {
 func (g *Conn) Close() error {
 	g.close.Store(true)
 	if r := g.response; r != nil {
-		r.Body.Close()
+		_ = r.Body.Close()
 	}
 
 	return g.writer.Close()
@@ -162,37 +160,33 @@ func (g *Conn) SetDeadline(t time.Time) error {
 		return nil
 	}
 	g.deadline = time.AfterFunc(d, func() {
-		g.Close()
+		_ = g.Close()
 	})
 	return nil
 }
 
 func NewHTTP2Client(dialFn DialFn, tlsConfig *tls.Config) *http2.Transport {
-	dialFunc := func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+	dialFunc := func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
 		pconn, err := dialFn(network, addr)
 		if err != nil {
 			return nil, err
 		}
 
 		cn := tls.Client(pconn, cfg)
-
-		// fix tls handshake not timeout
-		ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTLSTimeout)
-		defer cancel()
-		if err := cn.HandshakeContext(ctx); err != nil {
-			pconn.Close()
+		if err = cn.HandshakeContext(ctx); err != nil {
+			_ = pconn.Close()
 			return nil, err
 		}
 		state := cn.ConnectionState()
 		if p := state.NegotiatedProtocol; p != http2.NextProtoTLS {
-			cn.Close()
+			_ = cn.Close()
 			return nil, fmt.Errorf("http2: unexpected ALPN protocol %s, want %s", p, http2.NextProtoTLS)
 		}
 		return cn, nil
 	}
 
 	return &http2.Transport{
-		DialTLS:            dialFunc,
+		DialTLSContext:     dialFunc,
 		TLSClientConfig:    tlsConfig,
 		AllowHTTP:          false,
 		DisableCompression: true,

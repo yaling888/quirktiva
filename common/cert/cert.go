@@ -146,8 +146,6 @@ func (c *Config) NewTLSConfigForHost(hostname string) *tls.Config {
 		NextProtos: []string{"http/1.1"},
 	}
 
-	tlsConfig.InsecureSkipVerify = true
-
 	return tlsConfig
 }
 

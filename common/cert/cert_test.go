@@ -26,7 +26,6 @@ func TestCert(t *testing.T) {
 
 	conf := c.NewTLSConfigForHost("example.org")
 	assert.Equal(t, []string{"http/1.1"}, conf.NextProtos)
-	assert.True(t, conf.InsecureSkipVerify)
 
 	// Test generating a certificate
 	clientHello := &tls.ClientHelloInfo{
@@ -60,9 +59,15 @@ func TestCert(t *testing.T) {
 	_, _ = c.GetOrCreateCert("a.b.c.d.e.f.g.h.i.j.example.org")
 	tlsCert3, err := c.GetOrCreateCert("m.k.l.example.org")
 	x509c = tlsCert3.Leaf
+	dnsNames := []string{
+		"example.org", "*.example.org", "*.j.example.org", "*.i.j.example.org",
+		"*.h.i.j.example.org", "*.g.h.i.j.example.org", "*.f.g.h.i.j.example.org", "*.e.f.g.h.i.j.example.org",
+		"*.d.e.f.g.h.i.j.example.org", "*.c.d.e.f.g.h.i.j.example.org", "*.b.c.d.e.f.g.h.i.j.example.org",
+		"*.l.example.org", "*.k.l.example.org",
+	}
 	assert.Nil(t, err)
 	assert.False(t, tlsCert == tlsCert3)
-	assert.Equal(t, []string{"example.org", "*.example.org", "*.j.example.org", "*.i.j.example.org", "*.h.i.j.example.org", "*.g.h.i.j.example.org", "*.f.g.h.i.j.example.org", "*.e.f.g.h.i.j.example.org", "*.d.e.f.g.h.i.j.example.org", "*.c.d.e.f.g.h.i.j.example.org", "*.b.c.d.e.f.g.h.i.j.example.org", "*.l.example.org", "*.k.l.example.org"}, x509c.DNSNames)
+	assert.Equal(t, dnsNames, x509c.DNSNames)
 
 	// Check that certificate is cached
 	tlsCert4, err := c.GetOrCreateCert("xyz.example.org")

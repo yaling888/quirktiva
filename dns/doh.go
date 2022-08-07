@@ -95,7 +95,7 @@ func newDoHClient(url string, r *Resolver, proxyAdapter string) *dohClient {
 					return nil, err
 				}
 
-				ip, err := resolver.ResolveIPWithResolver(host, r, true)
+				ip, err := resolver.ResolveIPWithResolver(ctx, host, r)
 				if err != nil {
 					return nil, err
 				}

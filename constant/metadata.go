@@ -26,7 +26,9 @@ const (
 	TCP NetWork = iota
 	UDP
 	ALLNet
+)
 
+const (
 	HTTP Type = iota
 	HTTPCONNECT
 	SOCKS4

@@ -18,7 +18,9 @@ var StackTypeMapping = map[string]TUNStack{
 const (
 	TunGvisor TUNStack = iota
 	TunSystem
+)
 
+const (
 	TunDisabled TUNState = iota
 	TunEnabled
 	TunPaused

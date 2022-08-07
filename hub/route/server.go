@@ -14,7 +14,6 @@ import (
 	"github.com/gorilla/websocket"
 
 	C "github.com/Dreamacro/clash/constant"
-	_ "github.com/Dreamacro/clash/constant/mime"
 	"github.com/Dreamacro/clash/log"
 	"github.com/Dreamacro/clash/tunnel/statistic"
 )

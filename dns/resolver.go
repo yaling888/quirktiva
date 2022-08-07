@@ -47,18 +47,18 @@ type Resolver struct {
 }
 
 // ResolveIP request with TypeA and TypeAAAA, priority return TypeA
-func (r *Resolver) ResolveIP(host string, random bool) (ip netip.Addr, err error) {
+func (r *Resolver) ResolveIP(ctx context.Context, host string) (ip netip.Addr, err error) {
 	ch := make(chan netip.Addr, 1)
 	go func() {
 		defer close(ch)
-		ip, err := r.resolveIP(host, D.TypeAAAA, random)
+		ip, err := r.resolveIP(ctx, host, D.TypeAAAA)
 		if err != nil {
 			return
 		}
 		ch <- ip
 	}()
 
-	ip, err = r.resolveIP(host, D.TypeA, random)
+	ip, err = r.resolveIP(ctx, host, D.TypeA)
 	if err == nil {
 		return
 	}
@@ -72,13 +72,13 @@ func (r *Resolver) ResolveIP(host string, random bool) (ip netip.Addr, err error
 }
 
 // ResolveIPv4 request with TypeA
-func (r *Resolver) ResolveIPv4(host string, random bool) (ip netip.Addr, err error) {
-	return r.resolveIP(host, D.TypeA, random)
+func (r *Resolver) ResolveIPv4(ctx context.Context, host string) (ip netip.Addr, err error) {
+	return r.resolveIP(ctx, host, D.TypeA)
 }
 
 // ResolveIPv6 request with TypeAAAA
-func (r *Resolver) ResolveIPv6(host string, random bool) (ip netip.Addr, err error) {
-	return r.resolveIP(host, D.TypeAAAA, random)
+func (r *Resolver) ResolveIPv6(ctx context.Context, host string) (ip netip.Addr, err error) {
+	return r.resolveIP(ctx, host, D.TypeAAAA)
 }
 
 func (r *Resolver) shouldIPFallback(ip netip.Addr) bool {
@@ -90,12 +90,12 @@ func (r *Resolver) shouldIPFallback(ip netip.Addr) bool {
 	return false
 }
 
-// Exchange a batch of dns request, and it use cache
+// Exchange a batch of dns request, and it uses cache
 func (r *Resolver) Exchange(m *D.Msg) (msg *D.Msg, err error) {
 	return r.ExchangeContext(context.Background(), m)
 }
 
-// ExchangeContext a batch of dns request with context.Context, and it use cache
+// ExchangeContext a batch of dns request with context.Context, and it uses cache
 func (r *Resolver) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg, err error) {
 	if len(m.Question) == 0 {
 		return nil, errors.New("should have one question at least")
@@ -108,7 +108,9 @@ func (r *Resolver) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg, e
 		msg = cacheM.Copy()
 		if expireTime.Before(now) {
 			setMsgTTL(msg, uint32(1)) // Continue fetch
-			go r.exchangeWithoutCache(ctx, m)
+			go func() {
+				_, _ = r.exchangeWithoutCache(ctx, m)
+			}()
 		} else {
 			setMsgTTL(msg, uint32(time.Until(expireTime).Seconds()))
 		}
@@ -117,7 +119,7 @@ func (r *Resolver) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg, e
 	return r.exchangeWithoutCache(ctx, m)
 }
 
-// ExchangeWithoutCache a batch of dns request, and it do NOT GET from cache
+// ExchangeWithoutCache a batch of dns request, and it does NOT GET from cache
 func (r *Resolver) exchangeWithoutCache(ctx context.Context, m *D.Msg) (msg *D.Msg, err error) {
 	q := m.Question[0]
 
@@ -257,7 +259,7 @@ func (r *Resolver) ipExchange(ctx context.Context, m *D.Msg) (msg *D.Msg, err er
 	return
 }
 
-func (r *Resolver) resolveIP(host string, dnsType uint16, random bool) (ip netip.Addr, err error) {
+func (r *Resolver) resolveIP(ctx context.Context, host string, dnsType uint16) (ip netip.Addr, err error) {
 	ip, err = netip.ParseAddr(host)
 	if err == nil {
 		ip = ip.Unmap()
@@ -274,7 +276,7 @@ func (r *Resolver) resolveIP(host string, dnsType uint16, random bool) (ip netip
 	query := &D.Msg{}
 	query.SetQuestion(D.Fqdn(host), dnsType)
 
-	msg, err := r.Exchange(query)
+	msg, err := r.ExchangeContext(ctx, query)
 	if err != nil {
 		return netip.Addr{}, err
 	}
@@ -286,7 +288,7 @@ func (r *Resolver) resolveIP(host string, dnsType uint16, random bool) (ip netip
 	}
 
 	index := 0
-	if random {
+	if ipLength > 1 && resolver.ShouldRandomIP(ctx) {
 		index = rand.Intn(ipLength)
 	}
 

@@ -26,7 +26,7 @@ func (c *cachefileStore) GetByHost(host string) (netip.Addr, bool) {
 
 // PutByHost implements store.PutByHost
 func (c *cachefileStore) PutByHost(host string, ip netip.Addr) {
-	c.cache.PutFakeip([]byte(host), ip.AsSlice())
+	_ = c.cache.PutFakeip([]byte(host), ip.AsSlice())
 }
 
 // GetByIP implements store.GetByIP
@@ -40,13 +40,13 @@ func (c *cachefileStore) GetByIP(ip netip.Addr) (string, bool) {
 
 // PutByIP implements store.PutByIP
 func (c *cachefileStore) PutByIP(ip netip.Addr, host string) {
-	c.cache.PutFakeip(ip.AsSlice(), []byte(host))
+	_ = c.cache.PutFakeip(ip.AsSlice(), []byte(host))
 }
 
 // DelByIP implements store.DelByIP
 func (c *cachefileStore) DelByIP(ip netip.Addr) {
 	addr := ip.AsSlice()
-	c.cache.DelFakeipPair(addr, c.cache.GetFakeip(addr))
+	_ = c.cache.DelFakeipPair(addr, c.cache.GetFakeip(addr))
 }
 
 // Exist implements store.Exist
@@ -57,7 +57,7 @@ func (c *cachefileStore) Exist(ip netip.Addr) bool {
 
 // CloneTo implements store.CloneTo
 // already persistence
-func (c *cachefileStore) CloneTo(store store) {}
+func (c *cachefileStore) CloneTo(_ store) {}
 
 // FlushFakeIP implements store.FlushFakeIP
 func (c *cachefileStore) FlushFakeIP() error {

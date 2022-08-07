@@ -63,7 +63,7 @@ func (ss *Socks5) StreamSocks5PacketConn(c net.Conn, pc net.PacketConn, metadata
 		_, _ = io.Copy(io.Discard, c)
 		_ = c.Close()
 		// A UDP association terminates when the TCP connection that the UDP
-		// ASSOCIATE request arrived on terminates. RFC1928
+		// ASSOCIATE request arrived at terminates. RFC1928
 		_ = pc.Close()
 	}()
 
@@ -86,7 +86,9 @@ func (ss *Socks5) StreamSocks5PacketConn(c net.Conn, pc net.PacketConn, metadata
 func (ss *Socks5) streamConn(c net.Conn, metadata *C.Metadata) (_ net.Conn, bindAddr socks5.Addr, err error) {
 	if ss.tls {
 		cc := tls.Client(c, ss.tlsConfig)
-		err := cc.Handshake()
+		ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTLSTimeout)
+		defer cancel()
+		err = cc.HandshakeContext(ctx)
 		c = cc
 		if err != nil {
 			return c, nil, fmt.Errorf("%s connect error: %w", ss.addr, err)

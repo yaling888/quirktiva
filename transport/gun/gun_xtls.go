@@ -4,6 +4,7 @@
 package gun
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -13,7 +14,7 @@ import (
 )
 
 func NewHTTP2XTLSClient(dialFn DialFn, tlsConfig *tls.Config) *http2.Transport {
-	dialFunc := func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+	dialFunc := func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
 		pconn, err := dialFn(network, addr)
 		if err != nil {
 			return nil, err
@@ -25,20 +26,20 @@ func NewHTTP2XTLSClient(dialFn DialFn, tlsConfig *tls.Config) *http2.Transport {
 		}
 
 		cn := xtls.Client(pconn, xtlsConfig)
-		if err := cn.Handshake(); err != nil {
-			pconn.Close()
+		if err = cn.HandshakeContext(ctx); err != nil {
+			_ = pconn.Close()
 			return nil, err
 		}
 		state := cn.ConnectionState()
 		if p := state.NegotiatedProtocol; p != http2.NextProtoTLS {
-			cn.Close()
+			_ = cn.Close()
 			return nil, fmt.Errorf("http2: unexpected ALPN protocol %s, want %s", p, http2.NextProtoTLS)
 		}
 		return cn, nil
 	}
 
 	return &http2.Transport{
-		DialTLS:            dialFunc,
+		DialTLSContext:     dialFunc,
 		TLSClientConfig:    tlsConfig,
 		AllowHTTP:          false,
 		DisableCompression: true,

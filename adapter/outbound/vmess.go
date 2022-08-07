@@ -202,7 +202,7 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 
 // StreamPacketConn implements C.ProxyAdapter
 func (v *Vmess) StreamPacketConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
-	// vmess use stream-oriented udp with a special address, so we needs a net.UDPAddr
+	// vmess use stream-oriented udp with a special address, so we need a net.UDPAddr
 	if !metadata.Resolved() {
 		ip, err := resolver.ResolveFirstIP(metadata.Host)
 		if err != nil {
@@ -254,7 +254,7 @@ func (v *Vmess) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 	var c net.Conn
 	// gun transport
 	if v.transport != nil && len(opts) == 0 {
-		// vmess use stream-oriented udp with a special address, so we needs a net.UDPAddr
+		// vmess use stream-oriented udp with a special address, so we need a net.UDPAddr
 		if !metadata.Resolved() {
 			ip, err := resolver.ResolveFirstIP(metadata.Host)
 			if err != nil {
@@ -370,18 +370,18 @@ func parseVmessAddr(metadata *C.Metadata) *vmess.DstAddr {
 	var addr []byte
 	switch metadata.AddrType() {
 	case socks5.AtypIPv4:
-		addrType = byte(vmess.AtypIPv4)
+		addrType = vmess.AtypIPv4
 		addr = make([]byte, net.IPv4len)
 		copy(addr[:], metadata.DstIP.AsSlice())
 	case socks5.AtypIPv6:
-		addrType = byte(vmess.AtypIPv6)
+		addrType = vmess.AtypIPv6
 		addr = make([]byte, net.IPv6len)
 		copy(addr[:], metadata.DstIP.AsSlice())
 	case socks5.AtypDomainName:
-		addrType = byte(vmess.AtypDomainName)
+		addrType = vmess.AtypDomainName
 		addr = make([]byte, len(metadata.Host)+1)
 		addr[0] = byte(len(metadata.Host))
-		copy(addr[1:], []byte(metadata.Host))
+		copy(addr[1:], metadata.Host)
 	}
 
 	port, _ := strconv.ParseUint(metadata.DstPort, 10, 16)
