@@ -164,9 +164,6 @@ Finally, open the Clash
 - Support rule `GEOSITE`.
 - Support rule `USER-AGENT`.
 - Support `multiport` condition for rule `SRC-PORT` and `DST-PORT`.
-- Support `network` condition for all rules.
-- Support `process` condition for all rules.
-- Support source IPCIDR condition for all rules, just append to the end.
 
 The `GEOIP` databases via [https://github.com/Loyalsoldier/geoip](https://raw.githubusercontent.com/Loyalsoldier/geoip/release/Country.mmdb).
 
@@ -179,22 +176,15 @@ script:
     quic: 'network == "udp" and dst_port == 443'
     privacy: '"analytics" in host or "adservice" in host or "firebase" in host or "safebrowsing" in host or "doubleclick" in host'
     BilibiliUdp: |
-      network == "udp" and match_provider("geosite:bilibili")
+      network == "udp" and match_provider("bilibili")
 rules:
   # rule SCRIPT shortcuts
-  - SCRIPT,quic,REJECT # Disable QUIC, same as rule "DST-PORT,443,REJECT,udp"
+  - SCRIPT,quic,REJECT # Disable QUIC
   - SCRIPT,privacy,REJECT
-  - SCRIPT,BilibiliUdp,REJECT # same as rule "GEOSITE,bilibili,REJECT,udp"
-    
-  # network condition for all rules
-  - DOMAIN-SUFFIX,example.com,DIRECT,tcp
-  - DOMAIN-SUFFIX,example.com,REJECT,udp
-
-  # process condition for all rules (add 'P:' prefix)
-  - DOMAIN-SUFFIX,example.com,REJECT,P:Google Chrome Helper
+  - SCRIPT,BilibiliUdp,REJECT
 
   # multiport condition for rules SRC-PORT and DST-PORT
-  - DST-PORT,123/136/137-139,DIRECT,udp
+  - DST-PORT,123/136/137-139,DIRECT
 
   # USER-AGENT payload cannot include the comma character, '*' meaning any character.
   - USER-AGENT,*example*,PROXY
@@ -210,9 +200,6 @@ rules:
   - GEOSITE,geolocation-cn,DIRECT
   - GEOSITE,geolocation-!cn,PROXY
 
-  # source IPCIDR condition for all rules in gateway proxy
-  #- GEOSITE,geolocation-!cn,REJECT,192.168.1.88/32,192.168.1.99/32
-  
   - GEOIP,telegram,PROXY,no-resolve
   - GEOIP,lan,DIRECT,no-resolve
   - GEOIP,cn,DIRECT
@@ -245,33 +232,33 @@ script:
 
       if metadata["network"] == 'udp' and metadata["dst_port"] == 443:
         return "REJECT"
-    
+
       host = metadata["host"]
       for kw in ['analytics', 'adservice', 'firebase', 'bugly', 'safebrowsing', 'doubleclick']:
         if kw in host:
           return "REJECT"
-    
+
       # now = time.now()
       # if (now.hour < 8 or now.hour > 18) and metadata["src_ip"] == '192.168.1.99':
       #   return "REJECT"
-      
-      if ctx.rule_providers["geosite:category-ads-all"].match(metadata):
+
+      if ctx.rule_providers["category-ads-all"].match(metadata):
         return "REJECT"
-    
-      if ctx.rule_providers["geosite:youtube"].match(metadata):
+
+      if ctx.rule_providers["youtube"].match(metadata):
         ctx.log('[Script] domain %s matched youtube' % host)
         return "Proxy"
 
-      if ctx.rule_providers["geosite:geolocation-cn"].match(metadata):
+      if ctx.rule_providers["geolocation-cn"].match(metadata):
         ctx.log('[Script] domain %s matched geolocation-cn' % host)
         return "DIRECT"
-    
+
       ip = metadata["dst_ip"]
       if ip == "":
         ip = ctx.resolve_ip(host)
         if ip == "":
           return "Proxy"
-      
+
       code = ctx.geoip(ip)
       if code == "TELEGRAM":
         ctx.log('[Script] matched telegram')

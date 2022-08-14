@@ -1,5 +1,7 @@
 package constant
 
+import "github.com/Dreamacro/clash/component/geodata/router"
+
 // Rule Type
 const (
 	Domain RuleType = iota
@@ -61,7 +63,9 @@ type Rule interface {
 	Adapter() string
 	Payload() string
 	ShouldResolveIP() bool
-	RuleExtra() *RuleExtra
-	SetRuleExtra(re *RuleExtra)
 	ShouldFindProcess() bool
+}
+
+type RuleGeoSite interface {
+	GetDomainMatcher() *router.DomainMatcher
 }

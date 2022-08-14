@@ -47,17 +47,5 @@ func ParseRule(tp, payload, target string, params []string) (C.Rule, error) {
 		parseErr = fmt.Errorf("unsupported rule type %s", tp)
 	}
 
-	if parseErr != nil {
-		return nil, parseErr
-	}
-
-	ruleExtra := &C.RuleExtra{
-		Network:      findNetwork(params),
-		SourceIPs:    findSourceIPs(params),
-		ProcessNames: findProcessName(params),
-	}
-
-	parsed.SetRuleExtra(ruleExtra)
-
-	return parsed, nil
+	return parsed, parseErr
 }

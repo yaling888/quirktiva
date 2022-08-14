@@ -451,21 +451,6 @@ func match(metadata *C.Metadata) (C.Proxy, C.Rule, error) {
 				continue
 			}
 
-			extra := rule.RuleExtra()
-			if extra != nil {
-				if extra.NotMatchNetwork(metadata.NetWork) {
-					continue
-				}
-
-				if extra.NotMatchSourceIP(metadata.SrcIP) {
-					continue
-				}
-
-				if extra.NotMatchProcessName(metadata.Process) {
-					continue
-				}
-			}
-
 			return adapter, rule, nil
 		}
 	}
