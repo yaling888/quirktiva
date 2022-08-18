@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"net"
 	"net/http"
-	"time"
 
 	"github.com/Dreamacro/clash/common/cache"
 	"github.com/Dreamacro/clash/common/cert"
@@ -63,9 +62,9 @@ func NewWithAuthenticate(option *Option, in chan<- C.ConnContext, authenticate b
 		return nil, err
 	}
 
-	var c *cache.Cache[string, bool]
+	var c *cache.LruCache[string, bool]
 	if authenticate {
-		c = cache.New[string, bool](time.Second * 90)
+		c = cache.New[string, bool](cache.WithAge[string, bool](90))
 	}
 
 	hl := &Listener{

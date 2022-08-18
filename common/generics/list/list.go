@@ -114,7 +114,7 @@ func (l *List[T]) remove(e *Element[T]) {
 	l.len--
 }
 
-// move moves e to next to at.
+// move e to next to at.
 func (l *List[T]) move(e, at *Element[T]) {
 	if e == at {
 		return

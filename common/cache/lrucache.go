@@ -15,7 +15,7 @@ type Option[K comparable, V any] func(*LruCache[K, V])
 // EvictCallback is used to get a callback when a cache entry is evicted
 type EvictCallback[K comparable, V any] func(key K, value V)
 
-// WithEvict set the evict callback
+// WithEvict set to evict callback
 func WithEvict[K comparable, V any](cb EvictCallback[K, V]) Option[K, V] {
 	return func(l *LruCache[K, V]) {
 		l.onEvict = cb
@@ -65,8 +65,8 @@ type LruCache[K comparable, V any] struct {
 	onEvict        EvictCallback[K, V]
 }
 
-// NewLRUCache creates an LruCache
-func NewLRUCache[K comparable, V any](options ...Option[K, V]) *LruCache[K, V] {
+// New creates an LruCache
+func New[K comparable, V any](options ...Option[K, V]) *LruCache[K, V] {
 	lc := &LruCache[K, V]{
 		lru:   list.New[*entry[K, V]](),
 		cache: make(map[K]*list.Element[*entry[K, V]]),
@@ -79,7 +79,7 @@ func NewLRUCache[K comparable, V any](options ...Option[K, V]) *LruCache[K, V] {
 	return lc
 }
 
-// Get returns the any representation of a cached response and a bool
+// Get returns any representation of a cached response and a bool
 // set to true if the key was found.
 func (c *LruCache[K, V]) Get(key K) (V, bool) {
 	el := c.get(key)
@@ -91,7 +91,7 @@ func (c *LruCache[K, V]) Get(key K) (V, bool) {
 	return value, true
 }
 
-// GetWithExpire returns the any representation of a cached response,
+// GetWithExpire returns any representation of a cached response,
 // a time.Time Give expected expires,
 // and a bool set to true if the key was found.
 // This method will NOT check the maxAge of element and will NOT update the expires.
@@ -113,7 +113,7 @@ func (c *LruCache[K, V]) Exist(key K) bool {
 	return ok
 }
 
-// Set stores the any representation of a response for a given key.
+// Set stores any representation of a response for a given key.
 func (c *LruCache[K, V]) Set(key K, value V) {
 	expires := int64(0)
 	if c.maxAge > 0 {
@@ -122,7 +122,7 @@ func (c *LruCache[K, V]) Set(key K, value V) {
 	c.SetWithExpire(key, value, time.Unix(expires, 0))
 }
 
-// SetWithExpire stores the any representation of a response for a given key and given expires.
+// SetWithExpire stores any representation of a response for a given key and given expires.
 // The expires time will round to second.
 func (c *LruCache[K, V]) SetWithExpire(key K, value V, expires time.Time) {
 	c.mu.Lock()

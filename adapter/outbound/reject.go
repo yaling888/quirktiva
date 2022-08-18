@@ -16,7 +16,7 @@ const (
 	rejectDelay      = time.Second * 35
 )
 
-var rejectCounter = cache.NewLRUCache[string, int](cache.WithAge[string, int](15), cache.WithStale[string, int](false), cache.WithSize[string, int](512))
+var rejectCounter = cache.New[string, int](cache.WithAge[string, int](15), cache.WithStale[string, int](false), cache.WithSize[string, int](512))
 
 type Reject struct {
 	*Base
