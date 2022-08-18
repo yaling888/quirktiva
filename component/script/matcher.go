@@ -25,6 +25,7 @@ var keywordAllow = map[string]bool{
 	"src_port":     true,
 	"dst_ip":       true,
 	"dst_port":     true,
+	"user_agent":   true,
 }
 
 var _ C.Matcher = (*Matcher)(nil)
@@ -113,9 +114,7 @@ func (m *Matcher) Match(metadata *C.Metadata) (bool, error) {
 		return false, fmt.Errorf("match shortcut [%s] error: %w", m.name, err)
 	}
 
-	if now, err := time.Module.Attr("now"); err == nil {
-		predefined["now"] = now
-	}
+	predefined["now"] = time.Time(time.NowFunc())
 
 	id, _ := uuid.NewV4()
 	thread := &starlark.Thread{

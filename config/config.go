@@ -934,6 +934,8 @@ def main(ctx, metadata):
 			return nil, nil, fmt.Errorf("initialized rule SCRIPT failure, shortcut [%s] code syntax invalid", k)
 		}
 
+		v = strings.ReplaceAll(strings.ReplaceAll(v, "\r", " "), "\n", " ")
+
 		m, err := S.NewMatcher(k, "", v)
 		if err != nil {
 			return nil, nil, fmt.Errorf("initialized script module failure, %w", err)
@@ -955,7 +957,7 @@ def main(ctx, metadata):
 }
 
 func cleanScriptKeywords(code string) string {
-	keywords := []string{"load\\(", "def resolve_ip\\(", "def geoip\\(", "def match_provider\\(", "def in_cidr\\("}
+	keywords := []string{`load\(`, `def resolve_ip\(`, `def geoip\(`, `def match_provider\(`, `def in_cidr\(`}
 
 	for _, kw := range keywords {
 		reg := regexp.MustCompile("(?m)[\r\n]+^.*" + kw + ".*$")
@@ -965,10 +967,13 @@ func cleanScriptKeywords(code string) string {
 }
 
 func findRuleProvidersName(s string) []string {
-	ruleProviderRegx := regexp.MustCompile("ctx.rule_providers\\[[\"'](\\S+)[\"']\\]\\.match|match_provider\\([\"'](\\S+)[\"']\\)")
-	arr := ruleProviderRegx.FindAllStringSubmatch(s, -1)
+	var (
+		regxStr = `ctx.rule_providers\[["'](\S+)["']\]\.match|match_provider\(["'](\S+)["']\)`
+		regx    = regexp.MustCompile(regxStr)
+		arr     = regx.FindAllStringSubmatch(s, -1)
+		rpd     []string
+	)
 
-	var rpd []string
 	for _, rpdArr := range arr {
 		for i, v := range rpdArr {
 			if i == 0 || v == "" {

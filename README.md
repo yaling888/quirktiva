@@ -177,11 +177,14 @@ script:
     privacy: '"analytics" in host or "adservice" in host or "firebase" in host or "safebrowsing" in host or "doubleclick" in host'
     BilibiliUdp: |
       network == "udp" and match_provider("bilibili")
+    ParentalControls: |
+      src_ip == "192.168.1.123" and now.hour < 8 and now.hour > 22
 rules:
   # rule SCRIPT shortcuts
   - SCRIPT,quic,REJECT # Disable QUIC
   - SCRIPT,privacy,REJECT
   - SCRIPT,BilibiliUdp,REJECT
+  - SCRIPT,ParentalControls,REJECT
 
   # multiport condition for rules SRC-PORT and DST-PORT
   - DST-PORT,123/136/137-139,DIRECT
@@ -205,6 +208,27 @@ rules:
   - GEOIP,cn,DIRECT
 
   - MATCH,PROXY
+```
+Script shortcut parameters
+```ts
+now: {
+  year:       int
+  month:      int
+  day:        int
+  hour:       int
+  minute:     int
+  second:     int
+}
+type:         string
+network:      string
+host:         string
+process_name: string
+process_path: string
+user_agent:   string
+src_ip:       string
+src_port:     int
+dst_ip:       string // call resolve_ip(host) if empty
+dst_port:     int
 ```
 Script shortcut functions
 ```ts
@@ -275,6 +299,7 @@ interface Metadata {
   type: string // socks5、http
   network: string // tcp、udp
   host: string
+  user_agent: string
   src_ip: string
   src_port: string
   dst_ip: string

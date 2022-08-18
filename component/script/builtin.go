@@ -3,6 +3,7 @@ package script
 import (
 	"fmt"
 	"net/netip"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -76,7 +77,11 @@ func resolveProcessName(thread *starlark.Thread, _ *starlark.Builtin, _ starlark
 	processName := mtd.Process
 	if processName == "" {
 		if srcPort, err := strconv.ParseUint(mtd.SrcPort, 10, 16); err == nil {
-			processName, _ = P.FindProcessName(mtd.NetWork.String(), mtd.SrcIP, int(srcPort))
+			if path, err1 := P.FindProcessName(mtd.NetWork.String(), mtd.SrcIP, int(srcPort)); err1 == nil {
+				processName = filepath.Base(path)
+				mtd.Process = processName
+				mtd.ProcessPath = path
+			}
 		}
 	}
 
@@ -215,12 +220,13 @@ func metadataToStringDict(mtd *C.Metadata, dict starlark.StringDict) (starlark.S
 	}
 	dict["dst_ip"] = starlark.String(dstIP)
 	dict["dst_port"] = starlark.MakeUint64(dstPort)
+	dict["user_agent"] = starlark.String(mtd.UserAgent)
 
 	return dict, nil
 }
 
 func metadataToDict(mtd *C.Metadata) (val *starlark.Dict, err error) {
-	dict := starlark.NewDict(7)
+	dict := starlark.NewDict(8)
 	err = dict.SetKey(starlark.String("type"), starlark.String(mtd.Type.String()))
 	if err != nil {
 		return
@@ -251,6 +257,10 @@ func metadataToDict(mtd *C.Metadata) (val *starlark.Dict, err error) {
 		return
 	}
 	err = dict.SetKey(starlark.String("dst_port"), starlark.String(mtd.DstPort))
+	if err != nil {
+		return
+	}
+	err = dict.SetKey(starlark.String("user_agent"), starlark.String(mtd.UserAgent))
 	if err != nil {
 		return
 	}
