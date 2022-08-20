@@ -2,6 +2,7 @@ package commons
 
 import (
 	"fmt"
+	"math"
 	"net"
 	"net/netip"
 	"sync"
@@ -255,7 +256,14 @@ func getAutoDetectInterfaceByFamily(family winipcfg.AddressFamily) (string, erro
 		destination = netip.PrefixFrom(netip.IPv6Unspecified(), 0)
 	}
 
+	metrics := make(map[string]uint32, len(interfaces))
 	for _, ifaceM := range interfaces {
+		var ifmetric uint32
+		if family == windows.AF_INET {
+			ifmetric = ifaceM.Ipv4Metric
+		} else {
+			ifmetric = ifaceM.Ipv6Metric
+		}
 		if ifaceM.OperStatus != winipcfg.IfOperStatusUp {
 			continue
 		}
@@ -269,10 +277,22 @@ func getAutoDetectInterfaceByFamily(family winipcfg.AddressFamily) (string, erro
 		for gatewayAddress := ifaceM.FirstGatewayAddress; gatewayAddress != nil; gatewayAddress = gatewayAddress.Next {
 			nextHop := nnip.IpToAddr(gatewayAddress.Address.IP())
 
-			if _, err = ifaceM.LUID.Route(destination, nextHop); err == nil {
-				return ifname, nil
+			if route, err := ifaceM.LUID.Route(destination, nextHop); err == nil {
+				metrics[ifname] = ifmetric + route.Metric
 			}
 		}
+	}
+
+	if len(metrics) != 0 {
+		var bestIfname string
+		var bestMetric uint32 = math.MaxUint32
+		for ifname, metric := range metrics {
+			if metric < bestMetric {
+				bestIfname = ifname
+				bestMetric = metric
+			}
+		}
+		return bestIfname, nil
 	}
 
 	return "", errInterfaceNotFound
