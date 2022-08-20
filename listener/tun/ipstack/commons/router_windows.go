@@ -116,12 +116,12 @@ startOver:
 				if allowedip.Bits() == 0 {
 					foundDefault4 = true
 				}
-				route.NextHop = netip.IPv4Unspecified()
+				route.NextHop = netip.MustParseAddr("169.254.0.1")
 			} else if allowedip.Addr().Is6() {
 				if allowedip.Bits() == 0 {
 					foundDefault6 = true
 				}
-				route.NextHop = netip.IPv6Unspecified()
+				route.NextHop = netip.MustParseAddr("fe80::1")
 			}
 			routes[route] = true
 		}
