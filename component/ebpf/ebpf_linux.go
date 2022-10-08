@@ -102,6 +102,7 @@ func systemSetting(ifaceNames ...string) {
 	_, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.all.accept_local=1")
 	_, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.all.accept_redirects=1")
 	_, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.all.rp_filter=0")
+	_, _ = cmd.ExecCmd("iptables -t filter -P FORWARD ACCEPT")
 
 	for _, ifaceName := range ifaceNames {
 		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.forwarding=1", ifaceName))

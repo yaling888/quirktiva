@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
+	"github.com/Dreamacro/clash/component/ebpf/byteorder"
 	"github.com/Dreamacro/clash/log"
 )
 
@@ -125,7 +126,7 @@ func (s *searcher) Search(b []byte, ip netip.Addr, port uint16) (uint32, error) 
 		// this field can be illustrated as follows depends on different machine endianess:
 		//     little endian: [ MSB LSB  0   0  ]   interpret as native uint32 is ((LSB<<8)|MSB)
 		//       big  endian: [  0   0  MSB LSB ]   interpret as native uint32 is ((MSB<<8)|LSB)
-		// so we need an syscall.Ntohs on the lower 16 bits after read the port as native uint32
+		// so we need a syscall.Ntohs on the lower 16 bits after read the port as native uint32
 		srcPort := syscall.Ntohs(uint16(readNativeUint32(row[s.port : s.port+4])))
 		if srcPort != port {
 			continue
@@ -188,7 +189,7 @@ func getTransportTable(fn uintptr, family int, class int) ([]byte, error) {
 }
 
 func readNativeUint32(b []byte) uint32 {
-	return *(*uint32)(unsafe.Pointer(&b[0]))
+	return byteorder.Native.Uint32(b)
 }
 
 func getExecPathFromPID(pid uint32) (string, error) {
@@ -205,7 +206,9 @@ func getExecPathFromPID(pid uint32) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer windows.CloseHandle(h)
+	defer func(handle windows.Handle) {
+		_ = windows.CloseHandle(handle)
+	}(h)
 
 	buf := make([]uint16, syscall.MAX_LONG_PATH)
 	size := uint32(len(buf))

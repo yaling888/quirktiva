@@ -14,6 +14,7 @@ import (
 	"github.com/Dreamacro/clash/adapter"
 	"github.com/Dreamacro/clash/common/cache"
 	"github.com/Dreamacro/clash/common/nnip"
+	"github.com/Dreamacro/clash/common/picker"
 	"github.com/Dreamacro/clash/component/dialer"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/log"
@@ -178,4 +179,31 @@ func fetchRawProxyAdapter(proxyAdapter C.ProxyAdapter, metadata *C.Metadata) C.P
 	}
 
 	return proxyAdapter
+}
+
+func batchExchange(ctx context.Context, clients []dnsClient, m *D.Msg) (msg *D.Msg, err error) {
+	fast, ctx := picker.WithContext[*D.Msg](ctx)
+	for _, clientM := range clients {
+		r := clientM
+		fast.Go(func() (*D.Msg, error) {
+			mm, fErr := r.ExchangeContext(ctx, m)
+			if fErr != nil {
+				return nil, fErr
+			} else if mm.Rcode == D.RcodeServerFailure || mm.Rcode == D.RcodeRefused {
+				return nil, errors.New("server failure")
+			}
+			return mm, nil
+		})
+	}
+
+	elm := fast.Wait()
+	if elm == nil {
+		err = errors.New("all DNS requests failed")
+		if fErr := fast.Error(); fErr != nil {
+			err = fmt.Errorf("%w, first error: %s", err, fErr.Error())
+		}
+		return nil, err
+	}
+
+	return elm, nil
 }

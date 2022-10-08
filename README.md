@@ -21,16 +21,18 @@
 ## Features
 
 - Local HTTP/HTTPS/SOCKS server with authentication support
-- VMess, Shadowsocks, Trojan, Snell protocol support for remote connections
-- Built-in DNS server that aims to minimize DNS pollution attack impact, supports DoH/DoT upstream and fake IP.
-- Rules based off domains, GEOIP, IPCIDR or Process to forward packets to different nodes
-- Remote groups allow users to implement powerful rules. Supports automatic fallback, load balancing or auto select node based off latency
-- Remote providers, allowing users to get node lists remotely instead of hardcoding in config
-- Netfilter TCP redirecting. Deploy Clash on your Internet gateway with `iptables`.
-- Comprehensive HTTP RESTful API controller
+- Shadowsocks(R), VMess, VLESS, Trojan, Snell, SOCKS5, HTTP(S) outbound support
+- Built-in [fake-ip](https://www.rfc-editor.org/rfc/rfc3089) DNS server that aims to minimize DNS pollution attack impact. DoH/DoT upstream supported.
+- Rules based off domains, GEOIP, GEOSITE, IP-CIDR or process names to route packets to different destinations
+- Proxy groups allow users to implement powerful rules. Supports automatic fallback, load balancing or auto select proxy based off latency
+- Remote providers, allowing users to get proxy lists remotely instead of hardcoding in config
+- Transparent proxy: Redirect TCP and TProxy TCP/UDP with automatic route table/rule management
+- Hot-reload via the comprehensive HTTP RESTful API controller
+- System/gVisor stack TUN device on macOS, Linux and Windows
+- Policy routing with Scripts
 
 ## Getting Started
-Documentations are now moved to [GitHub Wiki](https://github.com/Dreamacro/clash/wiki).
+Documentations are available at [GitHub Wiki](https://github.com/Dreamacro/clash/wiki).
 
 ## Advanced usage for this branch
 ### General configuration

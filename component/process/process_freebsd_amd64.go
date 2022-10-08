@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/Dreamacro/clash/component/ebpf/byteorder"
 	"github.com/Dreamacro/clash/log"
 )
 
@@ -80,7 +81,7 @@ func getExecPathFromPID(pid uint32) (string, error) {
 }
 
 func readNativeUint32(b []byte) uint32 {
-	return *(*uint32)(unsafe.Pointer(&b[0]))
+	return byteorder.Native.Uint32(b)
 }
 
 type searcher struct {

@@ -11,20 +11,12 @@ import (
 	"strings"
 	"syscall"
 	"unicode"
-	"unsafe"
 
 	"github.com/Dreamacro/clash/common/pool"
+	"github.com/Dreamacro/clash/component/ebpf/byteorder"
 )
 
-// from https://github.com/vishvananda/netlink/blob/bca67dfc8220b44ef582c9da4e9172bf1c9ec973/nl/nl_linux.go#L52-L62
-var nativeEndian = func() binary.ByteOrder {
-	var x uint32 = 0x01020304
-	if *(*byte)(unsafe.Pointer(&x)) == 0x01 {
-		return binary.BigEndian
-	}
-
-	return binary.LittleEndian
-}()
+var nativeEndian = byteorder.Native
 
 const (
 	sizeOfSocketDiagRequest = syscall.SizeofNlMsghdr + 8 + 48
@@ -167,7 +159,7 @@ func resolveProcessNameByProcSearch(inode, uid int32) (string, error) {
 	}
 
 	buffer := make([]byte, syscall.PathMax)
-	socket := []byte(fmt.Sprintf("socket:[%d]", inode))
+	socket := fmt.Appendf(nil, "socket:[%d]", inode)
 
 	for _, f := range files {
 		if !f.IsDir() || !isPid(f.Name()) {

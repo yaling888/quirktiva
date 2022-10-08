@@ -7,6 +7,8 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/Dreamacro/clash/component/ebpf/byteorder"
 )
 
 const (
@@ -25,8 +27,6 @@ func findProcessName(network string, ip netip.Addr, port int) (string, error) {
 	default:
 		return "", ErrInvalidNetwork
 	}
-
-	isIPv4 := ip.Is4()
 
 	value, err := syscall.Sysctl(spath)
 	if err != nil {
@@ -59,20 +59,23 @@ func findProcessName(network string, ip netip.Addr, port int) (string, error) {
 		// xinpcb_n.inp_vflag
 		flag := buf[inp+44]
 
-		var (
-			srcIP     netip.Addr
-			srcIsIPv4 bool
-		)
+		var srcIP netip.Addr
 		switch {
-		case flag&0x1 > 0 && isIPv4:
+		case flag&0x1 > 0:
 			// ipv4
 			srcIP, _ = netip.AddrFromSlice(buf[inp+76 : inp+80])
-			srcIsIPv4 = true
-		case flag&0x2 > 0 && !isIPv4:
+		case flag&0x2 > 0:
 			// ipv6
-			srcIP, _ = netip.AddrFromSlice(buf[inp+64 : inp+80])
+			ipv6 := buf[inp+64 : inp+80]
+			ipv6[2] = 0x00
+			ipv6[3] = 0x00
+			srcIP, _ = netip.AddrFromSlice(ipv6)
 		default:
 			continue
+		}
+
+		if ip.Is4() {
+			srcIP = srcIP.Unmap()
 		}
 
 		if ip == srcIP {
@@ -82,7 +85,7 @@ func findProcessName(network string, ip netip.Addr, port int) (string, error) {
 		}
 
 		// udp packet connection may be not equal with srcIP
-		if network == UDP && srcIP.IsUnspecified() && isIPv4 == srcIsIPv4 {
+		if network == UDP && srcIP.IsUnspecified() && srcIP.Is4() {
 			fallbackUDPProcess, _ = getExecPathFromPID(readNativeUint32(buf[so+68 : so+72]))
 		}
 	}
@@ -112,5 +115,5 @@ func getExecPathFromPID(pid uint32) (string, error) {
 }
 
 func readNativeUint32(b []byte) uint32 {
-	return *(*uint32)(unsafe.Pointer(&b[0]))
+	return byteorder.Native.Uint32(b)
 }
