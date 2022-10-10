@@ -7,22 +7,95 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"unicode"
 
-	"github.com/Dreamacro/clash/common/pool"
+	"github.com/vishvananda/netlink"
+	"github.com/vishvananda/netlink/nl"
+	"golang.org/x/sys/unix"
+
 	"github.com/Dreamacro/clash/component/ebpf/byteorder"
 )
 
-var nativeEndian = byteorder.Native
-
 const (
-	sizeOfSocketDiagRequest = syscall.SizeofNlMsghdr + 8 + 48
-	socketDiagByFamily      = 20
-	pathProc                = "/proc"
+	sizeofSocketID      = 0x30
+	sizeofSocketRequest = sizeofSocketID + 0x8
+	sizeofSocket        = sizeofSocketID + 0x18
 )
+
+var native = byteorder.Native
+
+type socketRequest struct {
+	Family   uint8
+	Protocol uint8
+	Ext      uint8
+	pad      uint8
+	States   uint32
+	ID       netlink.SocketID
+}
+
+func (r *socketRequest) Serialize() []byte {
+	b := writeBuffer{Bytes: make([]byte, sizeofSocketRequest)}
+	b.Write(r.Family)
+	b.Write(r.Protocol)
+	b.Write(r.Ext)
+	b.Write(r.pad)
+	native.PutUint32(b.Next(4), r.States)
+	binary.BigEndian.PutUint16(b.Next(2), r.ID.SourcePort)
+	binary.BigEndian.PutUint16(b.Next(2), r.ID.DestinationPort)
+	if r.Family == unix.AF_INET6 {
+		copy(b.Next(16), r.ID.Source)
+		copy(b.Next(16), r.ID.Destination)
+	} else {
+		copy(b.Next(4), r.ID.Source.To4())
+		b.Next(12)
+		copy(b.Next(4), r.ID.Destination.To4())
+		b.Next(12)
+	}
+	native.PutUint32(b.Next(4), r.ID.Interface)
+	native.PutUint32(b.Next(4), r.ID.Cookie[0])
+	native.PutUint32(b.Next(4), r.ID.Cookie[1])
+	return b.Bytes
+}
+
+func (r *socketRequest) Len() int {
+	return sizeofSocketRequest
+}
+
+type writeBuffer struct {
+	Bytes []byte
+	pos   int
+}
+
+func (b *writeBuffer) Write(c byte) {
+	b.Bytes[b.pos] = c
+	b.pos++
+}
+
+func (b *writeBuffer) Next(n int) []byte {
+	s := b.Bytes[b.pos : b.pos+n]
+	b.pos += n
+	return s
+}
+
+type readBuffer struct {
+	Bytes []byte
+	pos   int
+}
+
+func (b *readBuffer) Read() byte {
+	c := b.Bytes[b.pos]
+	b.pos++
+	return c
+}
+
+func (b *readBuffer) Next(n int) []byte {
+	s := b.Bytes[b.pos : b.pos+n]
+	b.pos += n
+	return s
+}
 
 func findProcessName(network string, ip netip.Addr, srcPort int) (string, error) {
 	inode, uid, err := resolveSocketByNetlink(network, ip, srcPort)
@@ -33,132 +106,75 @@ func findProcessName(network string, ip netip.Addr, srcPort int) (string, error)
 	return resolveProcessNameByProcSearch(inode, uid)
 }
 
-func resolveSocketByNetlink(network string, ip netip.Addr, srcPort int) (int32, int32, error) {
-	var family byte
-	var protocol byte
-
-	switch network {
-	case TCP:
-		protocol = syscall.IPPROTO_TCP
-	case UDP:
-		protocol = syscall.IPPROTO_UDP
-	default:
-		return 0, 0, ErrInvalidNetwork
+func resolveSocketByNetlink(network string, ip netip.Addr, srcPort int) (uint32, uint32, error) {
+	request := &socketRequest{
+		States: nl.TCPDIAG_NOCOOKIE,
 	}
 
 	if ip.Is4() {
-		family = syscall.AF_INET
+		request.Family = unix.AF_INET
 	} else {
-		family = syscall.AF_INET6
+		request.Family = unix.AF_INET6
 	}
 
-	req := packSocketDiagRequest(family, protocol, ip, uint16(srcPort))
+	if strings.HasPrefix(network, "tcp") {
+		request.Protocol = unix.IPPROTO_TCP
+	} else if strings.HasPrefix(network, "udp") {
+		request.Protocol = unix.IPPROTO_UDP
+	} else {
+		return 0, 0, ErrInvalidNetwork
+	}
 
-	socket, err := syscall.Socket(syscall.AF_NETLINK, syscall.SOCK_DGRAM, syscall.NETLINK_INET_DIAG)
+	request.ID = netlink.SocketID{
+		SourcePort: uint16(srcPort),
+		Source:     ip.AsSlice(),
+		Cookie:     [2]uint32{nl.TCPDIAG_NOCOOKIE, nl.TCPDIAG_NOCOOKIE},
+	}
+
+	s, err := nl.Subscribe(unix.NETLINK_INET_DIAG)
 	if err != nil {
-		return 0, 0, fmt.Errorf("dial netlink: %w", err)
+		return 0, 0, err
 	}
-	defer func() {
-		_ = syscall.Close(socket)
-	}()
+	defer s.Close()
 
-	_ = syscall.SetsockoptTimeval(socket, syscall.SOL_SOCKET, syscall.SO_SNDTIMEO, &syscall.Timeval{Usec: 100})
-	_ = syscall.SetsockoptTimeval(socket, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &syscall.Timeval{Usec: 100})
+	req := nl.NewNetlinkRequest(nl.SOCK_DIAG_BY_FAMILY, unix.NLM_F_DUMP)
+	req.AddData(request)
 
-	if err := syscall.Connect(socket, &syscall.SockaddrNetlink{
-		Family: syscall.AF_NETLINK,
-		Pad:    0,
-		Pid:    0,
-		Groups: 0,
-	}); err != nil {
+	err = s.Send(req)
+	if err != nil {
 		return 0, 0, err
 	}
 
-	if _, err := syscall.Write(socket, req); err != nil {
-		return 0, 0, fmt.Errorf("write request: %w", err)
-	}
-
-	rb := pool.Get(pool.RelayBufferSize)
-	defer func() {
-		_ = pool.Put(rb)
-	}()
-
-	n, err := syscall.Read(socket, rb)
+	msgs, from, err := s.Receive()
 	if err != nil {
-		return 0, 0, fmt.Errorf("read response: %w", err)
+		return 0, 0, err
 	}
 
-	messages, err := syscall.ParseNetlinkMessage(rb[:n])
+	if from.Pid != nl.PidKernel {
+		return 0, 0, fmt.Errorf("wrong sender portid %d, expected %d", from.Pid, nl.PidKernel)
+	}
+	if len(msgs) == 0 {
+		return 0, 0, fmt.Errorf("no message nor error from netlink")
+	}
+	if len(msgs) > 2 {
+		return 0, 0, fmt.Errorf("multiple (%d) matching sockets", len(msgs))
+	}
+
+	sock, err := deserialize(msgs[0].Data)
 	if err != nil {
-		return 0, 0, fmt.Errorf("parse netlink message: %w", err)
-	} else if len(messages) == 0 {
-		return 0, 0, fmt.Errorf("unexcepted netlink response")
+		return 0, 0, ErrNotFound
 	}
 
-	message := messages[0]
-	if message.Header.Type&syscall.NLMSG_ERROR != 0 {
-		return 0, 0, fmt.Errorf("netlink message: NLMSG_ERROR")
-	}
-
-	inode, uid := unpackSocketDiagResponse(&messages[0])
-	if inode < 0 || uid < 0 {
-		return 0, 0, fmt.Errorf("invalid inode(%d) or uid(%d)", inode, uid)
-	}
-
-	return inode, uid, nil
+	return sock.INode, sock.UID, nil
 }
 
-func packSocketDiagRequest(family, protocol byte, source netip.Addr, sourcePort uint16) []byte {
-	s := make([]byte, 16)
-
-	copy(s, source.AsSlice())
-
-	buf := make([]byte, sizeOfSocketDiagRequest)
-
-	nativeEndian.PutUint32(buf[0:4], sizeOfSocketDiagRequest)
-	nativeEndian.PutUint16(buf[4:6], socketDiagByFamily)
-	nativeEndian.PutUint16(buf[6:8], syscall.NLM_F_REQUEST|syscall.NLM_F_DUMP)
-	nativeEndian.PutUint32(buf[8:12], 0)
-	nativeEndian.PutUint32(buf[12:16], 0)
-
-	buf[16] = family
-	buf[17] = protocol
-	buf[18] = 0
-	buf[19] = 0
-	nativeEndian.PutUint32(buf[20:24], 0xFFFFFFFF)
-
-	binary.BigEndian.PutUint16(buf[24:26], sourcePort)
-	binary.BigEndian.PutUint16(buf[26:28], 0)
-
-	copy(buf[28:44], s)
-	copy(buf[44:60], net.IPv6zero)
-
-	nativeEndian.PutUint32(buf[60:64], 0)
-	nativeEndian.PutUint64(buf[64:72], 0xFFFFFFFFFFFFFFFF)
-
-	return buf
-}
-
-func unpackSocketDiagResponse(msg *syscall.NetlinkMessage) (inode, uid int32) {
-	if len(msg.Data) < 72 {
-		return 0, 0
-	}
-
-	data := msg.Data
-
-	uid = int32(nativeEndian.Uint32(data[64:68]))
-	inode = int32(nativeEndian.Uint32(data[68:72]))
-
-	return
-}
-
-func resolveProcessNameByProcSearch(inode, uid int32) (string, error) {
-	files, err := os.ReadDir(pathProc)
+func resolveProcessNameByProcSearch(inode, uid uint32) (string, error) {
+	files, err := os.ReadDir("/proc")
 	if err != nil {
 		return "", err
 	}
 
-	buffer := make([]byte, syscall.PathMax)
+	buffer := make([]byte, unix.PathMax)
 	socket := fmt.Appendf(nil, "socket:[%d]", inode)
 
 	for _, f := range files {
@@ -170,12 +186,12 @@ func resolveProcessNameByProcSearch(inode, uid int32) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if info.Sys().(*syscall.Stat_t).Uid != uint32(uid) {
+		if info.Sys().(*syscall.Stat_t).Uid != uid {
 			continue
 		}
 
-		processPath := path.Join(pathProc, f.Name())
-		fdPath := path.Join(processPath, "fd")
+		processPath := filepath.Join("/proc", f.Name())
+		fdPath := filepath.Join(processPath, "fd")
 
 		fds, err := os.ReadDir(fdPath)
 		if err != nil {
@@ -183,18 +199,50 @@ func resolveProcessNameByProcSearch(inode, uid int32) (string, error) {
 		}
 
 		for _, fd := range fds {
-			n, err := syscall.Readlink(path.Join(fdPath, fd.Name()), buffer)
+			n, err := unix.Readlink(filepath.Join(fdPath, fd.Name()), buffer)
 			if err != nil {
 				continue
 			}
 
 			if bytes.Equal(buffer[:n], socket) {
-				return os.Readlink(path.Join(processPath, "exe"))
+				return os.Readlink(filepath.Join(processPath, "exe"))
 			}
 		}
 	}
 
-	return "", fmt.Errorf("process of uid(%d),inode(%d) not found", uid, inode)
+	return "", fmt.Errorf("process of uid(%d), inode(%d) not found", uid, inode)
+}
+
+func deserialize(b []byte) (*netlink.Socket, error) {
+	if len(b) < sizeofSocket {
+		return nil, fmt.Errorf("socket data short read (%d); want %d", len(b), sizeofSocket)
+	}
+	s := &netlink.Socket{}
+	rb := readBuffer{Bytes: b}
+	s.Family = rb.Read()
+	s.State = rb.Read()
+	s.Timer = rb.Read()
+	s.Retrans = rb.Read()
+	s.ID.SourcePort = binary.BigEndian.Uint16(rb.Next(2))
+	s.ID.DestinationPort = binary.BigEndian.Uint16(rb.Next(2))
+	if s.Family == unix.AF_INET6 {
+		s.ID.Source = rb.Next(16)
+		s.ID.Destination = rb.Next(16)
+	} else {
+		s.ID.Source = net.IPv4(rb.Read(), rb.Read(), rb.Read(), rb.Read())
+		rb.Next(12)
+		s.ID.Destination = net.IPv4(rb.Read(), rb.Read(), rb.Read(), rb.Read())
+		rb.Next(12)
+	}
+	s.ID.Interface = native.Uint32(rb.Next(4))
+	s.ID.Cookie[0] = native.Uint32(rb.Next(4))
+	s.ID.Cookie[1] = native.Uint32(rb.Next(4))
+	s.Expires = native.Uint32(rb.Next(4))
+	s.RQueue = native.Uint32(rb.Next(4))
+	s.WQueue = native.Uint32(rb.Next(4))
+	s.UID = native.Uint32(rb.Next(4))
+	s.INode = native.Uint32(rb.Next(4))
+	return s, nil
 }
 
 func isPid(s string) bool {
