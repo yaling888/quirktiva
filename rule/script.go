@@ -1,8 +1,9 @@
 package rules
 
 import (
+	"github.com/phuslu/log"
+
 	C "github.com/Dreamacro/clash/constant"
-	"github.com/Dreamacro/clash/log"
 )
 
 type Script struct {
@@ -19,7 +20,7 @@ func (s *Script) RuleType() C.RuleType {
 func (s *Script) Match(metadata *C.Metadata) bool {
 	rs, err := s.matcher.Match(metadata)
 	if err != nil {
-		log.Warnln("[Shortcuts] %v", err)
+		log.Warn().Err(err).Msg("[Shortcuts]")
 		return false
 	}
 

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	D "github.com/miekg/dns"
+	"github.com/phuslu/log"
 
 	"github.com/Dreamacro/clash/common/cache"
 	"github.com/Dreamacro/clash/common/nnip"
@@ -13,7 +14,6 @@ import (
 	"github.com/Dreamacro/clash/component/trie"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/context"
-	"github.com/Dreamacro/clash/log"
 )
 
 type (
@@ -151,14 +151,14 @@ func withResolver(resolver *Resolver) handler {
 		ctx.SetType(context.DNSTypeRaw)
 		q := r.Question[0]
 
-		// return a empty AAAA msg when ipv6 disabled
+		// return an empty AAAA msg when ipv6 disabled
 		if !resolver.ipv6 && q.Qtype == D.TypeAAAA {
 			return handleMsgWithEmptyAnswer(r), nil
 		}
 
 		msg, err := resolver.Exchange(r)
 		if err != nil {
-			log.Debugln("[DNS Server] Exchange %s failed: %v", q.String(), err)
+			log.Debug().Err(err).Str("question", q.String()).Msg("[DNS] exchange failed")
 			return msg, err
 		}
 		msg.SetRcode(r, msg.Rcode)

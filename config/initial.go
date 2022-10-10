@@ -6,10 +6,11 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/phuslu/log"
+
 	"github.com/Dreamacro/clash/common/convert"
 	"github.com/Dreamacro/clash/component/mmdb"
 	C "github.com/Dreamacro/clash/constant"
-	"github.com/Dreamacro/clash/log"
 )
 
 func downloadMMDB(path string) (err error) {
@@ -31,14 +32,14 @@ func downloadMMDB(path string) (err error) {
 
 func initMMDB() error {
 	if _, err := os.Stat(C.Path.MMDB()); os.IsNotExist(err) {
-		log.Infoln("Can't find MMDB, start download")
+		log.Info().Msg("[Config] Can't find MMDB, start download")
 		if err := downloadMMDB(C.Path.MMDB()); err != nil {
 			return fmt.Errorf("can't download MMDB: %w", err)
 		}
 	}
 
 	if !mmdb.Verify() {
-		log.Warnln("MMDB invalid, remove and download")
+		log.Info().Msg("[Config] MMDB invalid, remove and download")
 		if err := os.Remove(C.Path.MMDB()); err != nil {
 			return fmt.Errorf("can't remove invalid MMDB: %w", err)
 		}
@@ -70,11 +71,11 @@ func downloadGeoSite(path string) (err error) {
 
 func initGeoSite() error {
 	if _, err := os.Stat(C.Path.GeoSite()); os.IsNotExist(err) {
-		log.Infoln("Can't find GeoSite.dat, start download")
+		log.Info().Msg("[Config] Can't find GeoSite.dat, start download")
 		if err := downloadGeoSite(C.Path.GeoSite()); err != nil {
 			return fmt.Errorf("can't download GeoSite.dat: %w", err)
 		}
-		log.Infoln("Download GeoSite.dat finish")
+		log.Info().Msg("[Config] Download GeoSite.dat finish")
 	}
 
 	return nil
@@ -91,7 +92,7 @@ func Init(dir string) error {
 
 	// initial config.yaml
 	if _, err := os.Stat(C.Path.Config()); os.IsNotExist(err) {
-		log.Infoln("Can't find config, create a initial config file")
+		log.Info().Msg("[Config] Can't find config, create a initial config file")
 		f, err := os.OpenFile(C.Path.Config(), os.O_CREATE|os.O_WRONLY, 0o644)
 		if err != nil {
 			return fmt.Errorf("can't create file %s: %w", C.Path.Config(), err)

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/phuslu/log"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 
@@ -15,7 +16,6 @@ import (
 	"github.com/Dreamacro/clash/component/iface"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/listener/tun/device"
-	"github.com/Dreamacro/clash/log"
 )
 
 var (
@@ -31,7 +31,7 @@ func GetAutoDetectInterface() (string, error) {
 	)
 startOver:
 	if tryTimes > 0 {
-		log.Infoln("[TUN] Start tun retrying lookup default interface after failure because system just booted")
+		log.Info().Msg("[TUN] Start tun retrying lookup default interface after failure because system just booted")
 		time.Sleep(time.Second)
 		retryOnFailure = retryOnFailure && tryTimes < 15
 	}
@@ -162,7 +162,7 @@ func defaultRouteChangeCallback(update netlink.RouteUpdate) {
 	routeInterface, err := defaultRouteInterface()
 	if err != nil {
 		if err == errInterfaceNotFound && tunStatus == C.TunEnabled {
-			log.Warnln("[TUN] lost the default interface, pause tun adapter")
+			log.Warn().Msg("[TUN] lost default interface, pause tun adapter")
 
 			tunStatus = C.TunPaused
 			tunChangeCallback.Pause()
@@ -172,7 +172,7 @@ func defaultRouteChangeCallback(update netlink.RouteUpdate) {
 
 	ifaceM, err := netlink.LinkByIndex(route.LinkIndex)
 	if err != nil {
-		log.Warnln("[TUN] default interface monitor err: %v", err)
+		log.Warn().Err(err).Msg("[TUN] default interface monitor failed")
 		return
 	}
 
@@ -187,14 +187,20 @@ func defaultRouteChangeCallback(update netlink.RouteUpdate) {
 	iface.FlushCache()
 
 	if tunStatus == C.TunPaused {
-		log.Warnln("[TUN] found interface %s(%s), resume tun adapter", interfaceName, routeInterface.IP)
+		log.Warn().
+			Str("iface", interfaceName).
+			Str("ip", routeInterface.IP.String()).
+			Msg("[TUN] default interface found, resume tun adapter")
 
 		tunStatus = C.TunEnabled
 		tunChangeCallback.Resume()
 		return
 	}
 
-	log.Warnln("[TUN] default interface changed to %s(%s) by monitor", interfaceName, routeInterface.IP)
+	log.Warn().
+		Str("iface", interfaceName).
+		Str("ip", routeInterface.IP.String()).
+		Msg("[TUN] default interface changed by monitor")
 }
 
 func StartDefaultInterfaceChangeMonitor() {
@@ -215,13 +221,13 @@ func StartDefaultInterfaceChangeMonitor() {
 		routeCancel = nil
 		routeCtx = nil
 
-		log.Errorln("[TUN] subscribe route change notifications failed: %v", err)
+		log.Error().Err(err).Msg("[TUN] subscribe route change notifications failed")
 		return
 	}
 
 	tunStatus = C.TunEnabled
 
-	log.Infoln("[TUN] subscribe route change notifications")
+	log.Info().Msg("[TUN] subscribe route change notifications")
 
 	for {
 		select {

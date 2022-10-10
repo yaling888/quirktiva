@@ -6,6 +6,8 @@ import (
 	"os"
 	"sync"
 
+	"github.com/phuslu/log"
+
 	"github.com/Dreamacro/clash/adapter"
 	"github.com/Dreamacro/clash/adapter/outboundgroup"
 	"github.com/Dreamacro/clash/component/auth"
@@ -21,7 +23,7 @@ import (
 	"github.com/Dreamacro/clash/dns"
 	P "github.com/Dreamacro/clash/listener"
 	authStore "github.com/Dreamacro/clash/listener/auth"
-	"github.com/Dreamacro/clash/log"
+	L "github.com/Dreamacro/clash/log"
 	"github.com/Dreamacro/clash/tunnel"
 )
 
@@ -68,10 +70,10 @@ func ApplyConfig(cfg *config.Config, force bool) {
 	mux.Lock()
 	defer mux.Unlock()
 
-	if cfg.General.LogLevel == log.DEBUG {
-		log.SetLevel(log.DEBUG)
+	if cfg.General.LogLevel == L.DEBUG {
+		L.SetLevel(L.DEBUG)
 	} else {
-		log.SetLevel(log.INFO)
+		L.SetLevel(L.INFO)
 	}
 
 	updateUsers(cfg.Users)
@@ -85,7 +87,7 @@ func ApplyConfig(cfg *config.Config, force bool) {
 	updateGeneral(cfg.General, force)
 	updateExperimental(cfg)
 
-	log.SetLevel(cfg.General.LogLevel)
+	L.SetLevel(cfg.General.LogLevel)
 }
 
 func GetGeneral() *config.General {
@@ -108,7 +110,7 @@ func GetGeneral() *config.General {
 			BindAddress:    P.BindAddress(),
 		},
 		Mode:     tunnel.Mode(),
-		LogLevel: log.Level(),
+		LogLevel: L.Level(),
 		IPv6:     !resolver.DisableIPv6,
 		Sniffing: tunnel.Sniffing(),
 		Tun:      P.GetTunConf(),
@@ -139,9 +141,9 @@ func updateDNS(c *config.DNS, t *config.Tun) {
 		ProxyServer: c.ProxyServerNameserver,
 	}
 
-	// deprecated warnning
+	// deprecated warning
 	if cfg.EnhancedMode == C.DNSMapping {
-		log.Warnln("[DNS] %s is deprecated, please use %s instead", cfg.EnhancedMode.String(), C.DNSFakeIP.String())
+		log.Warn().Msgf("[Config] %s is deprecated, please use %s instead", cfg.EnhancedMode.String(), C.DNSFakeIP.String())
 	}
 
 	r := dns.NewResolver(cfg)
@@ -203,13 +205,13 @@ func updateGeneral(general *config.General, force bool) {
 
 	dialer.DefaultInterface.Store(general.Interface)
 	if dialer.DefaultInterface.Load() != "" {
-		log.Infoln("Use interface name: %s", general.Interface)
+		log.Info().Str("name", general.Interface).Msg("[Config] interface")
 	}
 
 	if general.RoutingMark > 0 || (general.RoutingMark == 0 && general.TProxyPort == 0) {
 		dialer.DefaultRoutingMark.Store(int32(general.RoutingMark))
 		if general.RoutingMark > 0 {
-			log.Infoln("Use routing mark: %#x", general.RoutingMark)
+			log.Info().Int("mark", general.RoutingMark).Msg("[Config] routing")
 		}
 	}
 
@@ -228,7 +230,7 @@ func updateGeneral(general *config.General, force bool) {
 	sniffing := general.Sniffing
 	tunnel.SetSniffing(sniffing)
 
-	log.Infoln("Use TLS SNI sniffer: %v", sniffing)
+	log.Info().Bool("sniffing", sniffing).Msg("[Config] tls")
 
 	tcpIn := tunnel.TCPIn()
 	udpIn := tunnel.UDPIn()
@@ -248,7 +250,7 @@ func updateUsers(users []auth.AuthUser) {
 	authenticator := auth.NewAuthenticator(users)
 	authStore.SetAuthenticator(authenticator)
 	if authenticator != nil {
-		log.Infoln("Authentication of local server updated")
+		log.Info().Msg("[Inbound] authentication of local server updated")
 	}
 }
 
@@ -259,6 +261,8 @@ func updateProfile(cfg *config.Config) {
 	if profileCfg.StoreSelected {
 		patchSelectGroup(cfg.Proxies)
 	}
+
+	L.SetTracing(profileCfg.Tracing)
 }
 
 func patchSelectGroup(proxies map[string]C.Proxy) {
@@ -295,5 +299,5 @@ func Shutdown() {
 	P.Cleanup()
 	resolver.StoreFakePoolState()
 
-	log.Warnln("Clash shutting down")
+	log.Warn().Msg("Clash shutting down")
 }

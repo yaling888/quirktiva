@@ -3,10 +3,11 @@ package rules
 import (
 	"fmt"
 
+	"github.com/phuslu/log"
+
 	"github.com/Dreamacro/clash/component/geodata"
 	"github.com/Dreamacro/clash/component/geodata/router"
 	C "github.com/Dreamacro/clash/constant"
-	"github.com/Dreamacro/clash/log"
 )
 
 type GEOSITE struct {
@@ -57,7 +58,12 @@ func NewGEOSITE(country string, adapter string) (*GEOSITE, error) {
 	if adapter == C.ScriptRuleGeoSiteTarget {
 		adapter = "Script"
 	}
-	log.Infoln("Start initial GeoSite rule %s => %s, records: %s", country, adapter, count)
+
+	log.Info().
+		Str("country", country).
+		Str("proxy", adapter).
+		Str("records", count).
+		Msg("[Config] initial GeoSite rule")
 
 	geoSite := &GEOSITE{
 		Base:    &Base{},

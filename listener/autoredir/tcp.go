@@ -4,9 +4,10 @@ import (
 	"net"
 	"net/netip"
 
+	"github.com/phuslu/log"
+
 	"github.com/Dreamacro/clash/adapter/inbound"
 	C "github.com/Dreamacro/clash/constant"
-	"github.com/Dreamacro/clash/log"
 	"github.com/Dreamacro/clash/transport/socks5"
 )
 
@@ -43,13 +44,13 @@ func (l *Listener) SetLookupFunc(lookupFunc func(netip.AddrPort) (socks5.Addr, e
 
 func (l *Listener) handleRedir(conn net.Conn, in chan<- C.ConnContext) {
 	if l.lookupFunc == nil {
-		log.Errorln("[Auto Redirect] lookup function is nil")
+		log.Error().Msg("[Auto Redirect] lookup function is nil")
 		return
 	}
 
 	target, err := l.lookupFunc(conn.RemoteAddr().(*net.TCPAddr).AddrPort())
 	if err != nil {
-		log.Warnln("[Auto Redirect] %v", err)
+		log.Warn().Err(err).Msg("[Auto Redirect]")
 		_ = conn.Close()
 		return
 	}

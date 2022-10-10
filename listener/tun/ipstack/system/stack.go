@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/phuslu/log"
+
 	"github.com/Dreamacro/clash/adapter/inbound"
 	"github.com/Dreamacro/clash/common/nnip"
 	"github.com/Dreamacro/clash/common/pool"
@@ -20,7 +22,6 @@ import (
 	D "github.com/Dreamacro/clash/listener/tun/ipstack/commons"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/system/mars"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/system/mars/nat"
-	"github.com/Dreamacro/clash/log"
 	"github.com/Dreamacro/clash/transport/socks5"
 )
 
@@ -77,7 +78,9 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 		for !ipStack.closed {
 			conn, err := stack.TCP().Accept()
 			if err != nil {
-				log.Debugln("[Stack] accept connection error: %v", err)
+				// log.Debug().
+				//	Err(err).
+				//	Msg("[Stack] accept connection failed")
 				continue
 			}
 
@@ -92,7 +95,9 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 
 			if D.ShouldHijackDns(dnsAddr, rAddr, "tcp") {
 				go func() {
-					log.Debugln("[TUN] hijack dns tcp: %s", rAddr.String())
+					log.Debug().
+						Str("addr", rAddr.String()).
+						Msg("[TUN] hijack tcp dns")
 
 					buf := pool.Get(pool.UDPBufferSize)
 					defer func() {
@@ -180,7 +185,9 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 
 					_, _ = stack.UDP().WriteTo(msg, rAddr, lAddr)
 
-					log.Debugln("[TUN] hijack dns udp: %s", rAddr.String())
+					log.Debug().
+						Str("addr", rAddr.String()).
+						Msg("[TUN] hijack udp dns")
 				}()
 
 				continue

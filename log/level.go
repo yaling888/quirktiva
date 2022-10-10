@@ -15,11 +15,11 @@ var LogLevelMapping = map[string]LogLevel{
 }
 
 const (
-	DEBUG LogLevel = iota
-	INFO
-	WARNING
-	ERROR
-	SILENT
+	DEBUG   LogLevel = 2
+	INFO    LogLevel = 3
+	WARNING LogLevel = 4
+	ERROR   LogLevel = 5
+	SILENT  LogLevel = 8
 )
 
 type LogLevel int
@@ -27,7 +27,7 @@ type LogLevel int
 // UnmarshalYAML unserialize LogLevel with yaml
 func (l *LogLevel) UnmarshalYAML(unmarshal func(any) error) error {
 	var tp string
-	unmarshal(&tp)
+	_ = unmarshal(&tp)
 	level, exist := LogLevelMapping[tp]
 	if !exist {
 		return errors.New("invalid mode")
@@ -39,7 +39,7 @@ func (l *LogLevel) UnmarshalYAML(unmarshal func(any) error) error {
 // UnmarshalJSON unserialize LogLevel with json
 func (l *LogLevel) UnmarshalJSON(data []byte) error {
 	var tp string
-	json.Unmarshal(data, &tp)
+	_ = json.Unmarshal(data, &tp)
 	level, exist := LogLevelMapping[tp]
 	if !exist {
 		return errors.New("invalid mode")

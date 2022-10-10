@@ -5,11 +5,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/phuslu/log"
 	"go.etcd.io/bbolt"
 
 	"github.com/Dreamacro/clash/component/profile"
 	C "github.com/Dreamacro/clash/constant"
-	"github.com/Dreamacro/clash/log"
 )
 
 var (
@@ -41,7 +41,7 @@ func (c *CacheFile) SetSelected(group, selected string) {
 		return bucket.Put([]byte(group), []byte(selected))
 	})
 	if err != nil {
-		log.Warnln("[CacheFile] write cache to %s failed: %s", c.DB.Path(), err.Error())
+		log.Warn().Err(err).Msgf("[CacheFile] write cache to %s failed", c.DB.Path())
 		return
 	}
 }
@@ -54,7 +54,7 @@ func (c *CacheFile) SelectedMap() map[string]string {
 	}
 
 	mapping := map[string]string{}
-	c.DB.View(func(t *bbolt.Tx) error {
+	_ = c.DB.View(func(t *bbolt.Tx) error {
 		bucket := t.Bucket(bucketSelected)
 		if bucket == nil {
 			return nil
@@ -82,7 +82,7 @@ func (c *CacheFile) PutFakeip(key, value []byte) error {
 		return bucket.Put(key, value)
 	})
 	if err != nil {
-		log.Warnln("[CacheFile] write cache to %s failed: %s", c.DB.Path(), err.Error())
+		log.Warn().Err(err).Msgf("[CacheFile] write cache to %s failed", c.DB.Path())
 	}
 
 	return err
@@ -107,7 +107,7 @@ func (c *CacheFile) DelFakeipPair(ip, host []byte) error {
 		return err
 	})
 	if err != nil {
-		log.Warnln("[CacheFile] write cache to %s failed: %s", c.DB.Path(), err.Error())
+		log.Warn().Err(err).Msgf("[CacheFile] write cache to %s failed", c.DB.Path())
 	}
 
 	return err
@@ -122,7 +122,9 @@ func (c *CacheFile) GetFakeip(key []byte) []byte {
 	if err != nil {
 		return nil
 	}
-	defer tx.Rollback()
+	defer func(tx *bbolt.Tx) {
+		_ = tx.Rollback()
+	}(tx)
 
 	bucket := tx.Bucket(bucketFakeip)
 	if bucket == nil {
@@ -153,14 +155,14 @@ func initCache() {
 	switch err {
 	case bbolt.ErrInvalid, bbolt.ErrChecksum, bbolt.ErrVersionMismatch:
 		if err = os.Remove(C.Path.Cache()); err != nil {
-			log.Warnln("[CacheFile] remove invalid cache file error: %s", err.Error())
+			log.Warn().Err(err).Msg("[CacheFile] remove invalid cache file failed")
 			break
 		}
-		log.Infoln("[CacheFile] remove invalid cache file and create new one")
+		log.Info().Msg("[CacheFile] remove invalid cache file and create new one")
 		db, err = bbolt.Open(C.Path.Cache(), fileMode, &options)
 	}
 	if err != nil {
-		log.Warnln("[CacheFile] can't open cache file: %s", err.Error())
+		log.Warn().Err(err).Msg("[CacheFile] open cache file failed")
 	}
 
 	defaultCache = &CacheFile{

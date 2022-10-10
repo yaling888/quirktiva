@@ -6,12 +6,13 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/phuslu/log"
+
 	"github.com/Dreamacro/clash/adapter/inbound"
 	"github.com/Dreamacro/clash/common/cache"
 	N "github.com/Dreamacro/clash/common/net"
 	C "github.com/Dreamacro/clash/constant"
 	authStore "github.com/Dreamacro/clash/listener/auth"
-	"github.com/Dreamacro/clash/log"
 )
 
 func HandleConn(c net.Conn, in chan<- C.ConnContext, cache *cache.LruCache[string, bool]) {
@@ -117,7 +118,7 @@ func Authenticate(request *http.Request, cache *cache.LruCache[string, bool]) *h
 			cache.Set(credential, authed)
 		}
 		if !authed {
-			log.Infoln("Auth failed from %s", request.RemoteAddr)
+			log.Info().Str("client", request.RemoteAddr).Msg("[Inbound] server auth failed")
 
 			return responseWith(request, http.StatusForbidden)
 		}

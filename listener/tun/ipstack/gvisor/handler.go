@@ -6,12 +6,13 @@ import (
 	"net/netip"
 	"time"
 
+	"github.com/phuslu/log"
+
 	"github.com/Dreamacro/clash/adapter/inbound"
 	"github.com/Dreamacro/clash/common/pool"
 	C "github.com/Dreamacro/clash/constant"
 	D "github.com/Dreamacro/clash/listener/tun/ipstack/commons"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/adapter"
-	"github.com/Dreamacro/clash/log"
 	"github.com/Dreamacro/clash/transport/socks5"
 )
 
@@ -31,7 +32,9 @@ func (gh *gvHandler) HandleTCP(tunConn adapter.TCPConn) {
 
 	if D.ShouldHijackDns(gh.dnsHijack, rAddrPort, "tcp") {
 		go func() {
-			log.Debugln("[TUN] hijack dns tcp: %s", rAddrPort.String())
+			log.Debug().
+				Str("addr", rAddrPort.String()).
+				Msg("[TUN] hijack tcp dns")
 
 			buf := pool.Get(pool.UDPBufferSize)
 			defer func() {
@@ -106,7 +109,9 @@ func (gh *gvHandler) HandleUDP(tunConn adapter.UDPConn) {
 
 					_, _ = tunConn.WriteTo(msg, addr)
 
-					log.Debugln("[TUN] hijack dns udp: %s", rAddrPort.String())
+					log.Debug().
+						Str("addr", rAddrPort.String()).
+						Msg("[TUN] hijack udp dns")
 				}()
 
 				continue

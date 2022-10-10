@@ -5,11 +5,11 @@ import (
 	"os"
 	"strings"
 
+	"github.com/phuslu/log"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/Dreamacro/clash/component/geodata/router"
 	C "github.com/Dreamacro/clash/constant"
-	"github.com/Dreamacro/clash/log"
 )
 
 type GeoIPCache map[string]*router.GeoIP
@@ -50,11 +50,11 @@ func (g GeoIPCache) Unmarshal(filename, code string) (*router.GeoIP, error) {
 		return &geoip, nil
 
 	case errCodeNotFound:
-		return nil, fmt.Errorf("country code %s%s%s", code, " not found in ", filename)
+		return nil, fmt.Errorf("country code %s not found in %s", code, filename)
 
 	case errFailedToReadBytes, errFailedToReadExpectedLenBytes,
 		errInvalidGeodataFile, errInvalidGeodataVarintLength:
-		log.Warnln("failed to decode geoip file: %s%s", filename, ", fallback to the original ReadFile method")
+		log.Warn().Msgf("failed to decode geoip file: %s, fallback to the original ReadFile method", filename)
 		geoipBytes, err = os.ReadFile(asset)
 		if err != nil {
 			return nil, err
@@ -74,7 +74,7 @@ func (g GeoIPCache) Unmarshal(filename, code string) (*router.GeoIP, error) {
 		return nil, err
 	}
 
-	return nil, fmt.Errorf("country code %s%s%s", code, " not found in ", filename)
+	return nil, fmt.Errorf("country code %s not found in %s", code, filename)
 }
 
 type GeoSiteCache map[string]*router.GeoSite
@@ -115,11 +115,11 @@ func (g GeoSiteCache) Unmarshal(filename, code string) (*router.GeoSite, error) 
 		return &geosite, nil
 
 	case errCodeNotFound:
-		return nil, fmt.Errorf("list %s%s%s", code, " not found in ", filename)
+		return nil, fmt.Errorf("list %s not found in %s", code, filename)
 
 	case errFailedToReadBytes, errFailedToReadExpectedLenBytes,
 		errInvalidGeodataFile, errInvalidGeodataVarintLength:
-		log.Warnln("failed to decode geoip file: %s%s", filename, ", fallback to the original ReadFile method")
+		log.Warn().Msgf("failed to decode geosite file: %s, fallback to the original ReadFile method", filename)
 		geositeBytes, err = os.ReadFile(asset)
 		if err != nil {
 			return nil, err
@@ -139,5 +139,5 @@ func (g GeoSiteCache) Unmarshal(filename, code string) (*router.GeoSite, error) 
 		return nil, err
 	}
 
-	return nil, fmt.Errorf("list %s%s%s", code, " not found in ", filename)
+	return nil, fmt.Errorf("list %s not found in %s", code, filename)
 }

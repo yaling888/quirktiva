@@ -12,7 +12,7 @@ require (
 	github.com/insomniacslk/dhcp v0.0.0-20220822114210-de18a9d48e84
 	github.com/miekg/dns v1.1.50
 	github.com/oschwald/geoip2-golang v1.8.0
-	github.com/sirupsen/logrus v1.9.0
+	github.com/phuslu/log v1.0.82-0.20221008050327-7f64fc20371a
 	github.com/stretchr/testify v1.8.0
 	github.com/vishvananda/netlink v1.2.1-beta.2.0.20220812183158-d44b87fd4d3f
 	github.com/xtls/go v0.0.0-20210920065950-d4af136d3672

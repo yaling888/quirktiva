@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/phuslu/log"
 
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"
@@ -15,7 +16,7 @@ import (
 	"github.com/Dreamacro/clash/hub/executor"
 	P "github.com/Dreamacro/clash/listener"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/commons"
-	"github.com/Dreamacro/clash/log"
+	L "github.com/Dreamacro/clash/log"
 	"github.com/Dreamacro/clash/tunnel"
 )
 
@@ -37,7 +38,7 @@ type configSchema struct {
 	AllowLan    *bool              `json:"allow-lan,omitempty"`
 	BindAddress *string            `json:"bind-address,omitempty"`
 	Mode        *tunnel.TunnelMode `json:"mode,omitempty"`
-	LogLevel    *log.LogLevel      `json:"log-level,omitempty"`
+	LogLevel    *L.LogLevel        `json:"log-level,omitempty"`
 	IPv6        *bool              `json:"ipv6,omitempty"`
 	Sniffing    *bool              `json:"sniffing,omitempty"`
 	Tun         *tunConfigSchema   `json:"tun,omitempty"`
@@ -98,7 +99,7 @@ func patchConfigs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if general.LogLevel != nil {
-		log.SetLevel(*general.LogLevel)
+		L.SetLevel(*general.LogLevel)
 	}
 
 	if general.IPv6 != nil {
@@ -144,7 +145,7 @@ func patchConfigs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	msg, _ := json.Marshal(general)
-	log.Warnln("[RESTful API] patch config by: %s", string(msg))
+	log.Warn().Str("data", string(msg)).Msg("[API] patch config")
 
 	render.NoContent(w, r)
 }
@@ -167,7 +168,7 @@ func updateConfigs(w http.ResponseWriter, r *http.Request) {
 	var err error
 
 	if req.Payload != "" {
-		log.Warnln("[RESTful API] update config by payload")
+		log.Warn().Msg("[API] update config by payload")
 		cfg, err = executor.ParseWithBytes([]byte(req.Payload))
 		if err != nil {
 			render.Status(r, http.StatusBadRequest)
@@ -184,7 +185,7 @@ func updateConfigs(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		log.Warnln("[RESTful API] reload config from path: %s", req.Path)
+		log.Warn().Str("file", req.Path).Msg("[API] reload config")
 		cfg, err = executor.ParseWithPath(req.Path)
 		if err != nil {
 			render.Status(r, http.StatusBadRequest)

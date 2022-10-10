@@ -6,11 +6,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/phuslu/log"
 
 	"github.com/Dreamacro/clash/config"
 	"github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/hub/executor"
-	"github.com/Dreamacro/clash/log"
 )
 
 var (
@@ -42,18 +42,18 @@ func updateGeoDatabases(w http.ResponseWriter, r *http.Request) {
 			updatingGeo = false
 		}()
 
-		log.Warnln("[RESTful API] updating GEO databases...")
+		log.Warn().Msg("[API] updating GEO databases...")
 
 		if err := config.UpdateGeoDatabases(); err != nil {
-			log.Errorln("[RESTful API] update GEO databases failed: %v", err)
+			log.Error().Err(err).Msg("[API] update GEO databases failed")
 			return
 		}
 
-		log.Warnln("[RESTful API] update GEO databases successful, apply config...")
+		log.Warn().Msg("[API] update GEO databases successful, apply config...")
 
 		cfg, err := executor.ParseWithPath(constant.Path.Config())
 		if err != nil {
-			log.Errorln("[RESTful API] update GEO databases failed: %v", err)
+			log.Error().Err(err).Msg("[API] update GEO databases failed")
 			return
 		}
 

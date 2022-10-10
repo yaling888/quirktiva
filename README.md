@@ -40,6 +40,9 @@ Documentations are available at [GitHub Wiki](https://github.com/Dreamacro/clash
 sniffing: true # Sniff TLS SNI
 
 force-cert-verify: true # force verify TLS Certificate, prevent machine-in-the-middle attacks
+
+profile:
+  tracing: false # prevent logs leak, default value is true
 ```
 
 ### MITM configuration

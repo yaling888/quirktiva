@@ -8,13 +8,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/phuslu/log"
 	"golang.org/x/net/route"
 
 	"github.com/Dreamacro/clash/common/cmd"
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/iface"
 	"github.com/Dreamacro/clash/listener/tun/device"
-	"github.com/Dreamacro/clash/log"
 )
 
 func GetAutoDetectInterface() (string, error) {
@@ -137,7 +137,7 @@ func StartDefaultInterfaceChangeMonitor() {
 		case <-t.C:
 			interfaceName, err := GetAutoDetectInterface()
 			if err != nil {
-				log.Warnln("[TUN] default interface monitor err: %v", err)
+				log.Warn().Err(err).Msg("[TUN] default interface monitor failed")
 				continue
 			}
 
@@ -150,7 +150,10 @@ func StartDefaultInterfaceChangeMonitor() {
 
 			iface.FlushCache()
 
-			log.Warnln("[TUN] default interface changed by monitor, %s => %s", old, interfaceName)
+			log.Warn().
+				Str("old", old).
+				Str("new", interfaceName).
+				Msg("[TUN] default interface changed by monitor")
 		case <-monitorStop:
 			break
 		}

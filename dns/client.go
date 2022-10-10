@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	D "github.com/miekg/dns"
+	"github.com/phuslu/log"
 
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"
@@ -97,6 +98,35 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case ret := <-ch:
+		q := m.Question[0]
+		if ret.msg != nil && (q.Qtype == D.TypeA || q.Qtype == D.TypeAAAA) {
+			var (
+				ans []string
+				sc  string
+				pr  string
+			)
+			for _, r := range ret.msg.Answer {
+				if r != nil {
+					if a, ok := r.(*D.A); ok && a.A != nil {
+						ans = append(ans, a.A.String())
+					} else if a2, ok2 := r.(*D.AAAA); ok2 && a2.AAAA != nil {
+						ans = append(ans, a2.AAAA.String())
+					}
+				}
+			}
+			if c.Client.Net != "" {
+				sc = c.Client.Net + "://"
+			}
+			if c.proxyAdapter != "" {
+				pr = "(" + c.proxyAdapter + ")"
+			}
+			log.Debug().
+				Str("source", fmt.Sprintf("%s%s%s", sc, net.JoinHostPort(c.host, c.port), pr)).
+				Str("qType", D.Type(q.Qtype).String()).
+				Str("name", q.Name).
+				Strs("answer", ans).
+				Msg("[DNS] dns response")
+		}
 		return ret.msg, ret.err
 	}
 }

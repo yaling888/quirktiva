@@ -9,13 +9,13 @@ import (
 	"runtime"
 	"syscall"
 
+	"github.com/phuslu/log"
 	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/Dreamacro/clash/config"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/hub"
 	"github.com/Dreamacro/clash/hub/executor"
-	"github.com/Dreamacro/clash/log"
 )
 
 var (
@@ -72,12 +72,14 @@ func main() {
 	}
 
 	if err := config.Init(C.Path.HomeDir()); err != nil {
-		log.Fatalln("Initial configuration directory error: %s", err.Error())
+		log.Fatal().
+			Err(err).
+			Msg("Initial configuration failed")
 	}
 
 	if testConfig {
 		if _, err := executor.Parse(); err != nil {
-			log.Errorln(err.Error())
+			log.Error().Err(err).Msg("[Start]")
 			fmt.Printf("configuration file %s test failed\n", C.Path.Config())
 			os.Exit(1)
 		}
@@ -97,7 +99,9 @@ func main() {
 	}
 
 	if err := hub.Parse(options...); err != nil {
-		log.Fatalln("Parse config error: %s", err.Error())
+		log.Fatal().
+			Err(err).
+			Msg("Parse config failed")
 	}
 
 	defer executor.Shutdown()

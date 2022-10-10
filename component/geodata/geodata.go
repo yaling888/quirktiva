@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/phuslu/log"
+
 	"github.com/Dreamacro/clash/component/geodata/router"
-	"github.com/Dreamacro/clash/log"
 )
 
 type loader struct {
@@ -37,7 +38,7 @@ func (l *loader) LoadGeoSiteWithAttr(file string, siteWithAttr string) ([]*route
 	attrs := parseAttrs(attrVal)
 	if attrs.IsEmpty() {
 		if strings.Contains(siteWithAttr, "@") {
-			log.Warnln("empty attribute list: %s", siteWithAttr)
+			log.Warn().Str("attr", siteWithAttr).Msg("[GeoSite] empty attribute list")
 		}
 		return domains, nil
 	}
@@ -51,7 +52,7 @@ func (l *loader) LoadGeoSiteWithAttr(file string, siteWithAttr string) ([]*route
 		}
 	}
 	if !hasAttrMatched {
-		log.Warnln("attribute match no rule: geosite: %s", siteWithAttr)
+		log.Warn().Str("attr", siteWithAttr).Msg("[GeoSite] attribute match no rule")
 	}
 
 	return filteredDomains, nil

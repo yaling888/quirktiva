@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/phuslu/log"
 	"golang.org/x/exp/slices"
 
 	"github.com/Dreamacro/clash/adapter/inbound"
@@ -30,7 +31,6 @@ import (
 	"github.com/Dreamacro/clash/listener/tun"
 	"github.com/Dreamacro/clash/listener/tun/ipstack"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/commons"
-	"github.com/Dreamacro/clash/log"
 	rewrites "github.com/Dreamacro/clash/rewrite"
 	"github.com/Dreamacro/clash/tunnel"
 )
@@ -124,7 +124,7 @@ func ReCreateHTTP(port int, tcpIn chan<- C.ConnContext) {
 	var err error
 	defer func() {
 		if err != nil {
-			log.Errorln("Start HTTP server error: %s", err.Error())
+			log.Error().Err(err).Msg("[Inbound] HTTP server start failed")
 		}
 	}()
 
@@ -134,7 +134,7 @@ func ReCreateHTTP(port int, tcpIn chan<- C.ConnContext) {
 		if httpListener.RawAddress() == addr {
 			return
 		}
-		httpListener.Close()
+		_ = httpListener.Close()
 		httpListener = nil
 	}
 
@@ -147,7 +147,7 @@ func ReCreateHTTP(port int, tcpIn chan<- C.ConnContext) {
 		return
 	}
 
-	log.Infoln("HTTP proxy listening at: %s", httpListener.Address())
+	log.Info().Str("addr", httpListener.Address()).Msg("[Inbound] HTTP proxy listening")
 }
 
 func ReCreateSocks(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
@@ -157,7 +157,7 @@ func ReCreateSocks(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.P
 	var err error
 	defer func() {
 		if err != nil {
-			log.Errorln("Start SOCKS server error: %s", err.Error())
+			log.Error().Err(err).Msg("[Inbound] SOCKS server start failed")
 		}
 	}()
 
@@ -168,7 +168,7 @@ func ReCreateSocks(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.P
 
 	if socksListener != nil {
 		if socksListener.RawAddress() != addr {
-			socksListener.Close()
+			_ = socksListener.Close()
 			socksListener = nil
 		} else {
 			shouldTCPIgnore = true
@@ -177,7 +177,7 @@ func ReCreateSocks(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.P
 
 	if socksUDPListener != nil {
 		if socksUDPListener.RawAddress() != addr {
-			socksUDPListener.Close()
+			_ = socksUDPListener.Close()
 			socksUDPListener = nil
 		} else {
 			shouldUDPIgnore = true
@@ -199,14 +199,14 @@ func ReCreateSocks(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.P
 
 	udpListener, err := socks.NewUDP(addr, udpIn)
 	if err != nil {
-		tcpListener.Close()
+		_ = tcpListener.Close()
 		return
 	}
 
 	socksListener = tcpListener
 	socksUDPListener = udpListener
 
-	log.Infoln("SOCKS proxy listening at: %s", socksListener.Address())
+	log.Info().Str("addr", socksListener.Address()).Msg("[Inbound] SOCKS proxy listening")
 }
 
 func ReCreateRedir(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
@@ -216,7 +216,7 @@ func ReCreateRedir(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.P
 	var err error
 	defer func() {
 		if err != nil {
-			log.Errorln("Start Redir server error: %s", err.Error())
+			log.Error().Err(err).Msg("[Inbound] Redirect server start failed")
 		}
 	}()
 
@@ -226,7 +226,7 @@ func ReCreateRedir(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.P
 		if redirListener.RawAddress() == addr {
 			return
 		}
-		redirListener.Close()
+		_ = redirListener.Close()
 		redirListener = nil
 	}
 
@@ -234,7 +234,7 @@ func ReCreateRedir(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.P
 		if redirUDPListener.RawAddress() == addr {
 			return
 		}
-		redirUDPListener.Close()
+		_ = redirUDPListener.Close()
 		redirUDPListener = nil
 	}
 
@@ -249,10 +249,10 @@ func ReCreateRedir(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.P
 
 	redirUDPListener, err = tproxy.NewUDP(addr, udpIn)
 	if err != nil {
-		log.Warnln("Failed to start Redir UDP Listener: %s", err)
+		log.Error().Err(err).Msg("[Inbound] Redirect UDP Listener failed")
 	}
 
-	log.Infoln("Redirect proxy listening at: %s", redirListener.Address())
+	log.Info().Str("addr", redirListener.Address()).Msg("[Inbound] Redirect proxy listening")
 }
 
 func ReCreateTProxy(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
@@ -262,7 +262,7 @@ func ReCreateTProxy(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.
 	var err error
 	defer func() {
 		if err != nil {
-			log.Errorln("Start TProxy server error: %s", err.Error())
+			log.Error().Err(err).Msg("[Inbound] TProxy server start failed")
 		}
 	}()
 
@@ -272,7 +272,7 @@ func ReCreateTProxy(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.
 		if tproxyListener.RawAddress() == addr {
 			return
 		}
-		tproxyListener.Close()
+		_ = tproxyListener.Close()
 		tproxyListener = nil
 	}
 
@@ -280,7 +280,7 @@ func ReCreateTProxy(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.
 		if tproxyUDPListener.RawAddress() == addr {
 			return
 		}
-		tproxyUDPListener.Close()
+		_ = tproxyUDPListener.Close()
 		tproxyUDPListener = nil
 	}
 
@@ -295,10 +295,10 @@ func ReCreateTProxy(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.
 
 	tproxyUDPListener, err = tproxy.NewUDP(addr, udpIn)
 	if err != nil {
-		log.Warnln("Failed to start TProxy UDP Listener: %s", err)
+		log.Error().Err(err).Msg("[Inbound] TProxy UDP Listener failed")
 	}
 
-	log.Infoln("TProxy server listening at: %s", tproxyListener.Address())
+	log.Info().Str("addr", tproxyListener.Address()).Msg("[Inbound] TProxy proxy listening")
 }
 
 func ReCreateMixed(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
@@ -308,7 +308,7 @@ func ReCreateMixed(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.P
 	var err error
 	defer func() {
 		if err != nil {
-			log.Errorln("Start Mixed(http+socks) server error: %s", err.Error())
+			log.Error().Err(err).Msg("[Inbound] Mixed(http+socks) server start failed")
 		}
 	}()
 
@@ -319,7 +319,7 @@ func ReCreateMixed(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.P
 
 	if mixedListener != nil {
 		if mixedListener.RawAddress() != addr {
-			mixedListener.Close()
+			_ = mixedListener.Close()
 			mixedListener = nil
 		} else {
 			shouldTCPIgnore = true
@@ -327,7 +327,7 @@ func ReCreateMixed(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.P
 	}
 	if mixedUDPLister != nil {
 		if mixedUDPLister.RawAddress() != addr {
-			mixedUDPLister.Close()
+			_ = mixedUDPLister.Close()
 			mixedUDPLister = nil
 		} else {
 			shouldUDPIgnore = true
@@ -349,11 +349,11 @@ func ReCreateMixed(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.P
 
 	mixedUDPLister, err = socks.NewUDP(addr, udpIn)
 	if err != nil {
-		mixedListener.Close()
+		_ = mixedListener.Close()
 		return
 	}
 
-	log.Infoln("Mixed(http+socks) proxy listening at: %s", mixedListener.Address())
+	log.Info().Str("addr", mixedListener.Address()).Msg("[Inbound] Mixed(http+socks) proxy listening")
 }
 
 func ReCreateTun(tunConf *config.Tun, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
@@ -363,7 +363,7 @@ func ReCreateTun(tunConf *config.Tun, tcpIn chan<- C.ConnContext, udpIn chan<- *
 	var err error
 	defer func() {
 		if err != nil {
-			log.Errorln("Start TUN listening error: %s", err.Error())
+			log.Error().Err(err).Msg("[Inbound] TUN server start failed")
 		}
 	}()
 
@@ -403,7 +403,7 @@ func ReCreateMitm(port int, tcpIn chan<- C.ConnContext) {
 	var err error
 	defer func() {
 		if err != nil {
-			log.Errorln("Start MITM server error: %s", err.Error())
+			log.Error().Err(err).Msg("[Inbound] MITM server start failed")
 		}
 	}()
 
@@ -469,7 +469,7 @@ func ReCreateMitm(port int, tcpIn chan<- C.ConnContext) {
 
 	tunnel.SetMitmOutbound(outbound.NewMitm(mitmListener.Address()))
 
-	log.Infoln("Mitm proxy listening at: %s", mitmListener.Address())
+	log.Info().Str("addr", mitmListener.Address()).Msg("[Inbound] MITM proxy listening")
 }
 
 func ReCreateRedirToTun(ifaceNames []string) {
@@ -495,12 +495,12 @@ func ReCreateRedirToTun(ifaceNames []string) {
 
 	program, err := ebpf.NewTcEBpfProgram(nicArr, lastTunConf.Device)
 	if err != nil {
-		log.Errorln("Attached tc ebpf program error: %v", err)
+		log.Error().Err(err).Msg("[Inbound] Attached tc ebpf program failed")
 		return
 	}
 	tcProgram = program
 
-	log.Infoln("Attached tc ebpf program to interfaces %v", tcProgram.RawNICs())
+	log.Info().Strs("interfaces", tcProgram.RawNICs()).Msg("[Inbound] Attached tc ebpf program")
 }
 
 func ReCreateAutoRedir(ifaceNames []string, tcpIn chan<- C.ConnContext, _ chan<- *inbound.PacketAdapter) {
@@ -518,7 +518,7 @@ func ReCreateAutoRedir(ifaceNames []string, tcpIn chan<- C.ConnContext, _ chan<-
 				autoRedirProgram.Close()
 				autoRedirProgram = nil
 			}
-			log.Errorln("Start auto redirect server error: %s", err.Error())
+			log.Error().Err(err).Msg("[Inbound] Auto redirect server start failed")
 		}
 	}()
 
@@ -549,14 +549,19 @@ func ReCreateAutoRedir(ifaceNames []string, tcpIn chan<- C.ConnContext, _ chan<-
 		return
 	}
 
-	autoRedirProgram, err = ebpf.NewRedirEBpfProgram(nicArr, autoRedirListener.TCPAddr().Port(), defaultRouteInterfaceName)
+	autoRedirProgram, err = ebpf.NewRedirEBpfProgram(nicArr, autoRedirListener.TCPAddr().Port(),
+		defaultRouteInterfaceName)
+
 	if err != nil {
 		return
 	}
 
 	autoRedirListener.SetLookupFunc(autoRedirProgram.Lookup)
 
-	log.Infoln("Auto redirect proxy listening at: %s, attached tc ebpf program to interfaces %v", autoRedirListener.Address(), autoRedirProgram.RawNICs())
+	log.Info().
+		Str("addr", autoRedirListener.Address()).
+		Strs("interfaces", autoRedirProgram.RawNICs()).
+		Msg("[Inbound] Auto redirect proxy listening, attached tc ebpf program")
 }
 
 // GetPorts return the ports of proxy servers
@@ -644,11 +649,13 @@ func hasTunConfigChange(tunConf *config.Tun) bool {
 		return true
 	}
 
-	if (lastTunConf.TunAddressPrefix != nil && tunConf.TunAddressPrefix == nil) || (lastTunConf.TunAddressPrefix == nil && tunConf.TunAddressPrefix != nil) {
+	if (lastTunConf.TunAddressPrefix != nil && tunConf.TunAddressPrefix == nil) ||
+		(lastTunConf.TunAddressPrefix == nil && tunConf.TunAddressPrefix != nil) {
 		return true
 	}
 
-	if lastTunConf.TunAddressPrefix != nil && tunConf.TunAddressPrefix != nil && *lastTunConf.TunAddressPrefix != *tunConf.TunAddressPrefix {
+	if lastTunConf.TunAddressPrefix != nil && tunConf.TunAddressPrefix != nil &&
+		*lastTunConf.TunAddressPrefix != *tunConf.TunAddressPrefix {
 		return true
 	}
 
@@ -677,12 +684,12 @@ func (t *tunChangeCallback) Resume() {
 
 func initCert() error {
 	if _, err := os.Stat(C.Path.RootCA()); os.IsNotExist(err) {
-		log.Infoln("Can't find mitm_ca.crt, start generate")
+		log.Info().Msg("[Config] Can't find mitm_ca.crt, start generate")
 		err = cert.GenerateAndSave(C.Path.RootCA(), C.Path.CAKey())
 		if err != nil {
 			return err
 		}
-		log.Infoln("Generated CA private key and CA certificate finish")
+		log.Info().Msg("[Config] Generated CA private key and CA certificate finish")
 	}
 
 	return nil

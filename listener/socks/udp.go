@@ -3,11 +3,12 @@ package socks
 import (
 	"net"
 
+	"github.com/phuslu/log"
+
 	"github.com/Dreamacro/clash/adapter/inbound"
 	"github.com/Dreamacro/clash/common/pool"
 	"github.com/Dreamacro/clash/common/sockopt"
 	C "github.com/Dreamacro/clash/constant"
-	"github.com/Dreamacro/clash/log"
 	"github.com/Dreamacro/clash/transport/socks5"
 )
 
@@ -40,7 +41,7 @@ func NewUDP(addr string, in chan<- *inbound.PacketAdapter) (*UDPListener, error)
 	}
 
 	if err := sockopt.UDPReuseaddr(l.(*net.UDPConn)); err != nil {
-		log.Warnln("Failed to Reuse UDP Address: %s", err)
+		log.Warn().Err(err).Msg("[SOCKS] reuse UDP address failed")
 	}
 
 	sl := &UDPListener{
@@ -52,7 +53,7 @@ func NewUDP(addr string, in chan<- *inbound.PacketAdapter) (*UDPListener, error)
 			buf := pool.Get(pool.UDPBufferSize)
 			n, remoteAddr, err := l.ReadFrom(buf)
 			if err != nil {
-				pool.Put(buf)
+				_ = pool.Put(buf)
 				if sl.closed {
 					break
 				}
@@ -69,7 +70,7 @@ func handleSocksUDP(pc net.PacketConn, in chan<- *inbound.PacketAdapter, buf []b
 	target, payload, err := socks5.DecodeUDPPacket(buf)
 	if err != nil {
 		// Unresolved UDP packet, return buffer to the pool
-		pool.Put(buf)
+		_ = pool.Put(buf)
 		return
 	}
 	packet := &packet{

@@ -5,10 +5,10 @@ import (
 	"net"
 
 	D "github.com/miekg/dns"
+	"github.com/phuslu/log"
 
 	"github.com/Dreamacro/clash/common/sockopt"
 	"github.com/Dreamacro/clash/context"
-	"github.com/Dreamacro/clash/log"
 )
 
 var (
@@ -31,7 +31,7 @@ func (s *Server) ServeDNS(w D.ResponseWriter, r *D.Msg) {
 		return
 	}
 	msg.Compress = true
-	w.WriteMsg(msg)
+	_ = w.WriteMsg(msg)
 }
 
 func handlerWithContext(handler handler, msg *D.Msg) (*D.Msg, error) {
@@ -55,7 +55,7 @@ func ReCreateServer(addr string, resolver *Resolver, mapper *ResolverEnhancer) {
 	}
 
 	if server.Server != nil {
-		server.Shutdown()
+		_ = server.Shutdown()
 		server = &Server{}
 		address = ""
 	}
@@ -67,7 +67,7 @@ func ReCreateServer(addr string, resolver *Resolver, mapper *ResolverEnhancer) {
 	var err error
 	defer func() {
 		if err != nil {
-			log.Errorln("Start DNS server error: %s", err.Error())
+			log.Error().Err(err).Msg("[DNS] dns server start failed")
 		}
 	}()
 
@@ -88,7 +88,7 @@ func ReCreateServer(addr string, resolver *Resolver, mapper *ResolverEnhancer) {
 
 	err = sockopt.UDPReuseaddr(p)
 	if err != nil {
-		log.Warnln("Failed to Reuse UDP Address: %s", err)
+		log.Warn().Err(err).Msg("[DNS] reuse UDP address failed")
 
 		err = nil
 	}
@@ -99,8 +99,8 @@ func ReCreateServer(addr string, resolver *Resolver, mapper *ResolverEnhancer) {
 	server.Server = &D.Server{Addr: addr, PacketConn: p, Handler: server}
 
 	go func() {
-		server.ActivateAndServe()
+		_ = server.ActivateAndServe()
 	}()
 
-	log.Infoln("DNS server listening at: %s", p.LocalAddr().String())
+	log.Info().Str("addr", p.LocalAddr().String()).Msg("[DNS] dns server listening")
 }

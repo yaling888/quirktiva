@@ -6,6 +6,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/phuslu/log"
+
 	"github.com/Dreamacro/clash/component/dialer"
 )
 
@@ -40,6 +42,7 @@ const (
 type Connection interface {
 	Chains() Chain
 	AppendToChains(adapter ProxyAdapter)
+	MarshalObject(e *log.Entry)
 }
 
 type Chain []string

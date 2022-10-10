@@ -10,8 +10,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/phuslu/log"
+
 	"github.com/Dreamacro/clash/common/pool"
-	"github.com/Dreamacro/clash/log"
 	"github.com/Dreamacro/clash/transport/shadowsocks/core"
 )
 
@@ -47,9 +48,9 @@ func (a *authData) next() *authData {
 }
 
 func (a *authData) putAuthData(buf *bytes.Buffer) {
-	binary.Write(buf, binary.LittleEndian, uint32(time.Now().Unix()))
+	_ = binary.Write(buf, binary.LittleEndian, uint32(time.Now().Unix()))
 	buf.Write(a.clientID[:])
-	binary.Write(buf, binary.LittleEndian, a.connectionID)
+	_ = binary.Write(buf, binary.LittleEndian, a.connectionID)
 }
 
 func (a *authData) putEncryptedData(b *bytes.Buffer, userKey []byte, paddings [2]int, salt string) error {
@@ -64,7 +65,7 @@ func (a *authData) putEncryptedData(b *bytes.Buffer, userKey []byte, paddings [2
 	cipherKey := core.Kdf(base64.StdEncoding.EncodeToString(userKey)+salt, 16)
 	block, err := aes.NewCipher(cipherKey)
 	if err != nil {
-		log.Warnln("New cipher error: %s", err.Error())
+		log.Warn().Err(err).Msg("[SSR] new cipher failed")
 		return err
 	}
 	iv := bytes.Repeat([]byte{0}, 16)

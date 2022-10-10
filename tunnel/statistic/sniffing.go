@@ -4,12 +4,12 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/phuslu/log"
 	"go.uber.org/atomic"
 
 	"github.com/Dreamacro/clash/common/snifer/tls"
 	"github.com/Dreamacro/clash/component/resolver"
 	C "github.com/Dreamacro/clash/constant"
-	"github.com/Dreamacro/clash/log"
 )
 
 type sniffing struct {
@@ -30,8 +30,13 @@ func (r *sniffing) Write(b []byte) (int, error) {
 			r.metadata.DstPort == "465" || r.metadata.DstPort == "995") {
 		header, err := tls.SniffTLS(b)
 		if err == nil && strings.Index(header.Domain(), ".") > 0 {
+			log.Debug().
+				Str("host", header.Domain()).
+				Str("ip", r.metadata.DstIP.String()).
+				Msg("[Sniffer] update sni")
+
 			resolver.InsertHostByIP(r.metadata.DstIP, header.Domain())
-			log.Debugln("[Sniffer] use sni update host: %s ip: %s", header.Domain(), r.metadata.DstIP.String())
+
 			if r.allowBreak {
 				_ = r.Conn.Close()
 				return 0, errors.New("sni update, break current link to avoid leaks")

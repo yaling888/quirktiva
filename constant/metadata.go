@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/phuslu/log"
+
 	"github.com/Dreamacro/clash/transport/socks5"
 )
 
@@ -173,5 +175,13 @@ func (m *Metadata) NetworkFromString(s string) {
 		m.NetWork = UDP
 	default:
 		m.NetWork = -1
+	}
+}
+
+func (m *Metadata) MarshalObject(e *log.Entry) {
+	e.Str("lAddr", m.SourceAddress()).Str("rAddr", m.RemoteAddress())
+
+	if m.Process != "" {
+		e.Str("process", m.Process)
 	}
 }

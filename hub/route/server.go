@@ -12,9 +12,10 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/go-chi/render"
 	"github.com/gorilla/websocket"
+	"github.com/phuslu/log"
 
 	C "github.com/Dreamacro/clash/constant"
-	"github.com/Dreamacro/clash/log"
+	L "github.com/Dreamacro/clash/log"
 	"github.com/Dreamacro/clash/tunnel/statistic"
 )
 
@@ -89,13 +90,13 @@ func Start(addr string, secret string) {
 
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Errorln("External controller listen error: %s", err)
+		log.Error().Err(err).Msg("[API] external controller listen failed")
 		return
 	}
 	serverAddr = l.Addr().String()
-	log.Infoln("RESTful API listening at: %s", serverAddr)
+	log.Info().Str("addr", serverAddr).Msg("[API] listening")
 	if err = http.Serve(l, r); err != nil {
-		log.Errorln("External controller serve error: %s", err)
+		log.Error().Err(err).Msg("[API] external controller serve failed")
 	}
 }
 
@@ -191,7 +192,7 @@ func getLogs(w http.ResponseWriter, r *http.Request) {
 		levelText = "info"
 	}
 
-	level, ok := log.LogLevelMapping[levelText]
+	level, ok := L.LogLevelMapping[levelText]
 	if !ok {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, ErrBadRequest)
@@ -212,9 +213,9 @@ func getLogs(w http.ResponseWriter, r *http.Request) {
 		render.Status(r, http.StatusOK)
 	}
 
-	ch := make(chan log.Event, 1024)
-	sub := log.Subscribe()
-	defer log.UnSubscribe(sub)
+	ch := make(chan L.Event, 1024)
+	sub := L.Subscribe()
+	defer L.UnSubscribe(sub)
 	buf := &bytes.Buffer{}
 
 	go func() {

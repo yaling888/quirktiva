@@ -10,8 +10,9 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/phuslu/log"
+
 	"github.com/Dreamacro/clash/component/ebpf/byteorder"
-	"github.com/Dreamacro/clash/log"
 )
 
 // store process name for when dealing with multiple PROCESS-NAME rules
@@ -24,8 +25,8 @@ var (
 func findProcessName(network string, ip netip.Addr, srcPort int) (string, error) {
 	once.Do(func() {
 		if err := initSearcher(); err != nil {
-			log.Errorln("Initialize PROCESS-NAME failed: %s", err.Error())
-			log.Warnln("All PROCESS-NAME rules will be skipped")
+			log.Error().Err(err).Msg("[Process] initialize PROCESS-NAME failed")
+			log.Warn().Msg("[Process] all PROCESS-NAMES rules will be skipped")
 			return
 		}
 	})

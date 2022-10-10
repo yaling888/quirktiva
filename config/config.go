@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/phuslu/log"
 	"gopkg.in/yaml.v3"
 
 	"github.com/Dreamacro/clash/adapter"
@@ -29,7 +30,7 @@ import (
 	providerTypes "github.com/Dreamacro/clash/constant/provider"
 	"github.com/Dreamacro/clash/dns"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/commons"
-	"github.com/Dreamacro/clash/log"
+	L "github.com/Dreamacro/clash/log"
 	rewrites "github.com/Dreamacro/clash/rewrite"
 	R "github.com/Dreamacro/clash/rule"
 	T "github.com/Dreamacro/clash/tunnel"
@@ -40,7 +41,7 @@ type General struct {
 	Inbound
 	Controller
 	Mode        T.TunnelMode `json:"mode"`
-	LogLevel    log.LogLevel `json:"log-level"`
+	LogLevel    L.LogLevel   `json:"log-level"`
 	IPv6        bool         `json:"ipv6"`
 	Sniffing    bool         `json:"sniffing"`
 	Interface   string       `json:"-"`
@@ -98,6 +99,7 @@ type FallbackFilter struct {
 type Profile struct {
 	StoreSelected bool `yaml:"store-selected"`
 	StoreFakeIP   bool `yaml:"store-fake-ip"`
+	Tracing       bool `yaml:"tracing"`
 }
 
 // Tun config
@@ -190,7 +192,7 @@ type RawConfig struct {
 	AllowLan           bool         `yaml:"allow-lan"`
 	BindAddress        string       `yaml:"bind-address"`
 	Mode               T.TunnelMode `yaml:"mode"`
-	LogLevel           log.LogLevel `yaml:"log-level"`
+	LogLevel           L.LogLevel   `yaml:"log-level"`
 	IPv6               bool         `yaml:"ipv6"`
 	ExternalController string       `yaml:"external-controller"`
 	ExternalUI         string       `yaml:"external-ui"`
@@ -233,7 +235,7 @@ func UnmarshalRawConfig(buf []byte) (*RawConfig, error) {
 		BindAddress:     "*",
 		Mode:            T.Rule,
 		Authentication:  []string{},
-		LogLevel:        log.INFO,
+		LogLevel:        L.INFO,
 		Hosts:           map[string]string{},
 		Rule:            []string{},
 		Proxy:           []map[string]any{},
@@ -289,6 +291,7 @@ func UnmarshalRawConfig(buf []byte) (*RawConfig, error) {
 		},
 		Profile: Profile{
 			StoreSelected: true,
+			Tracing:       true,
 		},
 	}
 
@@ -472,7 +475,7 @@ func parseProxies(cfg *RawConfig) (proxies map[string]C.Proxy, providersMap map[
 	}
 
 	for _, proxyProvider := range providersMap {
-		log.Infoln("Start initial proxy provider %s", proxyProvider.Name())
+		log.Info().Str("name", proxyProvider.Name()).Msg("[Config] initial proxy provider")
 		if err := proxyProvider.Initial(); err != nil {
 			return nil, nil, fmt.Errorf("initial proxy provider %s error: %w", proxyProvider.Name(), err)
 		}
@@ -499,7 +502,7 @@ func parseProxies(cfg *RawConfig) (proxies map[string]C.Proxy, providersMap map[
 			continue
 		}
 
-		log.Infoln("Start initial compatible provider %s", pd.Name())
+		log.Info().Str("name", pd.Name()).Msg("[Config] initial compatible provider")
 		if err := pd.Initial(); err != nil {
 			return nil, nil, err
 		}
@@ -606,7 +609,7 @@ func parseHosts(cfg *RawConfig) (*trie.DomainTrie[netip.Addr], error) {
 
 	// add default hosts
 	if err := tree.Insert("localhost", netip.AddrFrom4([4]byte{127, 0, 0, 1})); err != nil {
-		log.Errorln("insert localhost to host error: %s", err.Error())
+		log.Error().Err(err).Msg("[Config] insert localhost to host failed")
 	}
 
 	if len(cfg.Hosts) != 0 {
@@ -621,7 +624,7 @@ func parseHosts(cfg *RawConfig) (*trie.DomainTrie[netip.Addr], error) {
 
 	// add mitm.clash hosts
 	if err := tree.Insert("mitm.clash", netip.AddrFrom4([4]byte{1, 2, 3, 4})); err != nil {
-		log.Errorln("insert mitm.clash to host error: %s", err.Error())
+		log.Error().Err(err).Msg("[Config] insert mitm.clash to host failed")
 	}
 
 	return tree, nil
@@ -741,7 +744,7 @@ func parseFallbackGeoSite(countries []string) ([]*router.DomainMatcher, error) {
 		if recordsCount == 0 {
 			cont = "from cache"
 		}
-		log.Infoln("Start initial GeoSite dns fallback filter `%s`, records: %s", country, cont)
+		log.Info().Str("country", country).Str("records", cont).Msg("[Config] initial GeoSite dns fallback filter")
 	}
 	runtime.GC()
 	return sites, nil
@@ -951,7 +954,7 @@ def main(ctx, metadata):
 		rawRules = append(rawRules, rule)
 	}
 
-	log.Infoln("Start initial script module successful")
+	log.Info().Msg("[Config] initial script module successful")
 
 	return matchers, rawRules, nil
 }

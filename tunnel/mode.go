@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+
+	"github.com/phuslu/log"
 )
 
 type TunnelMode int
@@ -55,6 +57,10 @@ func (m TunnelMode) MarshalJSON() ([]byte, error) {
 // MarshalYAML serialize TunnelMode with yaml
 func (m TunnelMode) MarshalYAML() (any, error) {
 	return m.String(), nil
+}
+
+func (m TunnelMode) MarshalObject(e *log.Entry) {
+	e.Str("mode", m.String())
 }
 
 func (m TunnelMode) String() string {

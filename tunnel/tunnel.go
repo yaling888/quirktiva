@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/phuslu/log"
+
 	A "github.com/Dreamacro/clash/adapter"
 	"github.com/Dreamacro/clash/adapter/inbound"
 	"github.com/Dreamacro/clash/component/nat"
@@ -20,7 +22,6 @@ import (
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/constant/provider"
 	icontext "github.com/Dreamacro/clash/context"
-	"github.com/Dreamacro/clash/log"
 	"github.com/Dreamacro/clash/tunnel/statistic"
 )
 
@@ -196,7 +197,7 @@ func preHandleMetadata(metadata *C.Metadata) error {
 				metadata.DstIP = netip.Addr{}
 				metadata.DNSMode = C.DNSFakeIP
 			} else if node := resolver.DefaultHosts.Search(host); node != nil {
-				// redir-host should lookup the hosts
+				// redir-host should look up the hosts
 				metadata.DstIP = node.Data
 			}
 		} else if resolver.IsFakeIP(metadata.DstIP) {
@@ -231,7 +232,7 @@ func resolveMetadata(_ C.PlainContext, metadata *C.Metadata) (proxy C.Proxy, rul
 func handleUDPConn(packet *inbound.PacketAdapter) {
 	metadata := packet.Metadata()
 	if !metadata.Valid() {
-		log.Warnln("[Metadata] not valid: %#v", metadata)
+		log.Warn().Msgf("[Metadata] not valid: %#v", metadata)
 		return
 	}
 
@@ -242,9 +243,11 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 	}
 
 	if err := preHandleMetadata(metadata); err != nil {
-		log.Debugln("[Metadata PreHandle] error: %s", err)
+		log.Debug().Err(err).Msg("[Metadata] prehandle failed")
 		return
 	}
+
+	log.Debug().EmbedObject(metadata).Str("inbound", metadata.Type.String()).Msg("[UDP] accept session")
 
 	// local resolve UDP dns
 	if !metadata.Resolved() {
@@ -290,7 +293,7 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 		pCtx := icontext.NewPacketConnContext(metadata)
 		proxy, rule, err := resolveMetadata(pCtx, metadata)
 		if err != nil {
-			log.Warnln("[UDP] Parse metadata failed: %s", err.Error())
+			log.Warn().Err(err).Msg("[Metadata] parse failed")
 			return
 		}
 
@@ -299,27 +302,39 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 		rawPc, err := proxy.ListenPacketContext(ctx, metadata.Pure(false))
 		if err != nil {
 			if rule == nil {
-				log.Warnln("[UDP] dial %s to %s error: %s", proxy.Name(), metadata.RemoteAddress(), err.Error())
+				log.Warn().
+					Err(err).
+					Str("proxy", proxy.Name()).
+					Str("rAddr", metadata.RemoteAddress()).
+					Msg("[UDP] dial failed")
 			} else {
-				log.Warnln("[UDP] dial %s (match %s/%s) to %s error: %s", proxy.Name(), rule.RuleType().String(), rule.Payload(), metadata.RemoteAddress(), err.Error())
+				log.Warn().
+					Err(err).
+					Str("proxy", proxy.Name()).
+					Str("rAddr", metadata.RemoteAddress()).
+					Str("rule", rule.RuleType().String()).
+					Str("rulePayload", rule.Payload()).
+					Msg("[UDP] dial failed")
 			}
 			return
 		}
 		pCtx.InjectPacketConn(rawPc)
 		pc := statistic.NewUDPTracker(rawPc, statistic.DefaultManager, metadata, rule)
 
-		switch true {
-		case rule != nil:
-			log.Infoln("[UDP] %s(%s) --> %s match %s(%s) using %s", metadata.SourceAddress(), metadata.Process, metadata.RemoteAddress(), rule.RuleType().String(), rule.Payload(), rawPc.Chains().String())
-		case mode == Script:
-			log.Infoln("[UDP] %s(%s) --> %s using SCRIPT %s", metadata.SourceAddress(), metadata.Process, metadata.RemoteAddress(), rawPc.Chains().String())
-		case mode == Global:
-			log.Infoln("[UDP] %s(%s) --> %s using GLOBAL", metadata.SourceAddress(), metadata.Process, metadata.RemoteAddress())
-		case mode == Direct:
-			log.Infoln("[UDP] %s(%s) --> %s using DIRECT", metadata.SourceAddress(), metadata.Process, metadata.RemoteAddress())
-		default:
-			log.Infoln("[UDP] %s(%s) --> %s doesn't match any rule using DIRECT", metadata.SourceAddress(), metadata.Process, metadata.RemoteAddress())
+		var entry *log.Entry
+		if rule != nil {
+			entry = log.Info().
+				EmbedObject(metadata).
+				EmbedObject(mode).
+				Str("rule", fmt.Sprintf("%s(%s)", rule.RuleType().String(), rule.Payload())).
+				EmbedObject(rawPc)
+		} else {
+			entry = log.Info().
+				EmbedObject(metadata).
+				EmbedObject(mode).
+				EmbedObject(rawPc)
 		}
+		entry.Msg("[UDP] connected")
 
 		oAddr := metadata.DstIP
 		go handleUDPToLocal(packet.UDPPacket, pc, key, oAddr, fAddr)
@@ -336,18 +351,20 @@ func handleTCPConn(connCtx C.ConnContext) {
 
 	metadata := connCtx.Metadata()
 	if !metadata.Valid() {
-		log.Warnln("[Metadata] not valid: %#v", metadata)
+		log.Warn().Msgf("[Metadata] not valid: %#v", metadata)
 		return
 	}
 
 	if err := preHandleMetadata(metadata); err != nil {
-		log.Debugln("[Metadata PreHandle] error: %s", err)
+		log.Debug().Err(err).Msg("[Metadata] prehandle failed")
 		return
 	}
 
+	log.Debug().EmbedObject(metadata).Str("inbound", metadata.Type.String()).Msg("[TCP] accept connection")
+
 	proxy, rule, err := resolveMetadata(connCtx, metadata)
 	if err != nil {
-		log.Warnln("[Metadata] parse failed: %s", err.Error())
+		log.Warn().Err(err).Msg("[Metadata] parse failed")
 		return
 	}
 
@@ -358,9 +375,19 @@ func handleTCPConn(connCtx C.ConnContext) {
 	remoteConn, err := proxy.DialContext(ctx, metadata.Pure(isMitmOutbound))
 	if err != nil {
 		if rule == nil {
-			log.Warnln("[TCP] dial %s to %s error: %s", proxy.Name(), metadata.RemoteAddress(), err.Error())
+			log.Warn().
+				Err(err).
+				Str("proxy", proxy.Name()).
+				Str("rAddr", metadata.RemoteAddress()).
+				Msg("[TCP] dial failed")
 		} else {
-			log.Warnln("[TCP] dial %s (match %s/%s) to %s error: %s", proxy.Name(), rule.RuleType().String(), rule.Payload(), metadata.RemoteAddress(), err.Error())
+			log.Warn().
+				Err(err).
+				Str("proxy", proxy.Name()).
+				Str("rAddr", metadata.RemoteAddress()).
+				Str("rule", rule.RuleType().String()).
+				Str("rulePayload", rule.Payload()).
+				Msg("[TCP] dial failed")
 		}
 		return
 	}
@@ -380,15 +407,18 @@ func handleTCPConn(connCtx C.ConnContext) {
 	case isMitmOutbound:
 		break
 	case rule != nil:
-		log.Infoln("[TCP] %s(%s) --> %s match %s(%s) using %s", metadata.SourceAddress(), metadata.Process, metadata.RemoteAddress(), rule.RuleType().String(), rule.Payload(), remoteConn.Chains().String())
-	case mode == Script:
-		log.Infoln("[TCP] %s(%s) --> %s using SCRIPT %s", metadata.SourceAddress(), metadata.Process, metadata.RemoteAddress(), remoteConn.Chains().String())
-	case mode == Global:
-		log.Infoln("[TCP] %s(%s) --> %s using GLOBAL", metadata.SourceAddress(), metadata.Process, metadata.RemoteAddress())
-	case mode == Direct:
-		log.Infoln("[TCP] %s(%s) --> %s using DIRECT", metadata.SourceAddress(), metadata.Process, metadata.RemoteAddress())
+		log.Info().
+			EmbedObject(metadata).
+			EmbedObject(mode).
+			Str("rule", fmt.Sprintf("%s(%s)", rule.RuleType().String(), rule.Payload())).
+			EmbedObject(remoteConn).
+			Msg("[TCP] connected")
 	default:
-		log.Infoln("[TCP] %s(%s) --> %s doesn't match any rule using DIRECT", metadata.SourceAddress(), metadata.Process, metadata.RemoteAddress())
+		log.Info().
+			EmbedObject(metadata).
+			EmbedObject(mode).
+			EmbedObject(remoteConn).
+			Msg("[TCP] connected")
 	}
 
 	handleSocket(connCtx, remoteConn)
@@ -416,9 +446,16 @@ func match(metadata *C.Metadata) (C.Proxy, C.Rule, error) {
 		if !resolved && shouldResolveIP(rule, metadata) {
 			ip, err := resolver.ResolveIP(metadata.Host)
 			if err != nil {
-				log.Debugln("[DNS] resolve %s error: %s", metadata.Host, err.Error())
+				log.Debug().
+					Err(err).
+					Str("host", metadata.Host).
+					Msg("[Matcher] resolve failed")
 			} else {
-				log.Debugln("[DNS] %s --> %s", metadata.Host, ip.String())
+				log.Debug().
+					Str("host", metadata.Host).
+					Str("ip", ip.String()).
+					Msg("[Matcher] resolve success")
+
 				metadata.DstIP = ip
 			}
 			resolved = true
@@ -431,9 +468,16 @@ func match(metadata *C.Metadata) (C.Proxy, C.Rule, error) {
 			if err == nil {
 				path, err := P.FindProcessName(metadata.NetWork.String(), metadata.SrcIP, int(srcPort))
 				if err != nil {
-					log.Debugln("[Process] find process %s: %v", metadata.String(), err)
+					log.Debug().
+						Err(err).
+						Str("addr", metadata.String()).
+						Msg("[Matcher] find process failed")
 				} else {
-					log.Debugln("[Process] %s from process %s", metadata.String(), path)
+					log.Debug().
+						Str("addr", metadata.String()).
+						Str("path", path).
+						Msg("[Matcher] find process success")
+
 					metadata.Process = filepath.Base(path)
 					metadata.ProcessPath = path
 				}
@@ -447,7 +491,9 @@ func match(metadata *C.Metadata) (C.Proxy, C.Rule, error) {
 			}
 
 			if metadata.NetWork == C.UDP && !adapter.SupportUDP() {
-				log.Debugln("%s UDP is not supported", adapter.Name())
+				log.Debug().
+					Str("proxy", adapter.Name()).
+					Msg("[Matcher] UDP is not supported")
 				continue
 			}
 

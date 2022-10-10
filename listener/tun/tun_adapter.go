@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/phuslu/log"
+
 	"github.com/Dreamacro/clash/adapter/inbound"
 	"github.com/Dreamacro/clash/common/cmd"
 	"github.com/Dreamacro/clash/config"
@@ -19,7 +21,6 @@ import (
 	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/option"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/system"
-	"github.com/Dreamacro/clash/log"
 )
 
 // New TunAdapter
@@ -104,7 +105,14 @@ func New(tunConf *config.Tun, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.
 	tunConf.Device = devName
 	setAtLatest(stackType, devName)
 
-	log.Infoln("TUN stack listening at: %s(%s), mtu: %d, auto route: %v, ip stack: %s", tunDevice.Name(), tunAddress.Masked().Addr().Next().String(), mtu, autoRoute, stackType)
+	log.Info().
+		Str("iface", devName).
+		Str("gateway", tunAddress.Masked().Addr().Next().String()).
+		Int("mtu", mtu).
+		Bool("auto-route", autoRoute).
+		Bool("auto-detect-interface", tunConf.AutoDetectInterface).
+		Str("ip-stack", stackType.String()).
+		Msg("[Inbound] TUN listening")
 	return tunStack, nil
 }
 

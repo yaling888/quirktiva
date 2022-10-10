@@ -3,6 +3,7 @@ package gvisor
 import (
 	"net"
 
+	"github.com/phuslu/log"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
@@ -11,7 +12,6 @@ import (
 	"github.com/Dreamacro/clash/common/pool"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/adapter"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/option"
-	"github.com/Dreamacro/clash/log"
 )
 
 func withUDPHandler(handle adapter.UDPHandleFunc) option.Option {
@@ -23,7 +23,13 @@ func withUDPHandler(handle adapter.UDPHandleFunc) option.Option {
 			)
 			ep, err := r.CreateEndpoint(&wq)
 			if err != nil {
-				log.Warnln("[Stack] udp forwarder request %s:%d->%s:%d: %s", id.RemoteAddress, id.RemotePort, id.LocalAddress, id.LocalPort, err)
+				log.Warn().
+					Str("error", err.String()).
+					Str("rAddr", id.RemoteAddress.String()).
+					Uint16("rPort", id.RemotePort).
+					Str("lAddr", id.LocalAddress.String()).
+					Uint16("lPort", id.LocalPort).
+					Msg("[gVisor] forward udp request failed")
 				return
 			}
 

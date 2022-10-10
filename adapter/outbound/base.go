@@ -7,6 +7,8 @@ import (
 	"io"
 	"net"
 
+	"github.com/phuslu/log"
+
 	"github.com/Dreamacro/clash/component/dialer"
 	C "github.com/Dreamacro/clash/constant"
 )
@@ -120,6 +122,10 @@ func (c *conn) AppendToChains(a C.ProxyAdapter) {
 	c.chain = append(c.chain, a.Name())
 }
 
+func (c *conn) MarshalObject(e *log.Entry) {
+	e.Str("proxy", c.Chains().String())
+}
+
 func NewConn(c net.Conn, a C.ProxyAdapter) C.Conn {
 	return &conn{c, []string{a.Name()}}
 }
@@ -137,6 +143,10 @@ func (c *packetConn) Chains() C.Chain {
 // AppendToChains implements C.Connection
 func (c *packetConn) AppendToChains(a C.ProxyAdapter) {
 	c.chain = append(c.chain, a.Name())
+}
+
+func (c *packetConn) MarshalObject(e *log.Entry) {
+	e.Str("proxy", c.Chains().String())
 }
 
 func NewPacketConn(pc net.PacketConn, a C.ProxyAdapter) C.PacketConn {

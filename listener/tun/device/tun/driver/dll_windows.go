@@ -13,10 +13,9 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/phuslu/log"
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wireguard/windows/driver/memmod"
-
-	"github.com/Dreamacro/clash/log"
 )
 
 //go:linkname modwintun golang.zx2c4.com/wintun.modwintun
@@ -107,13 +106,13 @@ func newLazyDLL(name string, onLoad func(d *lazyDLL)) *lazyDLL {
 func logMessage(level loggerLevel, _ uint64, msg *uint16) int {
 	switch level {
 	case logInfo:
-		log.Infoln("[TUN] %s", windows.UTF16PtrToString(msg))
+		log.Info().Msgf("[TUN] %s", windows.UTF16PtrToString(msg))
 	case logWarn:
-		log.Warnln("[TUN] %s", windows.UTF16PtrToString(msg))
+		log.Warn().Msgf("[TUN] %s", windows.UTF16PtrToString(msg))
 	case logErr:
-		log.Errorln("[TUN] %s", windows.UTF16PtrToString(msg))
+		log.Error().Msgf("[TUN] %s", windows.UTF16PtrToString(msg))
 	default:
-		log.Debugln("[TUN] %s", windows.UTF16PtrToString(msg))
+		log.Debug().Msgf("[TUN] %s", windows.UTF16PtrToString(msg))
 	}
 	return 0
 }

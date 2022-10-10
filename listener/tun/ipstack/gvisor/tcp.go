@@ -4,6 +4,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/phuslu/log"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -14,7 +15,6 @@ import (
 	"github.com/Dreamacro/clash/common/pool"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/adapter"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/option"
-	"github.com/Dreamacro/clash/log"
 )
 
 const (
@@ -55,7 +55,13 @@ func withTCPHandler(handle adapter.TCPHandleFunc) option.Option {
 
 			defer func() {
 				if err != nil {
-					log.Warnln("[Stack] forward tcp request %s:%d->%s:%d: %s", id.RemoteAddress, id.RemotePort, id.LocalAddress, id.LocalPort, err)
+					log.Warn().
+						Str("error", err.String()).
+						Str("rAddr", id.RemoteAddress.String()).
+						Uint16("rPort", id.RemotePort).
+						Str("lAddr", id.LocalAddress.String()).
+						Uint16("lPort", id.LocalPort).
+						Msg("[gVisor] forward tcp request failed")
 				}
 			}()
 
@@ -81,7 +87,10 @@ func withTCPHandler(handle adapter.TCPHandleFunc) option.Option {
 			}
 
 			if conn.RemoteAddr() == nil {
-				log.Warnln("[STACK] endpoint is not connected, current state: %v", tcp.EndpointState(ep.State()))
+				log.Warn().
+					Str("state", tcp.EndpointState(ep.State()).String()).
+					Msg("[gVisor] endpoint is not connected")
+
 				_ = conn.Close()
 				return
 			}

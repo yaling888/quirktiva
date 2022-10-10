@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	D "github.com/miekg/dns"
+	"github.com/phuslu/log"
 
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"
@@ -43,6 +44,32 @@ func (dc *dohClient) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg,
 	msg, err = dc.doRequest(req)
 	if err == nil {
 		msg.Id = m.Id
+
+		q := m.Question[0]
+		if q.Qtype == D.TypeA || q.Qtype == D.TypeAAAA {
+			var (
+				ans []string
+				pr  string
+			)
+			for _, r := range msg.Answer {
+				if r != nil {
+					if a, ok := r.(*D.A); ok && a.A != nil {
+						ans = append(ans, a.A.String())
+					} else if a2, ok2 := r.(*D.AAAA); ok2 && a2.AAAA != nil {
+						ans = append(ans, a2.AAAA.String())
+					}
+				}
+			}
+			if dc.proxyAdapter != "" {
+				pr = "(" + dc.proxyAdapter + ")"
+			}
+			log.Debug().
+				Str("source", dc.url+pr).
+				Str("qType", D.Type(q.Qtype).String()).
+				Str("name", q.Name).
+				Strs("answer", ans).
+				Msg("[DNS] dns response")
+		}
 	}
 	return
 }

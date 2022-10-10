@@ -4,9 +4,9 @@ import (
 	"sync"
 
 	"github.com/oschwald/geoip2-golang"
+	"github.com/phuslu/log"
 
 	C "github.com/Dreamacro/clash/constant"
-	"github.com/Dreamacro/clash/log"
 )
 
 var (
@@ -19,7 +19,9 @@ func LoadFromBytes(buffer []byte) {
 		var err error
 		mmdb, err = geoip2.FromBytes(buffer)
 		if err != nil {
-			log.Fatalln("Can't load mmdb: %s", err.Error())
+			log.Fatal().
+				Err(err).
+				Msg("Can't load mmdb")
 		}
 	})
 }
@@ -27,7 +29,7 @@ func LoadFromBytes(buffer []byte) {
 func Verify() bool {
 	instance, err := geoip2.Open(C.Path.MMDB())
 	if err == nil {
-		instance.Close()
+		_ = instance.Close()
 	}
 	return err == nil
 }
@@ -37,7 +39,9 @@ func Instance() *geoip2.Reader {
 		var err error
 		mmdb, err = geoip2.Open(C.Path.MMDB())
 		if err != nil {
-			log.Fatalln("Can't load mmdb: %s", err.Error())
+			log.Fatal().
+				Err(err).
+				Msg("Can't load mmdb")
 		}
 	})
 

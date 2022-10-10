@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/phuslu/log"
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wireguard/windows/services"
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
@@ -17,7 +18,6 @@ import (
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/listener/tun/device"
 	"github.com/Dreamacro/clash/listener/tun/device/tun"
-	"github.com/Dreamacro/clash/log"
 )
 
 var (
@@ -41,7 +41,10 @@ func ConfigInterfaceAddress(dev device.Device, addr netip.Prefix, forceMTU int, 
 	var err error
 startOver:
 	if tryTimes > 0 {
-		log.Infoln("[TUN] retrying interface configuration after failure because system just booted (T+%v): %v", windows.DurationSinceBoot(), err)
+		log.Info().
+			Err(err).
+			Dur("time", windows.DurationSinceBoot()).
+			Msg("[TUN] retrying interface configuration after failure because system just booted")
 		time.Sleep(time.Second)
 		retryOnFailure = retryOnFailure && tryTimes < 15
 	}
@@ -235,7 +238,10 @@ func cleanupAddressesOnDisconnectedInterfaces(family winipcfg.AddressFamily, add
 		for address := ifaceM.FirstUnicastAddress; address != nil; address = address.Next {
 			if ip := nnip.IpToAddr(address.Address.IP()); addrHash[ip] {
 				prefix := netip.PrefixFrom(ip, int(address.OnLinkPrefixLength))
-				log.Infoln("[TUN] cleaning up stale address %s from interface ‘%s’", prefix.String(), ifaceM.FriendlyName())
+				log.Info().
+					Str("address", prefix.String()).
+					Str("interface", ifaceM.FriendlyName()).
+					Msg("[TUN] cleaning up stale")
 				_ = ifaceM.LUID.DeleteIPAddress(prefix)
 			}
 		}
@@ -285,7 +291,7 @@ func unicastAddressChange(_ winipcfg.MibNotificationType, unicastAddress *winipc
 	interfaceName, err := GetAutoDetectInterface()
 	if err != nil {
 		if err == errInterfaceNotFound && tunStatus == C.TunEnabled {
-			log.Warnln("[TUN] lost the default interface, pause tun adapter")
+			log.Warn().Msg("[TUN] lost default interface, pause tun adapter")
 
 			tunStatus = C.TunPaused
 			tunChangeCallback.Pause()
@@ -295,7 +301,7 @@ func unicastAddressChange(_ winipcfg.MibNotificationType, unicastAddress *winipc
 
 	ifaceM, err := net.InterfaceByIndex(int(unicastAddress.InterfaceIndex))
 	if err != nil {
-		log.Warnln("[TUN] default interface monitor err: %v", err)
+		log.Warn().Err(err).Msg("[TUN] default interface monitor failed")
 		return
 	}
 
@@ -310,14 +316,20 @@ func unicastAddressChange(_ winipcfg.MibNotificationType, unicastAddress *winipc
 	iface.FlushCache()
 
 	if tunStatus == C.TunPaused {
-		log.Warnln("[TUN] found interface %s(%s), resume tun adapter", interfaceName, unicastAddress.Address.Addr())
+		log.Warn().
+			Str("iface", interfaceName).
+			Str("ip", unicastAddress.Address.Addr().String()).
+			Msg("[TUN] default interface found, resume tun adapter")
 
 		tunStatus = C.TunEnabled
 		tunChangeCallback.Resume()
 		return
 	}
 
-	log.Warnln("[TUN] default interface changed to %s(%s) by monitor", interfaceName, unicastAddress.Address.Addr())
+	log.Warn().
+		Str("iface", interfaceName).
+		Str("ip", unicastAddress.Address.Addr().String()).
+		Msg("[TUN] default interface changed by monitor")
 }
 
 func StartDefaultInterfaceChangeMonitor() {
@@ -329,13 +341,13 @@ func StartDefaultInterfaceChangeMonitor() {
 	unicastAddressChangeCallback, err = winipcfg.RegisterUnicastAddressChangeCallback(unicastAddressChange)
 
 	if err != nil {
-		log.Errorln("[TUN] register uni-cast address change callback failed: %v", err)
+		log.Error().Err(err).Msg("[TUN] register uni-cast address change callback failed")
 		return
 	}
 
 	tunStatus = C.TunEnabled
 
-	log.Infoln("[TUN] register uni-cast address change callback")
+	log.Info().Msg("[TUN] register uni-cast address change callback")
 }
 
 func StopDefaultInterfaceChangeMonitor() {

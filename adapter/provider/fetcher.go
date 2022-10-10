@@ -8,8 +8,9 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/phuslu/log"
+
 	types "github.com/Dreamacro/clash/constant/provider"
-	"github.com/Dreamacro/clash/log"
 )
 
 var (
@@ -139,16 +140,16 @@ func (f *fetcher[V]) pullLoop() {
 		case <-f.ticker.C:
 			elm, same, err := f.Update()
 			if err != nil {
-				log.Warnln("[Provider] %s pull error: %s", f.Name(), err.Error())
+				log.Warn().Err(err).Str("name", f.Name()).Msg("[Provider] pull failed")
 				continue
 			}
 
 			if same {
-				log.Debugln("[Provider] %s's proxies doesn't change", f.Name())
+				log.Debug().Str("name", f.Name()).Msg("[Provider] proxies doesn't change")
 				continue
 			}
 
-			log.Infoln("[Provider] %s's proxies update", f.Name())
+			log.Info().Str("name", f.Name()).Msg("[Provider] proxies updated")
 			if f.onUpdate != nil {
 				f.onUpdate(elm)
 			}

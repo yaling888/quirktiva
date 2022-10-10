@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/phuslu/log"
 	"go.starlark.net/lib/time"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
@@ -15,7 +16,6 @@ import (
 	P "github.com/Dreamacro/clash/component/process"
 	"github.com/Dreamacro/clash/component/resolver"
 	C "github.com/Dreamacro/clash/constant"
-	"github.com/Dreamacro/clash/log"
 )
 
 var moduleContext *starlarkstruct.Module
@@ -122,7 +122,7 @@ func log_(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs [
 		return nil, fmt.Errorf("call log error: %w", err)
 	}
 
-	log.Debugln(s)
+	log.Info().Msg(s)
 
 	return starlark.None, nil
 }
