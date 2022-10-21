@@ -8,7 +8,7 @@ import (
 	C "github.com/Dreamacro/clash/constant"
 )
 
-func ParseProxy(mapping map[string]any, forceCertVerify bool) (C.Proxy, error) {
+func ParseProxy(mapping map[string]any, forceCertVerify bool, udp bool) (C.Proxy, error) {
 	decoder := structure.NewDecoder(structure.Option{TagName: "proxy", WeaklyTypedInput: true})
 	proxyType, existType := mapping["type"].(string)
 	if !existType {
@@ -26,12 +26,18 @@ func ParseProxy(mapping map[string]any, forceCertVerify bool) (C.Proxy, error) {
 		if err != nil {
 			break
 		}
+		if udp {
+			ssOption.UDP = true
+		}
 		proxy, err = outbound.NewShadowSocks(*ssOption)
 	case "ssr":
 		ssrOption := &outbound.ShadowSocksROption{}
 		err = decoder.Decode(mapping, ssrOption)
 		if err != nil {
 			break
+		}
+		if udp {
+			ssrOption.UDP = true
 		}
 		proxy, err = outbound.NewShadowSocksR(*ssrOption)
 	case "socks5":
@@ -42,6 +48,9 @@ func ParseProxy(mapping map[string]any, forceCertVerify bool) (C.Proxy, error) {
 		}
 		if forceCertVerify {
 			socksOption.SkipCertVerify = false
+		}
+		if udp {
+			socksOption.UDP = true
 		}
 		proxy = outbound.NewSocks5(*socksOption)
 	case "http":
@@ -69,6 +78,9 @@ func ParseProxy(mapping map[string]any, forceCertVerify bool) (C.Proxy, error) {
 		if forceCertVerify {
 			vmessOption.SkipCertVerify = false
 		}
+		if udp {
+			vmessOption.UDP = true
+		}
 		proxy, err = outbound.NewVmess(*vmessOption)
 	case "vless":
 		vlessOption := &outbound.VlessOption{}
@@ -79,12 +91,18 @@ func ParseProxy(mapping map[string]any, forceCertVerify bool) (C.Proxy, error) {
 		if forceCertVerify {
 			vlessOption.SkipCertVerify = false
 		}
+		if udp {
+			vlessOption.UDP = true
+		}
 		proxy, err = outbound.NewVless(*vlessOption)
 	case "snell":
 		snellOption := &outbound.SnellOption{}
 		err = decoder.Decode(mapping, snellOption)
 		if err != nil {
 			break
+		}
+		if udp {
+			snellOption.UDP = true
 		}
 		proxy, err = outbound.NewSnell(*snellOption)
 	case "trojan":
@@ -95,6 +113,9 @@ func ParseProxy(mapping map[string]any, forceCertVerify bool) (C.Proxy, error) {
 		}
 		if forceCertVerify {
 			trojanOption.SkipCertVerify = false
+		}
+		if udp {
+			trojanOption.UDP = true
 		}
 		proxy, err = outbound.NewTrojan(*trojanOption)
 	default:

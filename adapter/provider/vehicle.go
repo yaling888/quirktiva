@@ -109,5 +109,10 @@ func (h *HTTPVehicle) Read() ([]byte, error) {
 }
 
 func NewHTTPVehicle(path string, url string, urlProxy bool, header http.Header) *HTTPVehicle {
-	return &HTTPVehicle{path, url, urlProxy, header}
+	return &HTTPVehicle{
+		path:     path,
+		url:      url,
+		urlProxy: urlProxy,
+		header:   header,
+	}
 }
