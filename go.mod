@@ -12,21 +12,21 @@ require (
 	github.com/insomniacslk/dhcp v0.0.0-20221001123530-5308ebe5334c
 	github.com/miekg/dns v1.1.50
 	github.com/oschwald/geoip2-golang v1.8.0
-	github.com/phuslu/log v1.0.82-0.20221008050327-7f64fc20371a
+	github.com/phuslu/log v1.0.82-0.20221016062012-b91113809886
 	github.com/stretchr/testify v1.8.0
 	github.com/vishvananda/netlink v1.2.1-beta.2.0.20220915185447-8715fe718dfd
 	github.com/xtls/go v0.0.0-20220914232946-0441cf4cf837
 	go.etcd.io/bbolt v1.3.6
-	go.starlark.net v0.0.0-20220928063852-5fccb4daaf6d
+	go.starlark.net v0.0.0-20221020143700-22309ac47eac
 	go.uber.org/atomic v1.10.0
 	go.uber.org/automaxprocs v1.5.1
-	golang.org/x/crypto v0.0.0-20221005025214-4161e89ecf1b
-	golang.org/x/exp v0.0.0-20221006183845-316c7553db56
-	golang.org/x/net v0.0.0-20221004154528-8021a29435af
-	golang.org/x/sync v0.0.0-20220929204114-8fcdb60fdcc0
-	golang.org/x/sys v0.0.0-20221006211917-84dc82d7e875
-	golang.org/x/text v0.3.8-0.20220124021120-d1c84af989ab
-	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af
+	golang.org/x/crypto v0.1.0
+	golang.org/x/exp v0.0.0-20221019170559-20944726eadf
+	golang.org/x/net v0.1.0
+	golang.org/x/sync v0.1.0
+	golang.org/x/sys v0.1.0
+	golang.org/x/text v0.4.0
+	golang.org/x/time v0.1.0
 	golang.zx2c4.com/wireguard v0.0.0-20220920152132-bb719d3a6e2c
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20220328111914-004c22c5647e
 	google.golang.org/protobuf v1.28.1

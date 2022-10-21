@@ -8,7 +8,7 @@ require (
 	github.com/docker/go-connections v0.4.0
 	github.com/miekg/dns v1.1.50
 	github.com/stretchr/testify v1.8.0
-	golang.org/x/net v0.0.0-20221004154528-8021a29435af
+	golang.org/x/net v0.1.0
 )
 
 replace github.com/Dreamacro/clash => ../
@@ -30,7 +30,7 @@ require (
 	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/oschwald/geoip2-golang v1.8.0 // indirect
 	github.com/oschwald/maxminddb-golang v1.10.0 // indirect
-	github.com/phuslu/log v1.0.82-0.20221008050327-7f64fc20371a // indirect
+	github.com/phuslu/log v1.0.82-0.20221016062012-b91113809886 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
@@ -39,15 +39,15 @@ require (
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74 // indirect
 	github.com/xtls/go v0.0.0-20220914232946-0441cf4cf837 // indirect
 	go.etcd.io/bbolt v1.3.6 // indirect
-	go.starlark.net v0.0.0-20220928063852-5fccb4daaf6d // indirect
+	go.starlark.net v0.0.0-20221020143700-22309ac47eac // indirect
 	go.uber.org/atomic v1.10.0 // indirect
-	golang.org/x/crypto v0.0.0-20221005025214-4161e89ecf1b // indirect
-	golang.org/x/exp v0.0.0-20221006183845-316c7553db56 // indirect
+	golang.org/x/crypto v0.1.0 // indirect
+	golang.org/x/exp v0.0.0-20221019170559-20944726eadf // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
-	golang.org/x/sync v0.0.0-20220929204114-8fcdb60fdcc0 // indirect
-	golang.org/x/sys v0.0.0-20221006211917-84dc82d7e875 // indirect
-	golang.org/x/text v0.3.8-0.20220124021120-d1c84af989ab // indirect
-	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af // indirect
+	golang.org/x/sync v0.1.0 // indirect
+	golang.org/x/sys v0.1.0 // indirect
+	golang.org/x/text v0.4.0 // indirect
+	golang.org/x/time v0.1.0 // indirect
 	golang.org/x/tools v0.1.12 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224 // indirect
 	golang.zx2c4.com/wireguard v0.0.0-20220920152132-bb719d3a6e2c // indirect
@@ -55,5 +55,5 @@ require (
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.0.2 // indirect
-	gvisor.dev/gvisor v0.0.0-20221007230704-df69886e9238 // indirect
+	gvisor.dev/gvisor v0.0.0-20221020013634-8e6a0b996cdf // indirect
 )
