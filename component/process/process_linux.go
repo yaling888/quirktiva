@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -23,6 +22,7 @@ const (
 	sizeofSocketID      = 0x30
 	sizeofSocketRequest = sizeofSocketID + 0x8
 	sizeofSocket        = sizeofSocketID + 0x18
+	pathProc            = "/proc"
 )
 
 var native = byteorder.Native
@@ -75,23 +75,6 @@ func (b *writeBuffer) Write(c byte) {
 }
 
 func (b *writeBuffer) Next(n int) []byte {
-	s := b.Bytes[b.pos : b.pos+n]
-	b.pos += n
-	return s
-}
-
-type readBuffer struct {
-	Bytes []byte
-	pos   int
-}
-
-func (b *readBuffer) Read() byte {
-	c := b.Bytes[b.pos]
-	b.pos++
-	return c
-}
-
-func (b *readBuffer) Next(n int) []byte {
 	s := b.Bytes[b.pos : b.pos+n]
 	b.pos += n
 	return s
@@ -160,16 +143,16 @@ func resolveSocketByNetlink(network string, ip netip.Addr, srcPort int) (uint32,
 		return 0, 0, fmt.Errorf("multiple (%d) matching sockets", len(msgs))
 	}
 
-	sock, err := deserialize(msgs[0].Data)
+	inode, uid, err := deserialize(msgs[0].Data)
 	if err != nil {
 		return 0, 0, ErrNotFound
 	}
 
-	return sock.INode, sock.UID, nil
+	return inode, uid, nil
 }
 
 func resolveProcessNameByProcSearch(inode, uid uint32) (string, error) {
-	files, err := os.ReadDir("/proc")
+	files, err := os.ReadDir(pathProc)
 	if err != nil {
 		return "", err
 	}
@@ -190,7 +173,7 @@ func resolveProcessNameByProcSearch(inode, uid uint32) (string, error) {
 			continue
 		}
 
-		processPath := filepath.Join("/proc", f.Name())
+		processPath := filepath.Join(pathProc, f.Name())
 		fdPath := filepath.Join(processPath, "fd")
 
 		fds, err := os.ReadDir(fdPath)
@@ -213,36 +196,11 @@ func resolveProcessNameByProcSearch(inode, uid uint32) (string, error) {
 	return "", fmt.Errorf("process of uid(%d), inode(%d) not found", uid, inode)
 }
 
-func deserialize(b []byte) (*netlink.Socket, error) {
+func deserialize(b []byte) (uint32, uint32, error) {
 	if len(b) < sizeofSocket {
-		return nil, fmt.Errorf("socket data short read (%d); want %d", len(b), sizeofSocket)
+		return 0, 0, fmt.Errorf("socket data short read (%d); want %d", len(b), sizeofSocket)
 	}
-	s := &netlink.Socket{}
-	rb := readBuffer{Bytes: b}
-	s.Family = rb.Read()
-	s.State = rb.Read()
-	s.Timer = rb.Read()
-	s.Retrans = rb.Read()
-	s.ID.SourcePort = binary.BigEndian.Uint16(rb.Next(2))
-	s.ID.DestinationPort = binary.BigEndian.Uint16(rb.Next(2))
-	if s.Family == unix.AF_INET6 {
-		s.ID.Source = rb.Next(16)
-		s.ID.Destination = rb.Next(16)
-	} else {
-		s.ID.Source = net.IPv4(rb.Read(), rb.Read(), rb.Read(), rb.Read())
-		rb.Next(12)
-		s.ID.Destination = net.IPv4(rb.Read(), rb.Read(), rb.Read(), rb.Read())
-		rb.Next(12)
-	}
-	s.ID.Interface = native.Uint32(rb.Next(4))
-	s.ID.Cookie[0] = native.Uint32(rb.Next(4))
-	s.ID.Cookie[1] = native.Uint32(rb.Next(4))
-	s.Expires = native.Uint32(rb.Next(4))
-	s.RQueue = native.Uint32(rb.Next(4))
-	s.WQueue = native.Uint32(rb.Next(4))
-	s.UID = native.Uint32(rb.Next(4))
-	s.INode = native.Uint32(rb.Next(4))
-	return s, nil
+	return native.Uint32(b[68:72]), native.Uint32(b[64:68]), nil
 }
 
 func isPid(s string) bool {

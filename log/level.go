@@ -3,6 +3,8 @@ package log
 import (
 	"encoding/json"
 	"errors"
+
+	logger "github.com/phuslu/log"
 )
 
 // LogLevelMapping is a mapping for LogLevel enum
@@ -15,11 +17,11 @@ var LogLevelMapping = map[string]LogLevel{
 }
 
 const (
-	DEBUG   LogLevel = 2
-	INFO    LogLevel = 3
-	WARNING LogLevel = 4
-	ERROR   LogLevel = 5
-	SILENT  LogLevel = 8
+	DEBUG   = LogLevel(logger.DebugLevel)
+	INFO    = LogLevel(logger.InfoLevel)
+	WARNING = LogLevel(logger.WarnLevel)
+	ERROR   = LogLevel(logger.ErrorLevel)
+	SILENT  = LogLevel(8)
 )
 
 type LogLevel int

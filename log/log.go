@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/phuslu/log"
+	logger "github.com/phuslu/log"
 
 	"github.com/Dreamacro/clash/common/observable"
 )
@@ -29,19 +29,19 @@ func init() {
 		timeFormat  = "2006-01-02 15:04:05"
 		colorOutput = false
 	)
-	if log.IsTerminal(os.Stdout.Fd()) {
+	if logger.IsTerminal(os.Stdout.Fd()) {
 		timeFormat = "15:04:05"
 		colorOutput = true
 	}
 
-	log.DefaultLogger = log.Logger{
-		Level:      log.DebugLevel,
+	logger.DefaultLogger = logger.Logger{
+		Level:      logger.DebugLevel,
 		TimeFormat: timeFormat,
 		// Caller:     1,
 		Writer: &writer{
-			apiWriter:     &log.ConsoleWriter{Formatter: formatter, Writer: io.Discard},
-			consoleWriter: &log.ConsoleWriter{ColorOutput: colorOutput, Writer: os.Stdout},
-			consoleLevel:  log.InfoLevel,
+			apiWriter:     &logger.ConsoleWriter{Formatter: formatter, Writer: io.Discard},
+			consoleWriter: &logger.ConsoleWriter{ColorOutput: colorOutput, Writer: os.Stdout},
+			consoleLevel:  logger.InfoLevel,
 		},
 	}
 }
@@ -61,7 +61,7 @@ func Level() LogLevel {
 
 func SetLevel(newLevel LogLevel) {
 	level = newLevel
-	(log.DefaultLogger.Writer.(*writer)).consoleLevel = log.Level(newLevel)
+	(logger.DefaultLogger.Writer.(*writer)).consoleLevel = logger.Level(newLevel)
 }
 
 func SetTracing(t bool) {
@@ -87,41 +87,38 @@ func (b *bb) Write(p []byte) (int, error) {
 }
 
 type writer struct {
-	apiWriter     log.Writer
-	consoleWriter log.Writer
-	consoleLevel  log.Level
+	apiWriter     logger.Writer
+	consoleWriter logger.Writer
+	consoleLevel  logger.Level
 }
 
 func (e *writer) Close() (err error) {
-	for _, w := range []log.Writer{
-		e.apiWriter,
-		e.consoleWriter,
-	} {
-		if w == nil {
-			continue
+	if closer, ok := e.apiWriter.(io.Closer); ok {
+		if err1 := closer.Close(); err1 != nil {
+			err = err1
 		}
-		if closer, ok := w.(io.Closer); ok {
-			if err1 := closer.Close(); err1 != nil {
-				err = err1
-			}
+	}
+	if closer, ok := e.consoleWriter.(io.Closer); ok {
+		if err1 := closer.Close(); err1 != nil {
+			err = err1
 		}
 	}
 	return
 }
 
-func (e *writer) WriteEntry(entry *log.Entry) (n int, err error) {
+func (e *writer) WriteEntry(entry *logger.Entry) (n int, err error) {
 	if tracing {
 		_, _ = e.apiWriter.WriteEntry(entry)
 	}
 
-	if e.consoleWriter != nil && entry.Level >= e.consoleLevel {
+	if entry.Level >= e.consoleLevel {
 		_, _ = e.consoleWriter.WriteEntry(entry)
 	}
 
 	return
 }
 
-func formatter(_ io.Writer, args *log.FormatterArgs) (n int, err error) {
+func formatter(_ io.Writer, args *logger.FormatterArgs) (n int, err error) {
 	b := bbPool.Get().(*bb)
 	b.B = b.B[:0]
 	defer bbPool.Put(b)
