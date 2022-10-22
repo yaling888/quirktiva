@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/phuslu/log"
 
+	"github.com/Dreamacro/clash/common/observable"
 	C "github.com/Dreamacro/clash/constant"
 	L "github.com/Dreamacro/clash/log"
 	"github.com/Dreamacro/clash/tunnel/statistic"
@@ -187,9 +188,15 @@ type Log struct {
 }
 
 func getLogs(w http.ResponseWriter, r *http.Request) {
-	levelText := r.URL.Query().Get("level")
+	var (
+		levelText = r.URL.Query().Get("level")
+		format    = r.URL.Query().Get("format")
+	)
 	if levelText == "" {
 		levelText = "info"
+	}
+	if format == "" {
+		format = "text"
 	}
 
 	level, ok := L.LogLevelMapping[levelText]
@@ -208,15 +215,32 @@ func getLogs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var (
+		sub    observable.Subscription[L.Event]
+		ch     = make(chan L.Event, 1024)
+		buf    = &bytes.Buffer{}
+		closed = false
+	)
+
 	if wsConn == nil {
 		w.Header().Set("Content-Type", "application/json")
 		render.Status(r, http.StatusOK)
+	} else if level > L.INFO {
+		go func() {
+			for _, _, err := wsConn.ReadMessage(); err != nil; {
+				closed = true
+				break
+			}
+		}()
 	}
 
-	ch := make(chan L.Event, 1024)
-	sub := L.Subscribe()
-	defer L.UnSubscribe(sub)
-	buf := &bytes.Buffer{}
+	if strings.EqualFold(format, "structured") {
+		sub = L.SubscribeJson()
+		defer L.UnSubscribeJson(sub)
+	} else {
+		sub = L.SubscribeText()
+		defer L.UnSubscribeText(sub)
+	}
 
 	go func() {
 		for elm := range sub {
@@ -229,6 +253,9 @@ func getLogs(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	for logM := range ch {
+		if closed {
+			break
+		}
 		if logM.LogLevel < level {
 			continue
 		}

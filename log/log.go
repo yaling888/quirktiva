@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
+	_ "unsafe"
 
 	logger "github.com/phuslu/log"
 
@@ -12,10 +14,15 @@ import (
 )
 
 var (
-	logCh   = make(chan Event)
-	source  = observable.NewObservable[Event](logCh)
-	level   = INFO
-	tracing = false
+	textCh     = make(chan Event)
+	jsonCh     = make(chan Event)
+	textSource = observable.NewObservable[Event](textCh)
+	jsonSource = observable.NewObservable[Event](jsonCh)
+
+	level       = INFO
+	tracing     = false
+	enabledText = false
+	enabledJson = false
 
 	bbPool = sync.Pool{
 		New: func() any {
@@ -26,7 +33,7 @@ var (
 
 func init() {
 	var (
-		timeFormat  = "2006-01-02 15:04:05"
+		timeFormat  = time.RFC3339
 		colorOutput = false
 	)
 	if logger.IsTerminal(os.Stdout.Fd()) {
@@ -38,21 +45,39 @@ func init() {
 		Level:      logger.DebugLevel,
 		TimeFormat: timeFormat,
 		// Caller:     1,
-		Writer: &writer{
-			apiWriter:     &logger.ConsoleWriter{Formatter: formatter, Writer: io.Discard},
+		Writer: &multiWriter{
+			textWriter:    &logger.IOWriter{Writer: &apiWriter{isJson: false}},
+			jsonWriter:    &logger.IOWriter{Writer: &apiWriter{isJson: true}},
 			consoleWriter: &logger.ConsoleWriter{ColorOutput: colorOutput, Writer: os.Stdout},
 			consoleLevel:  logger.InfoLevel,
 		},
 	}
 }
 
-func Subscribe() observable.Subscription[Event] {
-	sub, _ := source.Subscribe()
+func SubscribeText() observable.Subscription[Event] {
+	sub, _ := textSource.Subscribe()
+	enabledText = true
 	return sub
 }
 
-func UnSubscribe(sub observable.Subscription[Event]) {
-	source.UnSubscribe(sub)
+func UnSubscribeText(sub observable.Subscription[Event]) {
+	textSource.UnSubscribe(sub)
+	if !textSource.HasSubscriber() {
+		enabledText = false
+	}
+}
+
+func SubscribeJson() observable.Subscription[Event] {
+	sub, _ := jsonSource.Subscribe()
+	enabledJson = true
+	return sub
+}
+
+func UnSubscribeJson(sub observable.Subscription[Event]) {
+	jsonSource.UnSubscribe(sub)
+	if !jsonSource.HasSubscriber() {
+		enabledJson = false
+	}
 }
 
 func Level() LogLevel {
@@ -61,7 +86,7 @@ func Level() LogLevel {
 
 func SetLevel(newLevel LogLevel) {
 	level = newLevel
-	(logger.DefaultLogger.Writer.(*writer)).consoleLevel = logger.Level(newLevel)
+	(logger.DefaultLogger.Writer.(*multiWriter)).consoleLevel = logger.Level(newLevel)
 }
 
 func SetTracing(t bool) {
@@ -86,44 +111,24 @@ func (b *bb) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-type writer struct {
-	apiWriter     logger.Writer
-	consoleWriter logger.Writer
-	consoleLevel  logger.Level
+type apiWriter struct {
+	isJson bool
 }
 
-func (e *writer) Close() (err error) {
-	if closer, ok := e.apiWriter.(io.Closer); ok {
-		if err1 := closer.Close(); err1 != nil {
-			err = err1
-		}
-	}
-	if closer, ok := e.consoleWriter.(io.Closer); ok {
-		if err1 := closer.Close(); err1 != nil {
-			err = err1
-		}
-	}
-	return
-}
-
-func (e *writer) WriteEntry(entry *logger.Entry) (n int, err error) {
-	if tracing {
-		_, _ = e.apiWriter.WriteEntry(entry)
-	}
-
-	if entry.Level >= e.consoleLevel {
-		_, _ = e.consoleWriter.WriteEntry(entry)
-	}
-
-	return
-}
-
-func formatter(_ io.Writer, args *logger.FormatterArgs) (n int, err error) {
+func (fw *apiWriter) Write(p []byte) (n int, err error) {
 	b := bbPool.Get().(*bb)
 	b.B = b.B[:0]
 	defer bbPool.Put(b)
 
-	var logLevel LogLevel
+	b.B = append(b.B, p...)
+
+	var (
+		args     logger.FormatterArgs
+		logLevel LogLevel
+	)
+
+	parseFormatterArgs(b.B, &args)
+
 	switch args.Level {
 	case "debug":
 		logLevel = DEBUG
@@ -137,6 +142,51 @@ func formatter(_ io.Writer, args *logger.FormatterArgs) (n int, err error) {
 		logLevel = SILENT
 	}
 
+	if fw.isJson {
+		formatJson(logLevel, p)
+	} else {
+		formatText(logLevel, &args)
+	}
+	return
+}
+
+type multiWriter struct {
+	textWriter    logger.Writer
+	jsonWriter    logger.Writer
+	consoleWriter logger.Writer
+	consoleLevel  logger.Level
+}
+
+func (e *multiWriter) Close() (err error) {
+	if closer, ok := e.consoleWriter.(io.Closer); ok {
+		if err1 := closer.Close(); err1 != nil {
+			err = err1
+		}
+	}
+	return
+}
+
+func (e *multiWriter) WriteEntry(entry *logger.Entry) (n int, err error) {
+	if tracing {
+		if enabledText {
+			_, _ = e.textWriter.WriteEntry(entry)
+		}
+		if enabledJson {
+			_, _ = e.jsonWriter.WriteEntry(entry)
+		}
+	}
+
+	if entry.Level >= e.consoleLevel {
+		_, _ = e.consoleWriter.WriteEntry(entry)
+	}
+	return
+}
+
+func formatText(logLevel LogLevel, args *logger.FormatterArgs) {
+	b := bbPool.Get().(*bb)
+	b.B = b.B[:0]
+	defer bbPool.Put(b)
+
 	_, _ = fmt.Fprintf(b, " %s", args.Message)
 
 	for _, kv := range args.KeyValues {
@@ -148,7 +198,17 @@ func formatter(_ io.Writer, args *logger.FormatterArgs) (n int, err error) {
 		Payload:  string(b.B),
 	}
 
-	logCh <- event
-
-	return 0, nil
+	textCh <- event
 }
+
+func formatJson(logLevel LogLevel, p []byte) {
+	event := Event{
+		LogLevel: logLevel,
+		Payload:  string(p),
+	}
+
+	jsonCh <- event
+}
+
+//go:linkname parseFormatterArgs github.com/phuslu/log.parseFormatterArgs
+func parseFormatterArgs(_ []byte, _ *logger.FormatterArgs)
