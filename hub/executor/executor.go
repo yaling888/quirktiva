@@ -143,7 +143,7 @@ func updateDNS(c *config.DNS, t *config.Tun) {
 
 	// deprecated warning
 	if cfg.EnhancedMode == C.DNSMapping {
-		log.Warn().Msgf("[Config] %s is deprecated, please use %s instead", cfg.EnhancedMode.String(), C.DNSFakeIP.String())
+		log.Warn().Msgf("[DNS] %s is deprecated, please use %s instead", cfg.EnhancedMode.String(), C.DNSFakeIP.String())
 	}
 
 	r := dns.NewResolver(cfg)

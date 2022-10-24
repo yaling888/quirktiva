@@ -67,7 +67,7 @@ func ReCreateServer(addr string, resolver *Resolver, mapper *ResolverEnhancer) {
 	var err error
 	defer func() {
 		if err != nil {
-			log.Error().Err(err).Msg("[DNS] dns server start failed")
+			log.Error().Err(err).Msg("[DNS] server start failed")
 		}
 	}()
 
@@ -102,5 +102,5 @@ func ReCreateServer(addr string, resolver *Resolver, mapper *ResolverEnhancer) {
 		_ = server.ActivateAndServe()
 	}()
 
-	log.Info().Str("addr", p.LocalAddr().String()).Msg("[DNS] dns server listening")
+	log.Info().Str("addr", p.LocalAddr().String()).Msg("[DNS] server listening")
 }

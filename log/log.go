@@ -2,7 +2,6 @@ package log
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"sync"
 	"time"
@@ -106,16 +105,11 @@ type bb struct {
 	B []byte
 }
 
-func (b *bb) Write(p []byte) (int, error) {
-	b.B = append(b.B, p...)
-	return len(p), nil
-}
-
 type apiWriter struct {
 	isJson bool
 }
 
-func (fw *apiWriter) Write(p []byte) (n int, err error) {
+func (aw *apiWriter) Write(p []byte) (n int, err error) {
 	b := bbPool.Get().(*bb)
 	b.B = b.B[:0]
 	defer bbPool.Put(b)
@@ -142,7 +136,7 @@ func (fw *apiWriter) Write(p []byte) (n int, err error) {
 		logLevel = SILENT
 	}
 
-	if fw.isJson {
+	if aw.isJson {
 		formatJson(logLevel, p)
 	} else {
 		formatText(logLevel, &args)
@@ -151,33 +145,28 @@ func (fw *apiWriter) Write(p []byte) (n int, err error) {
 }
 
 type multiWriter struct {
-	textWriter    logger.Writer
-	jsonWriter    logger.Writer
-	consoleWriter logger.Writer
+	textWriter    *logger.IOWriter
+	jsonWriter    *logger.IOWriter
+	consoleWriter *logger.ConsoleWriter
 	consoleLevel  logger.Level
 }
 
-func (e *multiWriter) Close() (err error) {
-	if closer, ok := e.consoleWriter.(io.Closer); ok {
-		if err1 := closer.Close(); err1 != nil {
-			err = err1
-		}
-	}
-	return
+func (mw *multiWriter) Close() (err error) {
+	return mw.consoleWriter.Close()
 }
 
-func (e *multiWriter) WriteEntry(entry *logger.Entry) (n int, err error) {
+func (mw *multiWriter) WriteEntry(entry *logger.Entry) (n int, err error) {
 	if tracing {
 		if enabledText {
-			_, _ = e.textWriter.WriteEntry(entry)
+			_, _ = mw.textWriter.WriteEntry(entry)
 		}
 		if enabledJson {
-			_, _ = e.jsonWriter.WriteEntry(entry)
+			_, _ = mw.jsonWriter.WriteEntry(entry)
 		}
 	}
 
-	if entry.Level >= e.consoleLevel {
-		_, _ = e.consoleWriter.WriteEntry(entry)
+	if entry.Level >= mw.consoleLevel {
+		_, _ = mw.consoleWriter.WriteEntry(entry)
 	}
 	return
 }
@@ -187,10 +176,10 @@ func formatText(logLevel LogLevel, args *logger.FormatterArgs) {
 	b.B = b.B[:0]
 	defer bbPool.Put(b)
 
-	_, _ = fmt.Fprintf(b, " %s", args.Message)
+	b.B = fmt.Appendf(b.B, " %s", args.Message)
 
 	for _, kv := range args.KeyValues {
-		_, _ = fmt.Fprintf(b, " %s=%s", kv.Key, kv.Value)
+		b.B = fmt.Appendf(b.B, " %s=%s", kv.Key, kv.Value)
 	}
 
 	event := Event{
