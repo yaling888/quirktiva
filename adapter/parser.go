@@ -8,7 +8,7 @@ import (
 	C "github.com/Dreamacro/clash/constant"
 )
 
-func ParseProxy(mapping map[string]any, forceCertVerify bool, udp bool) (C.Proxy, error) {
+func ParseProxy(mapping map[string]any, forceCertVerify, udp, autoCipher bool) (C.Proxy, error) {
 	decoder := structure.NewDecoder(structure.Option{TagName: "proxy", WeaklyTypedInput: true})
 	proxyType, existType := mapping["type"].(string)
 	if !existType {
@@ -80,6 +80,9 @@ func ParseProxy(mapping map[string]any, forceCertVerify bool, udp bool) (C.Proxy
 		}
 		if udp {
 			vmessOption.UDP = true
+		}
+		if autoCipher {
+			vmessOption.Cipher = "auto"
 		}
 		proxy, err = outbound.NewVmess(*vmessOption)
 	case "vless":

@@ -330,7 +330,7 @@ func proxiesParseAndFilter(filter string, filterReg *regexp.Regexp, forceCertVer
 				mapping["name"] = prefixName + name
 			}
 
-			proxy, err := adapter.ParseProxy(mapping, forceCertVerify, udp)
+			proxy, err := adapter.ParseProxy(mapping, forceCertVerify, udp, true)
 			if err != nil {
 				return nil, fmt.Errorf("proxy %d error: %w", idx, err)
 			}
