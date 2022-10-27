@@ -3,6 +3,8 @@ package process
 import (
 	"encoding/binary"
 	"net/netip"
+	"strconv"
+	"strings"
 	"syscall"
 	"unsafe"
 
@@ -16,6 +18,17 @@ const (
 	procpidpathinfosize = 1024
 	proccallnumpidinfo  = 0x2
 )
+
+var offset = 408
+
+func init() {
+	value, _ := syscall.Sysctl("kern.osrelease")
+	before, _, _ := strings.Cut(value, ".")
+	n, _ := strconv.ParseInt(before, 10, 64)
+	if n < 22 {
+		offset = 384
+	}
+}
 
 func findProcessName(network string, ip netip.Addr, port int) (string, error) {
 	var spath string
@@ -35,11 +48,7 @@ func findProcessName(network string, ip netip.Addr, port int) (string, error) {
 
 	buf := []byte(value)
 
-	// from darwin-xnu/bsd/netinet/in_pcblist.c:get_pcblist_n
-	// size/offset are round up (aligned) to 8 bytes in darwin
-	// rup8(sizeof(xinpcb_n)) + rup8(sizeof(xsocket_n)) +
-	// 2 * rup8(sizeof(xsockbuf_n)) + rup8(sizeof(xsockstat_n))
-	itemSize := 384
+	itemSize := offset
 	if network == TCP {
 		// rup8(sizeof(xtcpcb_n))
 		itemSize += 208
