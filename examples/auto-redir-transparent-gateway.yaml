@@ -1,0 +1,442 @@
+####################################################################################
+#
+# Work on Linux, as a transparent proxy gateway, just replace the Subscription-1 URL.
+#
+# 运行在Linux机器上，作为透明代理网关使用，只需替换Subscription-1的订阅链接，
+# 请把客户端的网关和DNS指向Linux机器的IP，客户端DNS为公网DNS时可不用指向网关的DNS。
+#
+####################################################################################
+
+#mixed-port: 7890
+#mitm-port: 7891
+
+allow-lan: true
+
+bind-address: '*'
+
+# rule / script / global / direct (default value is rule)
+mode: rule
+
+# set log level to stdout (default value is info)
+# info / warning / error / debug
+log-level: warning
+
+# outbound ipv6
+ipv6: false
+
+sniffing: false
+
+force-cert-verify: true
+
+profile:
+  store-selected: true
+  store-fake-ip: true
+  tracing: false # default value is true
+
+# A RESTful API for clash
+external-controller: 0.0.0.0:9090
+
+# Secret for RESTful API (Optional)
+#secret: xxxx
+
+external-ui: ./dashboard
+
+# outbound interface name
+interface-name: eth0
+
+ebpf:
+  auto-redir:
+    - eth0 # gateway interface name, 网关对应的网卡接口名称
+#    - wlan0
+
+tun:
+  enable: true
+  stack: system # system or gvisor, use gvisor on Windows
+  device: tun://utun
+  dns-hijack:
+    - any:53
+    - tcp://any:53
+  auto-route: true # auto set global route
+#  auto-detect-interface: true # conflict with interface-name
+
+hosts:
+  'localhost': '127.0.0.1'
+
+dns:
+  enable: true
+  use-hosts: true
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  ipv6: false
+  listen: 0.0.0.0:53
+#  nameserver-policy:
+#    +.example.com: 192.168.1.254
+  default-nameserver:
+    - 119.29.29.29
+    - 223.6.6.6
+  proxy-server-nameserver:
+    - https://1.12.12.12/dns-query
+    - https://223.5.5.5/dns-query
+  nameserver:
+    - https://120.53.53.53/dns-query
+    - tls://223.6.6.6:853
+  fallback:
+    - tcp://8.8.8.8:53#DNS-Proxy
+  fake-ip-filter:
+    - '*.lan'
+#    - +.example.com
+  fallback-filter:
+    geoip: false
+    geosite:
+      - gfw
+#    domain:
+#      - +.example.com
+    ipcidr:
+      - 0.0.0.0/32
+
+#mitm:
+#  hosts:
+#    - +.google.cn
+#  rules:
+#    - ^https?://(.*)google\.cn(.*) url 307 https://$1google.com$2
+
+proxy-groups:
+  - name: Auto
+    type: url-test
+    interval: 1200
+    tolerance: 150
+    url: http://www.gstatic.com/generate_204
+    use:
+      - Subscription-1
+
+  - name: Geo-HK
+    type: fallback
+    interval: 600
+    tolerance: 100
+    url: http://www.gstatic.com/generate_204
+    filter: "HongKong|HK|香港"
+    use:
+      - Subscription-1
+
+  - name: Geo-TW
+    type: fallback
+    interval: 600
+    tolerance: 100
+    url: http://www.gstatic.com/generate_204
+    filter: "Taiwan|TW|台湾"
+    use:
+      - Subscription-1
+
+  - name: Geo-SG
+    type: fallback
+    interval: 600
+    tolerance: 100
+    url: http://www.gstatic.com/generate_204
+    filter: "Singapore|SG|新加坡"
+    use:
+      - Subscription-1
+
+  - name: Geo-JP
+    type: fallback
+    interval: 600
+    tolerance: 100
+    url: http://www.gstatic.com/generate_204
+    filter: "Japan|JP|日本"
+    use:
+      - Subscription-1
+
+  - name: Geo-US
+    type: fallback
+    interval: 600
+    tolerance: 100
+    url: http://www.gstatic.com/generate_204
+    filter: "America|US|美国"
+    use:
+      - Subscription-1
+
+  - name: Geo-UK
+    type: fallback
+    interval: 600
+    tolerance: 100
+    url: http://www.gstatic.com/generate_204
+    filter: "Britain|England|UK|英国"
+    use:
+      - Subscription-1
+
+  - name: Geo-CN
+    type: select
+    filter: "China|CN|中国"
+    use:
+      - Subscription-1
+    proxies:
+      - DIRECT
+
+  - name: Block
+    type: select
+    use:
+      - Subscription-1
+    proxies:
+      - REJECT
+      - DIRECT
+      - Geo-HK
+      - Geo-TW
+      - Geo-SG
+      - Geo-JP
+      - Geo-US
+      - Geo-UK
+      - Geo-CN
+
+  - name: Proxy
+    type: select
+    use:
+      - Subscription-1
+    proxies:
+      - Auto
+      - Geo-HK
+      - Geo-TW
+      - Geo-SG
+      - Geo-JP
+      - Geo-US
+      - Geo-UK
+      - Geo-CN
+      - DIRECT
+      - Block
+
+  - name: DNS-Proxy
+    type: select
+    use:
+      - Subscription-1
+    proxies: &Proxy
+      - Proxy
+      - Auto
+      - Geo-HK
+      - Geo-TW
+      - Geo-SG
+      - Geo-JP
+      - Geo-US
+      - Geo-UK
+      - Geo-CN
+      - DIRECT
+      - Block
+
+  - name: Netflix
+    type: select
+    use:
+      - Subscription-1
+    proxies: *Proxy
+
+  - name: Apple
+    type: select
+    use:
+      - Subscription-1
+    proxies: *Proxy
+      
+  - name: iCloud
+    type: select
+    use:
+      - Subscription-1
+    proxies: *Proxy
+    
+  - name: Microsoft
+    type: select
+    use:
+      - Subscription-1
+    proxies: *Proxy
+    
+  - name: PayPal
+    type: select
+    use:
+      - Subscription-1
+    proxies: *Proxy
+    
+  - name: Steam
+    type: select
+    use:
+      - Subscription-1
+    proxies: *Proxy
+
+  - name: Game
+    type: select
+    use:
+      - Subscription-1
+    proxies: *Proxy
+    
+  - name: Facebook
+    type: select
+    use:
+      - Subscription-1
+    proxies: *Proxy
+    
+  - name: Twitter
+    type: select
+    use:
+      - Subscription-1
+    proxies: *Proxy
+    
+  - name: Telegram
+    type: select
+    use:
+      - Subscription-1
+    proxies: *Proxy
+    
+  - name: GlobalTV
+    type: select
+    use:
+      - Subscription-1
+    proxies: *Proxy
+    
+  - name: YouTube
+    type: select
+    use:
+      - Subscription-1
+    proxies: *Proxy
+    
+  - name: Spotify
+    type: select
+    use:
+      - Subscription-1
+    proxies: *Proxy
+    
+  - name: SpeedTest
+    type: select
+    use:
+      - Subscription-1
+    proxies: *Proxy
+    
+  - name: Download
+    type: select
+    use:
+      - Subscription-1
+    proxies: *Proxy
+    
+  - name: CN
+    type: select
+    use:
+      - Subscription-1
+    proxies: *Proxy
+    
+  - name: Mismatch
+    type: select
+    use:
+      - Subscription-1
+    proxies: *Proxy
+
+proxy-providers:
+  Subscription-1:
+    type: http
+    url: "URL" # provider subscription url
+    path: ./providers/Subscription-1.yaml
+    interval: 10800
+#    prefix-name: "S-"
+#    url-proxy: true
+    udp: true
+    header:
+      User-Agent:
+        - "Clash/v1.11.8"
+    health-check:
+      enable: false
+      interval: 3600
+      url: http://www.gstatic.com/generate_204
+#      lazy: false # default value is true
+
+script:
+#  path: ./script.star
+  code: |
+    def main(ctx, metadata):
+      if metadata["network"] == 'udp' and metadata["dst_port"] == 443:
+        return "REJECT"
+
+      host = metadata["host"]
+      for kw in ['analytics', 'adservice', 'firebase', 'bugly', 'safebrowsing', 'doubleclick']:
+        if kw in host:
+          return "REJECT"
+
+      if "push.apple.com" in host:
+        return "DIRECT"
+
+      if ctx.rule_providers['category-ads-all'].match(metadata):
+        return "Block"
+
+      if ctx.rule_providers['icloud'].match(metadata):
+        return "iCloud"
+
+      if ctx.rule_providers['apple'].match(metadata):
+        return "Apple"
+
+      if ctx.rule_providers['microsoft@cn'].match(metadata):
+        return "Microsoft"
+
+      if ctx.rule_providers['paypal@cn'].match(metadata):
+        return "CN"
+
+      if ctx.rule_providers['paypal'].match(metadata):
+        return "PayPal"
+
+      if ctx.rule_providers['twitter'].match(metadata):
+        return "Twitter"
+    
+      if ctx.rule_providers['facebook'].match(metadata):
+        return "Facebook"
+    
+      if ctx.rule_providers['youtube'].match(metadata):
+        return "YouTube"
+
+      if ctx.rule_providers['geolocation-!cn'].match(metadata):
+        return "Proxy"
+
+      if ctx.rule_providers['geolocation-cn'].match(metadata):
+        return "CN"
+
+      ip = metadata["dst_ip"]
+      if ip != "":
+        code = ctx.geoip(ip)
+        if code == "PRIVATE" or code == "LAN":
+          return "DIRECT"
+        if code == "TELEGRAM":
+          return "Telegram"
+      else:
+        ip = ctx.resolve_ip(host)
+
+      if ip == "":
+        return "Mismatch"
+
+      code = ctx.geoip(ip)
+      if code == "CN":
+        return "CN"
+
+      return "Mismatch" # default policy for requests which are not matched by any other script
+
+  shortcuts:
+    QUIC: network == "udp" and dst_port == 443
+    Privacy: |
+      "analytics" in host or "adservice" in host or "firebase" in host or "safebrowsing" in host or
+      "doubleclick" in host
+    BilibiliUdp: |
+      network == "udp" and match_provider("bilibili")
+
+rules:
+  - GEOIP,PRIVATE,DIRECT,no-resolve
+  - GEOIP,telegram,Telegram,no-resolve
+
+  - SCRIPT,QUIC,REJECT # Disable QUIC
+  - SCRIPT,Privacy,REJECT
+  - SCRIPT,BilibiliUdp,REJECT
+
+  - DOMAIN-SUFFIX,push.apple.com,DIRECT
+
+  - GEOSITE,category-ads-all,Block
+
+  - GEOSITE,icloud,iCloud
+  - GEOSITE,apple,Apple
+  - GEOSITE,microsoft@cn,Microsoft
+  - GEOSITE,paypal@cn,CN
+  - GEOSITE,paypal,PayPal
+  - GEOSITE,twitter,Twitter
+  - GEOSITE,facebook,Facebook
+  - GEOSITE,youtube,YouTube
+  - GEOSITE,geolocation-!cn,Proxy
+  - GEOSITE,geolocation-cn,CN
+
+  - GEOIP,cn,CN
+
+  - MATCH,Mismatch
