@@ -51,7 +51,7 @@ ebpf:
 
 tun:
   enable: true
-  stack: system # system or gvisor, use gvisor on Windows
+  stack: system # system or gvisor
   device: tun://utun
   dns-hijack:
     - any:53
@@ -106,7 +106,7 @@ proxy-groups:
     interval: 1200
     tolerance: 150
     url: http://www.gstatic.com/generate_204
-    use:
+    use: &Use
       - Subscription-1
 
   - name: Geo-HK
@@ -115,8 +115,7 @@ proxy-groups:
     tolerance: 100
     url: http://www.gstatic.com/generate_204
     filter: "HongKong|HK|香港"
-    use:
-      - Subscription-1
+    use: *Use
 
   - name: Geo-TW
     type: fallback
@@ -124,8 +123,7 @@ proxy-groups:
     tolerance: 100
     url: http://www.gstatic.com/generate_204
     filter: "Taiwan|TW|台湾"
-    use:
-      - Subscription-1
+    use: *Use
 
   - name: Geo-SG
     type: fallback
@@ -133,8 +131,7 @@ proxy-groups:
     tolerance: 100
     url: http://www.gstatic.com/generate_204
     filter: "Singapore|SG|新加坡"
-    use:
-      - Subscription-1
+    use: *Use
 
   - name: Geo-JP
     type: fallback
@@ -142,8 +139,7 @@ proxy-groups:
     tolerance: 100
     url: http://www.gstatic.com/generate_204
     filter: "Japan|JP|日本"
-    use:
-      - Subscription-1
+    use: *Use
 
   - name: Geo-US
     type: fallback
@@ -151,8 +147,7 @@ proxy-groups:
     tolerance: 100
     url: http://www.gstatic.com/generate_204
     filter: "America|US|美国"
-    use:
-      - Subscription-1
+    use: *Use
 
   - name: Geo-UK
     type: fallback
@@ -160,21 +155,18 @@ proxy-groups:
     tolerance: 100
     url: http://www.gstatic.com/generate_204
     filter: "Britain|England|UK|英国"
-    use:
-      - Subscription-1
+    use: *Use
 
   - name: Geo-CN
     type: select
     filter: "China|CN|中国"
-    use:
-      - Subscription-1
+    use: *Use
     proxies:
       - DIRECT
 
   - name: Block
     type: select
-    use:
-      - Subscription-1
+    use: *Use
     proxies:
       - REJECT
       - DIRECT
@@ -188,8 +180,7 @@ proxy-groups:
 
   - name: Proxy
     type: select
-    use:
-      - Subscription-1
+    use: *Use
     proxies:
       - Auto
       - Geo-HK
@@ -204,8 +195,7 @@ proxy-groups:
 
   - name: DNS-Proxy
     type: select
-    use:
-      - Subscription-1
+    use: *Use
     proxies: &Proxy
       - Proxy
       - Auto
@@ -221,110 +211,93 @@ proxy-groups:
 
   - name: Netflix
     type: select
-    use:
-      - Subscription-1
+    use: *Use
     proxies: *Proxy
 
   - name: Apple
     type: select
-    use:
-      - Subscription-1
+    use: *Use
     proxies: *Proxy
-      
+
   - name: iCloud
     type: select
-    use:
-      - Subscription-1
+    use: *Use
     proxies: *Proxy
-    
+
   - name: Microsoft
     type: select
-    use:
-      - Subscription-1
+    use: *Use
     proxies: *Proxy
-    
+
   - name: PayPal
     type: select
-    use:
-      - Subscription-1
+    use: *Use
     proxies: *Proxy
-    
+
   - name: Steam
     type: select
-    use:
-      - Subscription-1
+    use: *Use
     proxies: *Proxy
 
   - name: Game
     type: select
-    use:
-      - Subscription-1
+    use: *Use
     proxies: *Proxy
-    
+
   - name: Facebook
     type: select
-    use:
-      - Subscription-1
+    use: *Use
     proxies: *Proxy
-    
+
   - name: Twitter
     type: select
-    use:
-      - Subscription-1
+    use: *Use
     proxies: *Proxy
-    
+
   - name: Telegram
     type: select
-    use:
-      - Subscription-1
+    use: *Use
     proxies: *Proxy
-    
+
   - name: GlobalTV
     type: select
-    use:
-      - Subscription-1
+    use: *Use
     proxies: *Proxy
-    
+
   - name: YouTube
     type: select
-    use:
-      - Subscription-1
+    use: *Use
     proxies: *Proxy
-    
+
   - name: Spotify
     type: select
-    use:
-      - Subscription-1
+    use: *Use
     proxies: *Proxy
-    
+
   - name: SpeedTest
     type: select
-    use:
-      - Subscription-1
+    use: *Use
     proxies: *Proxy
-    
+
   - name: Download
     type: select
-    use:
-      - Subscription-1
+    use: *Use
     proxies: *Proxy
-    
+
   - name: CN
     type: select
-    use:
-      - Subscription-1
+    use: *Use
     proxies: *Proxy
-    
+
   - name: Mismatch
     type: select
-    use:
-      - Subscription-1
+    use: *Use
     proxies: *Proxy
 
 proxy-providers:
   Subscription-1:
     type: http
-    url: "URL" # provider subscription url
+    url: "URL" # replace this URL with your provider's subscription link
     path: ./providers/Subscription-1.yaml
     interval: 10800
 #    prefix-name: "S-"
@@ -342,20 +315,24 @@ proxy-providers:
 script:
 #  path: ./script.star
   code: |
+    blockHosts = ['analytics', 'adservice', 'firebase', 'bugly', 'safebrowsing', 'doubleclick']
+    directHosts = ['push.apple.com', 'iosapps.itunes.apple.com', 'jetbrains.com']
+
     def main(ctx, metadata):
       if metadata["network"] == 'udp' and metadata["dst_port"] == 443:
         return "REJECT"
 
       host = metadata["host"]
-      for kw in ['analytics', 'adservice', 'firebase', 'bugly', 'safebrowsing', 'doubleclick']:
+      for kw in blockHosts:
         if kw in host:
           return "REJECT"
 
-      if "push.apple.com" in host:
-        return "DIRECT"
-
       if ctx.rule_providers['category-ads-all'].match(metadata):
         return "Block"
+
+      for kw in directHosts:
+        if kw in host:
+          return "DIRECT"
 
       if ctx.rule_providers['icloud'].match(metadata):
         return "iCloud"
@@ -374,10 +351,10 @@ script:
 
       if ctx.rule_providers['twitter'].match(metadata):
         return "Twitter"
-    
+
       if ctx.rule_providers['facebook'].match(metadata):
         return "Facebook"
-    
+
       if ctx.rule_providers['youtube'].match(metadata):
         return "YouTube"
 
@@ -387,6 +364,7 @@ script:
       if ctx.rule_providers['geolocation-cn'].match(metadata):
         return "CN"
 
+      code = ""
       ip = metadata["dst_ip"]
       if ip != "":
         code = ctx.geoip(ip)
@@ -400,7 +378,7 @@ script:
       if ip == "":
         return "Mismatch"
 
-      code = ctx.geoip(ip)
+      code = ctx.geoip(ip) if code == "" else code
       if code == "CN":
         return "CN"
 
@@ -410,12 +388,12 @@ script:
     QUIC: network == "udp" and dst_port == 443
     Privacy: |
       "analytics" in host or "adservice" in host or "firebase" in host or "safebrowsing" in host or
-      "doubleclick" in host
+      "doubleclick" in host or "bugly" in host
     BilibiliUdp: |
       network == "udp" and match_provider("bilibili")
 
 rules:
-  - GEOIP,PRIVATE,DIRECT,no-resolve
+  - GEOIP,private,DIRECT,no-resolve
   - GEOIP,telegram,Telegram,no-resolve
 
   - SCRIPT,QUIC,REJECT # Disable QUIC
@@ -425,6 +403,9 @@ rules:
   - DOMAIN-SUFFIX,push.apple.com,DIRECT
 
   - GEOSITE,category-ads-all,Block
+
+  - DOMAIN-SUFFIX,jetbrains.com,DIRECT
+  - DOMAIN,iosapps.itunes.apple.com,DIRECT
 
   - GEOSITE,icloud,iCloud
   - GEOSITE,apple,Apple
