@@ -36,11 +36,13 @@ type ShadowSocksOption struct {
 	UDP        bool           `proxy:"udp,omitempty"`
 	Plugin     string         `proxy:"plugin,omitempty"`
 	PluginOpts map[string]any `proxy:"plugin-opts,omitempty"`
+	RandomHost bool           `proxy:"rand-host,omitempty"`
 }
 
 type simpleObfsOption struct {
-	Mode string `obfs:"mode,omitempty"`
-	Host string `obfs:"host,omitempty"`
+	Mode       string `obfs:"mode,omitempty"`
+	Host       string `obfs:"host,omitempty"`
+	RandomHost bool   `obfs:"rand-host,omitempty"`
 }
 
 type v2rayObfsOption struct {
@@ -60,7 +62,7 @@ func (ss *ShadowSocks) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, e
 		c = obfs.NewTLSObfs(c, ss.obfsOption.Host)
 	case "http":
 		_, port, _ := net.SplitHostPort(ss.addr)
-		c = obfs.NewHTTPObfs(c, ss.obfsOption.Host, port)
+		c = obfs.NewHTTPObfs(c, ss.obfsOption.Host, port, ss.obfsOption.RandomHost)
 	case "websocket":
 		var err error
 		c, err = v2rayObfs.NewV2rayObfs(c, ss.v2rayOption)
@@ -133,7 +135,7 @@ func NewShadowSocks(option ShadowSocksOption) (*ShadowSocks, error) {
 
 	decoder := structure.NewDecoder(structure.Option{TagName: "obfs", WeaklyTypedInput: true})
 	if option.Plugin == "obfs" {
-		opts := simpleObfsOption{Host: "bing.com"}
+		opts := simpleObfsOption{Host: "bing.com", RandomHost: option.RandomHost}
 		if err := decoder.Decode(option.PluginOpts, &opts); err != nil {
 			return nil, fmt.Errorf("ss %s initialize obfs error: %w", addr, err)
 		}
@@ -154,10 +156,11 @@ func NewShadowSocks(option ShadowSocksOption) (*ShadowSocks, error) {
 		}
 		obfsMode = opts.Mode
 		v2rayOption = &v2rayObfs.Option{
-			Host:    opts.Host,
-			Path:    opts.Path,
-			Headers: opts.Headers,
-			Mux:     opts.Mux,
+			Host:       opts.Host,
+			Path:       opts.Path,
+			Headers:    opts.Headers,
+			Mux:        opts.Mux,
+			RandomHost: option.RandomHost,
 		}
 
 		if opts.TLS {

@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/Dreamacro/clash/common/convert"
 	"github.com/Dreamacro/clash/transport/vmess"
 )
 
@@ -17,6 +18,7 @@ type Option struct {
 	TLS            bool
 	SkipCertVerify bool
 	Mux            bool
+	RandomHost     bool
 }
 
 // NewV2rayObfs return a HTTPObfs
@@ -43,6 +45,9 @@ func NewV2rayObfs(conn net.Conn, option *Option) (net.Conn, error) {
 		if host := config.Headers.Get("Host"); host != "" {
 			config.TLSConfig.ServerName = host
 		}
+	} else if option.RandomHost {
+		config.Headers.Set("Host", convert.RandHost())
+		config.Headers.Set("User-Agent", convert.RandUserAgent())
 	}
 
 	var err error

@@ -8,7 +8,7 @@ import (
 	C "github.com/Dreamacro/clash/constant"
 )
 
-func ParseProxy(mapping map[string]any, forceCertVerify, udp, autoCipher bool) (C.Proxy, error) {
+func ParseProxy(mapping map[string]any, forceCertVerify, udp, autoCipher, randomHost bool) (C.Proxy, error) {
 	decoder := structure.NewDecoder(structure.Option{TagName: "proxy", WeaklyTypedInput: true})
 	proxyType, existType := mapping["type"].(string)
 	if !existType {
@@ -29,6 +29,9 @@ func ParseProxy(mapping map[string]any, forceCertVerify, udp, autoCipher bool) (
 		if udp {
 			ssOption.UDP = true
 		}
+		if randomHost {
+			ssOption.RandomHost = true
+		}
 		proxy, err = outbound.NewShadowSocks(*ssOption)
 	case "ssr":
 		ssrOption := &outbound.ShadowSocksROption{}
@@ -38,6 +41,9 @@ func ParseProxy(mapping map[string]any, forceCertVerify, udp, autoCipher bool) (
 		}
 		if udp {
 			ssrOption.UDP = true
+		}
+		if randomHost {
+			ssrOption.RandomHost = true
 		}
 		proxy, err = outbound.NewShadowSocksR(*ssrOption)
 	case "socks5":
@@ -84,6 +90,9 @@ func ParseProxy(mapping map[string]any, forceCertVerify, udp, autoCipher bool) (
 		if autoCipher {
 			vmessOption.Cipher = "auto"
 		}
+		if randomHost {
+			vmessOption.RandomHost = true
+		}
 		proxy, err = outbound.NewVmess(*vmessOption)
 	case "vless":
 		vlessOption := &outbound.VlessOption{}
@@ -106,6 +115,9 @@ func ParseProxy(mapping map[string]any, forceCertVerify, udp, autoCipher bool) (
 		}
 		if udp {
 			snellOption.UDP = true
+		}
+		if randomHost {
+			snellOption.RandomHost = true
 		}
 		proxy, err = outbound.NewSnell(*snellOption)
 	case "trojan":

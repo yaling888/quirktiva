@@ -19,13 +19,18 @@ func getProvidersProxies(providers []provider.ProxyProvider, touch bool) []C.Pro
 	proxies := []C.Proxy{}
 	for _, pd := range providers {
 		if touch {
-			proxies = append(proxies, pd.ProxiesWithTouch()...)
-		} else {
-			proxies = append(proxies, pd.Proxies()...)
+			pd.Touch()
 		}
+		proxies = append(proxies, pd.Proxies()...)
 	}
 	if len(proxies) == 0 {
 		proxies = append(proxies, defaultRejectProxy)
 	}
 	return proxies
+}
+
+func touchProvidersProxies(providers []provider.ProxyProvider) {
+	for _, pd := range providers {
+		pd.Touch()
+	}
 }

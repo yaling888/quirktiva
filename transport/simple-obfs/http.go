@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/Dreamacro/clash/common/convert"
 	"github.com/Dreamacro/clash/common/pool"
 )
 
@@ -21,6 +22,7 @@ type HTTPObfs struct {
 	offset        int
 	firstRequest  bool
 	firstResponse bool
+	randomHost    bool
 }
 
 func (ho *HTTPObfs) Read(b []byte) (int, error) {
@@ -28,7 +30,7 @@ func (ho *HTTPObfs) Read(b []byte) (int, error) {
 		n := copy(b, ho.buf[ho.offset:])
 		ho.offset += n
 		if ho.offset == len(ho.buf) {
-			pool.Put(ho.buf)
+			_ = pool.Put(ho.buf)
 			ho.buf = nil
 		}
 		return n, nil
@@ -38,12 +40,12 @@ func (ho *HTTPObfs) Read(b []byte) (int, error) {
 		buf := pool.Get(pool.RelayBufferSize)
 		n, err := ho.Conn.Read(buf)
 		if err != nil {
-			pool.Put(buf)
+			_ = pool.Put(buf)
 			return 0, err
 		}
 		idx := bytes.Index(buf[:n], []byte("\r\n\r\n"))
 		if idx == -1 {
-			pool.Put(buf)
+			_ = pool.Put(buf)
 			return 0, io.EOF
 		}
 		ho.firstResponse = false
@@ -53,7 +55,7 @@ func (ho *HTTPObfs) Read(b []byte) (int, error) {
 			ho.buf = buf[:idx+4+length]
 			ho.offset = idx + 4 + n
 		} else {
-			pool.Put(buf)
+			_ = pool.Put(buf)
 		}
 		return n, nil
 	}
@@ -62,10 +64,13 @@ func (ho *HTTPObfs) Read(b []byte) (int, error) {
 
 func (ho *HTTPObfs) Write(b []byte) (int, error) {
 	if ho.firstRequest {
+		if ho.randomHost {
+			ho.host = convert.RandHost()
+		}
 		randBytes := make([]byte, 16)
 		rand.Read(randBytes)
 		req, _ := http.NewRequest("GET", fmt.Sprintf("http://%s/", ho.host), bytes.NewBuffer(b[:]))
-		req.Header.Set("User-Agent", fmt.Sprintf("curl/7.%d.%d", rand.Int()%54, rand.Int()%2))
+		req.Header.Set("User-Agent", convert.RandUserAgent())
 		req.Header.Set("Upgrade", "websocket")
 		req.Header.Set("Connection", "Upgrade")
 		req.Host = ho.host
@@ -83,12 +88,13 @@ func (ho *HTTPObfs) Write(b []byte) (int, error) {
 }
 
 // NewHTTPObfs return a HTTPObfs
-func NewHTTPObfs(conn net.Conn, host string, port string) net.Conn {
+func NewHTTPObfs(conn net.Conn, host string, port string, randomHost bool) net.Conn {
 	return &HTTPObfs{
 		Conn:          conn,
 		firstRequest:  true,
 		firstResponse: true,
 		host:          host,
 		port:          port,
+		randomHost:    randomHost,
 	}
 }

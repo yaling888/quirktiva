@@ -23,13 +23,14 @@ type Snell struct {
 
 type SnellOption struct {
 	BasicOption
-	Name     string         `proxy:"name"`
-	Server   string         `proxy:"server"`
-	Port     int            `proxy:"port"`
-	Psk      string         `proxy:"psk"`
-	UDP      bool           `proxy:"udp,omitempty"`
-	Version  int            `proxy:"version,omitempty"`
-	ObfsOpts map[string]any `proxy:"obfs-opts,omitempty"`
+	Name       string         `proxy:"name"`
+	Server     string         `proxy:"server"`
+	Port       int            `proxy:"port"`
+	Psk        string         `proxy:"psk"`
+	UDP        bool           `proxy:"udp,omitempty"`
+	Version    int            `proxy:"version,omitempty"`
+	ObfsOpts   map[string]any `proxy:"obfs-opts,omitempty"`
+	RandomHost bool           `proxy:"rand-host,omitempty"`
 }
 
 type streamOption struct {
@@ -45,7 +46,7 @@ func streamConn(c net.Conn, option streamOption) *snell.Snell {
 		c = obfs.NewTLSObfs(c, option.obfsOption.Host)
 	case "http":
 		_, port, _ := net.SplitHostPort(option.addr)
-		c = obfs.NewHTTPObfs(c, option.obfsOption.Host, port)
+		c = obfs.NewHTTPObfs(c, option.obfsOption.Host, port, option.obfsOption.RandomHost)
 	}
 	return snell.StreamConn(c, option.psk, option.version)
 }
@@ -120,7 +121,7 @@ func NewSnell(option SnellOption) (*Snell, error) {
 	psk := []byte(option.Psk)
 
 	decoder := structure.NewDecoder(structure.Option{TagName: "obfs", WeaklyTypedInput: true})
-	obfsOption := &simpleObfsOption{Host: "bing.com"}
+	obfsOption := &simpleObfsOption{Host: "bing.com", RandomHost: option.RandomHost}
 	if err := decoder.Decode(option.ObfsOpts, obfsOption); err != nil {
 		return nil, fmt.Errorf("snell %s initialize obfs error: %w", addr, err)
 	}

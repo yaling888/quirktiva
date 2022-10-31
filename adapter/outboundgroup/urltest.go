@@ -53,7 +53,7 @@ func (u *URLTest) ListenPacketContext(ctx context.Context, metadata *C.Metadata,
 }
 
 // Unwrap implements C.ProxyAdapter
-func (u *URLTest) Unwrap(metadata *C.Metadata) C.Proxy {
+func (u *URLTest) Unwrap(_ *C.Metadata) C.Proxy {
 	return u.fast(true)
 }
 
@@ -66,7 +66,7 @@ func (u *URLTest) proxies(touch bool) []C.Proxy {
 }
 
 func (u *URLTest) fast(touch bool) C.Proxy {
-	elm, _, _ := u.fastSingle.Do(func() (C.Proxy, error) {
+	proxy, _, flag := u.fastSingle.Do(func() (C.Proxy, error) {
 		proxies := u.proxies(touch)
 		fast := proxies[0]
 		min := fast.LastDelay()
@@ -96,7 +96,11 @@ func (u *URLTest) fast(touch bool) C.Proxy {
 		return u.fastNode, nil
 	})
 
-	return elm
+	if touch && flag {
+		touchProvidersProxies(u.providers)
+	}
+
+	return proxy
 }
 
 // SupportUDP implements C.ProxyAdapter

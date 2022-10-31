@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"go.uber.org/atomic"
@@ -27,13 +28,17 @@ type HealthCheck struct {
 	lastTouch *atomic.Int64
 	running   *atomic.Bool
 	done      chan struct{}
+	mux       sync.Mutex
 }
 
 func (hc *HealthCheck) process() {
+	hc.mux.Lock()
 	if hc.running.Load() {
+		hc.mux.Unlock()
 		return
 	}
 	hc.running.Store(true)
+	hc.mux.Unlock()
 
 	ticker := time.NewTicker(time.Duration(hc.interval) * time.Second)
 
@@ -90,6 +95,9 @@ func (hc *HealthCheck) check() {
 }
 
 func (hc *HealthCheck) close() {
+	hc.mux.Lock()
+	defer hc.mux.Unlock()
+
 	if !hc.running.Load() {
 		return
 	}

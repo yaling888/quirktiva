@@ -24,6 +24,8 @@ type ProxySchema struct {
 	Proxies []map[string]any `yaml:"proxies"`
 }
 
+var _ types.ProxyProvider = (*proxySetProvider)(nil)
+
 // ProxySetProvider for auto gc
 type ProxySetProvider struct {
 	*proxySetProvider
@@ -80,9 +82,8 @@ func (pp *proxySetProvider) Proxies() []C.Proxy {
 	return pp.proxies
 }
 
-func (pp *proxySetProvider) ProxiesWithTouch() []C.Proxy {
+func (pp *proxySetProvider) Touch() {
 	pp.healthCheck.touch()
-	return pp.Proxies()
 }
 
 func (pp *proxySetProvider) setProxies(proxies []C.Proxy) {
@@ -103,7 +104,17 @@ func stopProxyProvider(pd *ProxySetProvider) {
 	_ = pd.fetcher.Destroy()
 }
 
-func NewProxySetProvider(name string, interval time.Duration, filter string, vehicle types.Vehicle, hc *HealthCheck, forceCertVerify bool, udp bool, prefixName string) (*ProxySetProvider, error) {
+func NewProxySetProvider(
+	name string,
+	interval time.Duration,
+	filter string,
+	vehicle types.Vehicle,
+	hc *HealthCheck,
+	forceCertVerify bool,
+	udp bool,
+	randomHost bool,
+	prefixName string,
+) (*ProxySetProvider, error) {
 	filterReg, err := regexp.Compile(filter)
 	if err != nil {
 		return nil, fmt.Errorf("invalid filter regex: %w", err)
@@ -118,13 +129,20 @@ func NewProxySetProvider(name string, interval time.Duration, filter string, veh
 		healthCheck: hc,
 	}
 
-	fetcher := newFetcher[[]C.Proxy](name, interval, vehicle, proxiesParseAndFilter(filter, filterReg, forceCertVerify, udp, prefixName), proxiesOnUpdate(pd))
-	pd.fetcher = fetcher
+	pd.fetcher = newFetcher[[]C.Proxy](
+		name,
+		interval,
+		vehicle,
+		proxiesParseAndFilter(filter, filterReg, forceCertVerify, udp, randomHost, prefixName),
+		proxiesOnUpdate(pd),
+	)
 
 	wrapper := &ProxySetProvider{pd}
 	runtime.SetFinalizer(wrapper, stopProxyProvider)
 	return wrapper, nil
 }
+
+var _ types.ProxyProvider = (*compatibleProvider)(nil)
 
 // CompatibleProvider for auto gc
 type CompatibleProvider struct {
@@ -174,9 +192,8 @@ func (cp *compatibleProvider) Proxies() []C.Proxy {
 	return cp.proxies
 }
 
-func (cp *compatibleProvider) ProxiesWithTouch() []C.Proxy {
+func (cp *compatibleProvider) Touch() {
 	cp.healthCheck.touch()
-	return cp.Proxies()
 }
 
 func stopCompatibleProvider(pd *CompatibleProvider) {
@@ -202,6 +219,8 @@ func NewCompatibleProvider(name string, proxies []C.Proxy, hc *HealthCheck) (*Co
 	runtime.SetFinalizer(wrapper, stopCompatibleProvider)
 	return wrapper, nil
 }
+
+var _ types.ProxyProvider = (*proxyFilterProvider)(nil)
 
 // ProxyFilterProvider for filter provider
 type ProxyFilterProvider struct {
@@ -273,9 +292,8 @@ func (pf *proxyFilterProvider) Proxies() []C.Proxy {
 	return pf.proxies
 }
 
-func (pf *proxyFilterProvider) ProxiesWithTouch() []C.Proxy {
+func (pf *proxyFilterProvider) Touch() {
 	pf.healthCheck.touch()
-	return pf.Proxies()
 }
 
 func stopProxyFilterProvider(pf *ProxyFilterProvider) {
@@ -303,7 +321,7 @@ func proxiesOnUpdate(pd *proxySetProvider) func([]C.Proxy) {
 	}
 }
 
-func proxiesParseAndFilter(filter string, filterReg *regexp.Regexp, forceCertVerify bool, udp bool, prefixName string) parser[[]C.Proxy] {
+func proxiesParseAndFilter(filter string, filterReg *regexp.Regexp, forceCertVerify, udp, randomHost bool, prefixName string) parser[[]C.Proxy] {
 	return func(buf []byte) ([]C.Proxy, error) {
 		schema := &ProxySchema{}
 
@@ -330,7 +348,7 @@ func proxiesParseAndFilter(filter string, filterReg *regexp.Regexp, forceCertVer
 				mapping["name"] = prefixName + name
 			}
 
-			proxy, err := adapter.ParseProxy(mapping, forceCertVerify, udp, true)
+			proxy, err := adapter.ParseProxy(mapping, forceCertVerify, udp, true, randomHost)
 			if err != nil {
 				return nil, fmt.Errorf("proxy %d error: %w", idx, err)
 			}

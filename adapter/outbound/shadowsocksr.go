@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 
+	"github.com/Dreamacro/clash/common/convert"
 	"github.com/Dreamacro/clash/component/dialer"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/transport/shadowsocks/core"
@@ -34,6 +36,7 @@ type ShadowSocksROption struct {
 	Protocol      string `proxy:"protocol"`
 	ProtocolParam string `proxy:"protocol-param,omitempty"`
 	UDP           bool   `proxy:"udp,omitempty"`
+	RandomHost    bool   `proxy:"rand-host,omitempty"`
 }
 
 // StreamConn implements C.ProxyAdapter
@@ -107,7 +110,7 @@ func (ssr *ShadowSocksR) ListenPacketContext(ctx context.Context, metadata *C.Me
 func NewShadowSocksR(option ShadowSocksROption) (*ShadowSocksR, error) {
 	// SSR protocol compatibility
 	// https://github.com/Dreamacro/clash/pull/2056
-	if option.Cipher == "none" {
+	if strings.EqualFold(option.Cipher, "none") {
 		option.Cipher = "dummy"
 	}
 
@@ -123,7 +126,7 @@ func NewShadowSocksR(option ShadowSocksROption) (*ShadowSocksR, error) {
 		key    []byte
 	)
 
-	if option.Cipher == "dummy" {
+	if strings.EqualFold(option.Cipher, "dummy") {
 		ivSize = 0
 		key = core.Kdf(option.Password, 16)
 	} else {
@@ -135,7 +138,12 @@ func NewShadowSocksR(option ShadowSocksROption) (*ShadowSocksR, error) {
 		key = ciph.Key
 	}
 
-	obfs, obfsOverhead, err := obfs.PickObfs(option.Obfs, &obfs.Base{
+	option.Obfs = strings.ToLower(option.Obfs)
+	if strings.HasPrefix(option.Obfs, "http_") && (option.RandomHost || len(option.ObfsParam) == 0) {
+		option.ObfsParam = convert.RandHost()
+	}
+
+	obfsM, obfsOverhead, err := obfs.PickObfs(option.Obfs, &obfs.Base{
 		Host:   option.Server,
 		Port:   option.Port,
 		Key:    key,
@@ -146,7 +154,8 @@ func NewShadowSocksR(option ShadowSocksROption) (*ShadowSocksR, error) {
 		return nil, fmt.Errorf("ssr %s initialize obfs error: %w", addr, err)
 	}
 
-	protocol, err := protocol.PickProtocol(option.Protocol, &protocol.Base{
+	option.Protocol = strings.ToLower(option.Protocol)
+	protocolM, err := protocol.PickProtocol(option.Protocol, &protocol.Base{
 		Key:      key,
 		Overhead: obfsOverhead,
 		Param:    option.ProtocolParam,
@@ -165,7 +174,7 @@ func NewShadowSocksR(option ShadowSocksROption) (*ShadowSocksR, error) {
 			rmark: option.RoutingMark,
 		},
 		cipher:   coreCiph,
-		obfs:     obfs,
-		protocol: protocol,
+		obfs:     obfsM,
+		protocol: protocolM,
 	}, nil
 }
