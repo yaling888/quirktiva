@@ -215,6 +215,15 @@ func resolveMetadata(_ C.PlainContext, metadata *C.Metadata) (proxy C.Proxy, rul
 		return
 	}
 
+	if metadata.SpecialProxy != "" {
+		var exist bool
+		proxy, exist = proxies[metadata.SpecialProxy]
+		if !exist {
+			err = fmt.Errorf("proxy %s not found", metadata.SpecialProxy)
+			return
+		}
+	}
+
 	switch mode {
 	case Direct:
 		proxy = proxies["DIRECT"]
@@ -321,18 +330,18 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 		pCtx.InjectPacketConn(rawPc)
 		pc := statistic.NewUDPTracker(rawPc, statistic.DefaultManager, metadata, rule)
 
-		var entry *log.Entry
-		if rule != nil {
-			entry = log.Info().
-				EmbedObject(metadata).
-				EmbedObject(mode).
+		entry := log.Info().EmbedObject(metadata).EmbedObject(mode)
+		switch true {
+		case metadata.SpecialProxy != "":
+			entry = entry.
+				Str("specialProxy", metadata.SpecialProxy).
+				EmbedObject(rawPc)
+		case rule != nil:
+			entry = entry.
 				Str("rule", fmt.Sprintf("%s(%s)", rule.RuleType().String(), rule.Payload())).
 				EmbedObject(rawPc)
-		} else {
-			entry = log.Info().
-				EmbedObject(metadata).
-				EmbedObject(mode).
-				EmbedObject(rawPc)
+		default:
+			entry = entry.EmbedObject(rawPc)
 		}
 		entry.Msg("[UDP] connected")
 
@@ -406,6 +415,13 @@ func handleTCPConn(connCtx C.ConnContext) {
 	switch true {
 	case isMitmOutbound:
 		break
+	case metadata.SpecialProxy != "":
+		log.Info().
+			EmbedObject(metadata).
+			EmbedObject(mode).
+			Str("specialProxy", metadata.SpecialProxy).
+			EmbedObject(remoteConn).
+			Msg("[TCP] connected")
 	case rule != nil:
 		log.Info().
 			EmbedObject(metadata).

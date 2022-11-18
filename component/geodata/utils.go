@@ -1,7 +1,7 @@
 package geodata
 
 import (
-	"golang.org/x/exp/maps"
+	"github.com/samber/lo"
 
 	"github.com/Dreamacro/clash/component/geodata/router"
 )
@@ -41,7 +41,7 @@ func HasProvider(countyCode string) (ok bool) {
 
 // GetProvidersList get geo site providers
 func GetProvidersList(countyCode string) []*router.DomainMatcher {
-	return maps.Values(ruleProviders)
+	return lo.Values(ruleProviders)
 }
 
 // GetProviderByCode get geo site provider by county code

@@ -13,6 +13,7 @@ require (
 	github.com/miekg/dns v1.1.50
 	github.com/oschwald/geoip2-golang v1.8.0
 	github.com/phuslu/log v1.0.83
+	github.com/samber/lo v1.35.0
 	github.com/stretchr/testify v1.8.1
 	github.com/vishvananda/netlink v1.2.1-beta.2.0.20221107222636-d3c0a2caa559
 	github.com/xtls/go v0.0.0-20220914232946-0441cf4cf837
@@ -21,7 +22,6 @@ require (
 	go.uber.org/atomic v1.10.0
 	go.uber.org/automaxprocs v1.5.1
 	golang.org/x/crypto v0.3.0
-	golang.org/x/exp v0.0.0-20221114191408-850992195362
 	golang.org/x/net v0.2.0
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.2.0
@@ -42,6 +42,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/u-root/uio v0.0.0-20210528114334-82958018845c // indirect
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74 // indirect
+	golang.org/x/exp v0.0.0-20220303212507-bbda1eaf7a17 // indirect
 	golang.org/x/mod v0.6.0 // indirect
 	golang.org/x/tools v0.2.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224 // indirect

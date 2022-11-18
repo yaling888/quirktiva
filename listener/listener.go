@@ -1,4 +1,4 @@
-package proxy
+package listener
 
 import (
 	"crypto/rsa"
@@ -9,11 +9,12 @@ import (
 	"net/netip"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/phuslu/log"
-	"golang.org/x/exp/slices"
+	"github.com/samber/lo"
 
 	"github.com/Dreamacro/clash/adapter/inbound"
 	"github.com/Dreamacro/clash/adapter/outbound"
@@ -31,8 +32,9 @@ import (
 	"github.com/Dreamacro/clash/listener/tun"
 	"github.com/Dreamacro/clash/listener/tun/ipstack"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/commons"
+	"github.com/Dreamacro/clash/listener/tunnel"
 	rewrites "github.com/Dreamacro/clash/rewrite"
-	"github.com/Dreamacro/clash/tunnel"
+	T "github.com/Dreamacro/clash/tunnel"
 )
 
 var (
@@ -40,20 +42,22 @@ var (
 	bindAddress = "*"
 	lastTunConf *config.Tun
 
-	socksListener     *socks.Listener
-	socksUDPListener  *socks.UDPListener
-	httpListener      *http.Listener
-	redirListener     *redir.Listener
-	redirUDPListener  *tproxy.UDPListener
-	tproxyListener    *tproxy.Listener
-	tproxyUDPListener *tproxy.UDPListener
-	mixedListener     *mixed.Listener
-	mixedUDPLister    *socks.UDPListener
-	tunStackListener  ipstack.Stack
-	mitmListener      *mitm.Listener
-	tcProgram         *ebpf.TcEBpfProgram
-	autoRedirListener *autoredir.Listener
-	autoRedirProgram  *ebpf.TcEBpfProgram
+	socksListener      *socks.Listener
+	socksUDPListener   *socks.UDPListener
+	httpListener       *http.Listener
+	redirListener      *redir.Listener
+	redirUDPListener   *tproxy.UDPListener
+	tproxyListener     *tproxy.Listener
+	tproxyUDPListener  *tproxy.UDPListener
+	mixedListener      *mixed.Listener
+	mixedUDPLister     *socks.UDPListener
+	tunStackListener   ipstack.Stack
+	mitmListener       *mitm.Listener
+	tcProgram          *ebpf.TcEBpfProgram
+	autoRedirListener  *autoredir.Listener
+	autoRedirProgram   *ebpf.TcEBpfProgram
+	tunnelTCPListeners = map[string]*tunnel.Listener{}
+	tunnelUDPListeners = map[string]*tunnel.PacketConn{}
 
 	// lock for recreate function
 	socksMux     sync.Mutex
@@ -65,6 +69,7 @@ var (
 	mitmMux      sync.Mutex
 	tcMux        sync.Mutex
 	autoRedirMux sync.Mutex
+	tunnelMux    sync.Mutex
 )
 
 type Ports struct {
@@ -415,7 +420,7 @@ func ReCreateMitm(port int, tcpIn chan<- C.ConnContext) {
 		}
 		_ = mitmListener.Close()
 		mitmListener = nil
-		tunnel.SetMitmOutbound(nil)
+		T.SetMitmOutbound(nil)
 	}
 
 	if portIsZero(addr) {
@@ -467,7 +472,7 @@ func ReCreateMitm(port int, tcpIn chan<- C.ConnContext) {
 		return
 	}
 
-	tunnel.SetMitmOutbound(outbound.NewMitm(mitmListener.Address()))
+	T.SetMitmOutbound(outbound.NewMitm(mitmListener.Address()))
 
 	log.Info().Str("addr", mitmListener.Address()).Msg("[Inbound] MITM proxy listening")
 }
@@ -477,8 +482,7 @@ func ReCreateRedirToTun(ifaceNames []string) {
 	defer tcMux.Unlock()
 
 	nicArr := ifaceNames
-	slices.Sort(nicArr)
-	nicArr = slices.Compact(nicArr)
+	nicArr = lo.FindUniques(nicArr)
 
 	if tcProgram != nil {
 		tcProgram.Close()
@@ -523,8 +527,7 @@ func ReCreateAutoRedir(ifaceNames []string, tcpIn chan<- C.ConnContext, _ chan<-
 	}()
 
 	nicArr := ifaceNames
-	slices.Sort(nicArr)
-	nicArr = slices.Compact(nicArr)
+	nicArr = lo.FindUniques(nicArr)
 
 	if redirListener != nil && autoRedirProgram != nil {
 		_ = redirListener.Close()
@@ -562,6 +565,105 @@ func ReCreateAutoRedir(ifaceNames []string, tcpIn chan<- C.ConnContext, _ chan<-
 		Str("addr", autoRedirListener.Address()).
 		Strs("interfaces", autoRedirProgram.RawNICs()).
 		Msg("[Inbound] Auto redirect proxy listening, attached tc ebpf program")
+}
+
+func PatchTunnel(tunnels []config.Tunnel, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
+	tunnelMux.Lock()
+	defer tunnelMux.Unlock()
+
+	type addrProxy struct {
+		network string
+		addr    string
+		target  string
+		proxy   string
+	}
+
+	tcpOld := lo.Map(
+		lo.Keys(tunnelTCPListeners),
+		func(key string, _ int) addrProxy {
+			parts := strings.Split(key, "/")
+			return addrProxy{
+				network: "tcp",
+				addr:    parts[0],
+				target:  parts[1],
+				proxy:   parts[2],
+			}
+		},
+	)
+	udpOld := lo.Map(
+		lo.Keys(tunnelUDPListeners),
+		func(key string, _ int) addrProxy {
+			parts := strings.Split(key, "/")
+			return addrProxy{
+				network: "udp",
+				addr:    parts[0],
+				target:  parts[1],
+				proxy:   parts[2],
+			}
+		},
+	)
+	oldElm := lo.Union(tcpOld, udpOld)
+
+	newElm := lo.FlatMap(
+		tunnels,
+		func(tunnel config.Tunnel, _ int) []addrProxy {
+			return lo.Map(
+				tunnel.Network,
+				func(network string, _ int) addrProxy {
+					return addrProxy{
+						network: network,
+						addr:    tunnel.Address,
+						target:  tunnel.Target,
+						proxy:   tunnel.Proxy,
+					}
+				},
+			)
+		},
+	)
+
+	needClose, needCreate := lo.Difference(oldElm, newElm)
+
+	for _, elm := range needClose {
+		key := fmt.Sprintf("%s/%s/%s", elm.addr, elm.target, elm.proxy)
+		if elm.network == "tcp" {
+			_ = tunnelTCPListeners[key].Close()
+			delete(tunnelTCPListeners, key)
+		} else {
+			_ = tunnelUDPListeners[key].Close()
+			delete(tunnelUDPListeners, key)
+		}
+	}
+
+	for _, elm := range needCreate {
+		key := fmt.Sprintf("%s/%s/%s", elm.addr, elm.target, elm.proxy)
+		if elm.network == "tcp" {
+			l, err := tunnel.New(elm.addr, elm.target, elm.proxy, tcpIn)
+			if err != nil {
+				log.Error().Err(err).Str("target", elm.target).Msg("[Inbound] Tunnel server start failed")
+				continue
+			}
+			tunnelTCPListeners[key] = l
+			log.Info().
+				Str("addr", tunnelTCPListeners[key].Address()).
+				Str("network", elm.network).
+				Str("target", elm.target).
+				Str("proxy", elm.proxy).
+				Msg("[Inbound] Tunnel proxy listening")
+		} else {
+			l, err := tunnel.NewUDP(elm.addr, elm.target, elm.proxy, udpIn)
+			if err != nil {
+				log.Error().Err(err).Str("target", elm.target).Msg("[Inbound] Tunnel server start failed")
+				continue
+			}
+			tunnelUDPListeners[key] = l
+			log.Info().
+				Str("addr", tunnelUDPListeners[key].Address()).
+				Str("network", elm.network).
+				Str("target", elm.target).
+				Str("proxy", elm.proxy).
+				Msg("[Inbound] Tunnel proxy listening")
+		}
+	}
 }
 
 // GetPorts return the ports of proxy servers

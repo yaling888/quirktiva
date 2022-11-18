@@ -21,6 +21,7 @@ var MetadataTypeMapping = map[string]Type{
 	strings.ToLower(TPROXY.String()):      TPROXY,
 	strings.ToLower(TUN.String()):         TUN,
 	strings.ToLower(MITM.String()):        MITM,
+	strings.ToLower(TUNNEL.String()):      TUNNEL,
 }
 
 // Socks addr type
@@ -38,6 +39,7 @@ const (
 	TPROXY
 	TUN
 	MITM
+	TUNNEL
 )
 
 type NetWork int
@@ -75,6 +77,8 @@ func (t Type) String() string {
 		return "Tun"
 	case MITM:
 		return "Mitm"
+	case TUNNEL:
+		return "Tunnel"
 	default:
 		return "Unknown"
 	}
@@ -86,17 +90,18 @@ func (t Type) MarshalJSON() ([]byte, error) {
 
 // Metadata is used to store connection address
 type Metadata struct {
-	NetWork     NetWork    `json:"network"`
-	Type        Type       `json:"type"`
-	SrcIP       netip.Addr `json:"sourceIP"`
-	DstIP       netip.Addr `json:"destinationIP"`
-	SrcPort     string     `json:"sourcePort"`
-	DstPort     string     `json:"destinationPort"`
-	Host        string     `json:"host"`
-	DNSMode     DNSMode    `json:"dnsMode"`
-	Process     string     `json:"process"`
-	ProcessPath string     `json:"processPath"`
-	UserAgent   string     `json:"userAgent"`
+	NetWork      NetWork    `json:"network"`
+	Type         Type       `json:"type"`
+	SrcIP        netip.Addr `json:"sourceIP"`
+	DstIP        netip.Addr `json:"destinationIP"`
+	SrcPort      string     `json:"sourcePort"`
+	DstPort      string     `json:"destinationPort"`
+	Host         string     `json:"host"`
+	DNSMode      DNSMode    `json:"dnsMode"`
+	Process      string     `json:"process"`
+	ProcessPath  string     `json:"processPath"`
+	UserAgent    string     `json:"userAgent"`
+	SpecialProxy string     `json:"specialProxy"`
 }
 
 func (m *Metadata) RemoteAddress() string {

@@ -3,11 +3,12 @@ package constant
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/netip"
 	"strconv"
 	"strings"
 
-	"golang.org/x/exp/slices"
+	"github.com/samber/lo"
 )
 
 var StackTypeMapping = map[string]TUNStack{
@@ -179,15 +180,11 @@ func (d DNSUrl) MarshalJSON() ([]byte, error) {
 }
 
 func (d DNSUrl) String() string {
-	return d.Network + "://" + d.AddrPort.String()
+	return fmt.Sprintf("%s://%s", d.Network, d.AddrPort)
 }
 
 func RemoveDuplicateDNSUrl(slice []DNSUrl) []DNSUrl {
-	slices.SortFunc[DNSUrl](slice, func(a, b DNSUrl) bool {
-		return a.Network < b.Network || (a.Network == b.Network && a.AddrPort.Addr().Less(b.AddrPort.Addr()))
-	})
-
-	return slices.CompactFunc[[]DNSUrl, DNSUrl](slice, func(a, b DNSUrl) bool {
-		return a.Network == b.Network && a.AddrPort == b.AddrPort
+	return lo.FindUniquesBy(slice, func(item DNSUrl) string {
+		return item.String()
 	})
 }

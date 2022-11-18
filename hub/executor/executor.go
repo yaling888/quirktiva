@@ -21,7 +21,7 @@ import (
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/constant/provider"
 	"github.com/Dreamacro/clash/dns"
-	P "github.com/Dreamacro/clash/listener"
+	"github.com/Dreamacro/clash/listener"
 	authStore "github.com/Dreamacro/clash/listener/auth"
 	L "github.com/Dreamacro/clash/log"
 	"github.com/Dreamacro/clash/tunnel"
@@ -86,12 +86,13 @@ func ApplyConfig(cfg *config.Config, force bool) {
 	updateDNS(cfg.DNS, &cfg.General.Tun)
 	updateGeneral(cfg.General, force)
 	updateExperimental(cfg)
+	updateTunnels(cfg.Tunnels)
 
 	L.SetLevel(cfg.General.LogLevel)
 }
 
 func GetGeneral() *config.General {
-	ports := P.GetPorts()
+	ports := listener.GetPorts()
 	authenticator := []string{}
 	if authM := authStore.Authenticator(); authM != nil {
 		authenticator = authM.Users()
@@ -106,14 +107,14 @@ func GetGeneral() *config.General {
 			MixedPort:      ports.MixedPort,
 			MitmPort:       ports.MitmPort,
 			Authentication: authenticator,
-			AllowLan:       P.AllowLan(),
-			BindAddress:    P.BindAddress(),
+			AllowLan:       listener.AllowLan(),
+			BindAddress:    listener.BindAddress(),
 		},
 		Mode:     tunnel.Mode(),
 		LogLevel: L.Level(),
 		IPv6:     !resolver.DisableIPv6,
 		Sniffing: tunnel.Sniffing(),
-		Tun:      P.GetTunConf(),
+		Tun:      listener.GetTunConf(),
 	}
 
 	return general
@@ -199,6 +200,14 @@ func updateScript(providers map[string]C.Rule, matcher C.Matcher) {
 	tunnel.UpdateScript(providers, matcher)
 }
 
+func updateMitm(mitm *config.Mitm) {
+	tunnel.UpdateRewrites(mitm.Hosts, mitm.Rules)
+}
+
+func updateTunnels(tunnels []config.Tunnel) {
+	listener.PatchTunnel(tunnels, tunnel.TCPIn(), tunnel.UDPIn())
+}
+
 func updateGeneral(general *config.General, force bool) {
 	tunnel.SetMode(general.Mode)
 	resolver.DisableIPv6 = !general.IPv6
@@ -222,10 +231,10 @@ func updateGeneral(general *config.General, force bool) {
 	}
 
 	allowLan := general.AllowLan
-	P.SetAllowLan(allowLan)
+	listener.SetAllowLan(allowLan)
 
 	bindAddress := general.BindAddress
-	P.SetBindAddress(bindAddress)
+	listener.SetBindAddress(bindAddress)
 
 	sniffing := general.Sniffing
 	tunnel.SetSniffing(sniffing)
@@ -235,15 +244,15 @@ func updateGeneral(general *config.General, force bool) {
 	tcpIn := tunnel.TCPIn()
 	udpIn := tunnel.UDPIn()
 
-	P.ReCreateHTTP(general.Port, tcpIn)
-	P.ReCreateSocks(general.SocksPort, tcpIn, udpIn)
-	P.ReCreateRedir(general.RedirPort, tcpIn, udpIn)
-	P.ReCreateAutoRedir(general.EBpf.AutoRedir, tcpIn, udpIn)
-	P.ReCreateTProxy(general.TProxyPort, tcpIn, udpIn)
-	P.ReCreateMixed(general.MixedPort, tcpIn, udpIn)
-	P.ReCreateMitm(general.MitmPort, tcpIn)
-	P.ReCreateTun(&general.Tun, tcpIn, udpIn)
-	P.ReCreateRedirToTun(general.EBpf.RedirectToTun)
+	listener.ReCreateHTTP(general.Port, tcpIn)
+	listener.ReCreateSocks(general.SocksPort, tcpIn, udpIn)
+	listener.ReCreateRedir(general.RedirPort, tcpIn, udpIn)
+	listener.ReCreateAutoRedir(general.EBpf.AutoRedir, tcpIn, udpIn)
+	listener.ReCreateTProxy(general.TProxyPort, tcpIn, udpIn)
+	listener.ReCreateMixed(general.MixedPort, tcpIn, udpIn)
+	listener.ReCreateMitm(general.MitmPort, tcpIn)
+	listener.ReCreateTun(&general.Tun, tcpIn, udpIn)
+	listener.ReCreateRedirToTun(general.EBpf.RedirectToTun)
 }
 
 func updateUsers(users []auth.AuthUser) {
@@ -291,12 +300,8 @@ func patchSelectGroup(proxies map[string]C.Proxy) {
 	}
 }
 
-func updateMitm(mitm *config.Mitm) {
-	tunnel.UpdateRewrites(mitm.Hosts, mitm.Rules)
-}
-
 func Shutdown() {
-	P.Cleanup()
+	listener.Cleanup()
 	resolver.StoreFakePoolState()
 
 	log.Warn().Msg("Clash shutting down")
