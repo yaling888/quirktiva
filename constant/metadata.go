@@ -189,4 +189,8 @@ func (m *Metadata) MarshalObject(e *log.Entry) {
 	if m.Process != "" {
 		e.Str("process", m.Process)
 	}
+
+	if m.UserAgent != "" {
+		e.Str("userAgent", m.UserAgent)
+	}
 }

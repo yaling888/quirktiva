@@ -333,10 +333,7 @@ func parseSourceAddress(req *http.Request, connSource, source net.Addr) net.Addr
 		return connSource
 	}
 
-	return &net.TCPAddr{
-		IP:   addrPort.Addr().AsSlice(),
-		Port: int(addrPort.Port()),
-	}
+	return net.TCPAddrFromAddrPort(addrPort)
 }
 
 func isWebsocketRequest(req *http.Request) bool {

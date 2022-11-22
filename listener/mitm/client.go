@@ -31,9 +31,12 @@ func getServerConn(serverConn *N.BufferedConn, request *http.Request, srcAddr ne
 		return nil, socks5.ErrAddressNotSupported
 	}
 
+	specialProxy := request.Header.Get("Origin-Request-Special-Proxy")
+	request.Header.Del("Origin-Request-Special-Proxy")
+
 	left, right := net.Pipe()
 
-	in <- inbound.NewMitm(dstAddr, srcAddr, request.Header.Get("User-Agent"), right)
+	in <- inbound.NewMitm(dstAddr, srcAddr, request.Header.Get("User-Agent"), specialProxy, right)
 
 	if request.TLS != nil {
 		tlsConn := tls.Client(left, &tls.Config{
