@@ -127,9 +127,13 @@ func (r *Resolver) exchangeWithoutCache(ctx context.Context, m *D.Msg) (msg *D.M
 				return
 			}
 
-			msg := result.(*D.Msg)
+			msg1 := result.(*D.Msg)
 
-			putMsgToCache(r.lruCache, q.String(), msg)
+			if resolver.IsProxyServerIP(ctx) {
+				setMsgTTLWithForce(msg1, 7200, false) // reset proxy server ip ttl to at least 2 hours
+			}
+
+			putMsgToCache(r.lruCache, q.String(), msg1)
 		}()
 
 		isIPReq := isIPRequest(q)
@@ -303,6 +307,7 @@ type NameServer struct {
 	Addr         string
 	Interface    string
 	ProxyAdapter string
+	IsDHCP       bool
 }
 
 type FallbackFilter struct {
@@ -328,13 +333,13 @@ type Config struct {
 func NewResolver(config Config) *Resolver {
 	defaultResolver := &Resolver{
 		main:     transform(config.Default, nil),
-		lruCache: cache.New[string, *D.Msg](cache.WithSize[string, *D.Msg](4096), cache.WithStale[string, *D.Msg](true)),
+		lruCache: cache.New[string, *D.Msg](cache.WithSize[string, *D.Msg](1024), cache.WithStale[string, *D.Msg](true)),
 	}
 
 	r := &Resolver{
 		ipv6:     config.IPv6,
 		main:     transform(config.Main, defaultResolver),
-		lruCache: cache.New[string, *D.Msg](cache.WithSize[string, *D.Msg](4096), cache.WithStale[string, *D.Msg](true)),
+		lruCache: cache.New[string, *D.Msg](cache.WithSize[string, *D.Msg](8192), cache.WithStale[string, *D.Msg](true)),
 		hosts:    config.Hosts,
 	}
 
@@ -353,7 +358,7 @@ func NewResolver(config Config) *Resolver {
 		}
 	}
 
-	fallbackIPFilters := []fallbackIPFilter{}
+	fallbackIPFilters := make([]fallbackIPFilter, 0)
 	if config.FallbackFilter.GeoIP {
 		fallbackIPFilters = append(fallbackIPFilters, &geoipFilter{
 			code: config.FallbackFilter.GeoIPCode,
@@ -364,7 +369,7 @@ func NewResolver(config Config) *Resolver {
 	}
 	r.fallbackIPFilters = fallbackIPFilters
 
-	fallbackDomainFilters := []fallbackDomainFilter{}
+	fallbackDomainFilters := make([]fallbackDomainFilter, 0)
 	if len(config.FallbackFilter.Domain) != 0 {
 		fallbackDomainFilters = append(fallbackDomainFilters, NewDomainFilter(config.FallbackFilter.Domain))
 	}

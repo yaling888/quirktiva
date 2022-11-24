@@ -14,7 +14,6 @@ import (
 
 	"github.com/Dreamacro/clash/adapter"
 	"github.com/Dreamacro/clash/common/cache"
-	"github.com/Dreamacro/clash/common/nnip"
 	"github.com/Dreamacro/clash/common/picker"
 	"github.com/Dreamacro/clash/component/dialer"
 	C "github.com/Dreamacro/clash/constant"
@@ -41,15 +40,28 @@ func putMsgToCache(c *cache.LruCache[string, *D.Msg], key string, msg *D.Msg) {
 }
 
 func setMsgTTL(msg *D.Msg, ttl uint32) {
+	setMsgTTLWithForce(msg, ttl, true)
+}
+
+func setMsgTTLWithForce(msg *D.Msg, ttl uint32, force bool) {
 	for _, answer := range msg.Answer {
+		if !force && answer.Header().Ttl >= ttl {
+			continue
+		}
 		answer.Header().Ttl = ttl
 	}
 
 	for _, ns := range msg.Ns {
+		if !force && ns.Header().Ttl >= ttl {
+			continue
+		}
 		ns.Header().Ttl = ttl
 	}
 
 	for _, extra := range msg.Extra {
+		if !force && extra.Header().Ttl >= ttl {
+			continue
+		}
 		extra.Header().Ttl = ttl
 	}
 }
@@ -59,7 +71,7 @@ func isIPRequest(q D.Question) bool {
 }
 
 func transform(servers []NameServer, resolver *Resolver) []dnsClient {
-	ret := []dnsClient{}
+	var ret []dnsClient
 	for _, s := range servers {
 		switch s.Net {
 		case "https":
@@ -74,6 +86,10 @@ func transform(servers []NameServer, resolver *Resolver) []dnsClient {
 		}
 
 		host, port, _ := net.SplitHostPort(s.Addr)
+		var ip string
+		if _, err := netip.ParseAddr(host); err == nil {
+			ip = host
+		}
 		ret = append(ret, &client{
 			Client: &D.Client{
 				Net: s.Net,
@@ -88,6 +104,8 @@ func transform(servers []NameServer, resolver *Resolver) []dnsClient {
 			iface:        s.Interface,
 			r:            resolver,
 			proxyAdapter: s.ProxyAdapter,
+			isDHCP:       s.IsDHCP,
+			ip:           ip,
 		})
 	}
 	return ret
@@ -105,14 +123,43 @@ func handleMsgWithEmptyAnswer(r *D.Msg) *D.Msg {
 }
 
 func msgToIP(msg *D.Msg) []netip.Addr {
-	ips := []netip.Addr{}
+	var ips []netip.Addr
 
 	for _, answer := range msg.Answer {
 		switch ans := answer.(type) {
 		case *D.AAAA:
-			ips = append(ips, nnip.IpToAddr(ans.AAAA))
+			ip, ok := netip.AddrFromSlice(ans.AAAA)
+			if !ok {
+				continue
+			}
+			ips = append(ips, ip)
 		case *D.A:
-			ips = append(ips, nnip.IpToAddr(ans.A))
+			ip, ok := netip.AddrFromSlice(ans.A)
+			if !ok {
+				continue
+			}
+			ips = append(ips, ip)
+		}
+	}
+
+	return ips
+}
+
+func msgToIPStr(msg *D.Msg) []string {
+	var ips []string
+
+	for _, answer := range msg.Answer {
+		switch ans := answer.(type) {
+		case *D.AAAA:
+			if ans.AAAA == nil {
+				continue
+			}
+			ips = append(ips, ans.AAAA.String())
+		case *D.A:
+			if ans.A == nil {
+				continue
+			}
+			ips = append(ips, ans.A.String())
 		}
 	}
 
@@ -209,4 +256,24 @@ func batchExchange(ctx context.Context, clients []dnsClient, m *D.Msg) (msg *D.M
 	}
 
 	return elm, nil
+}
+
+func logDnsResponse(q D.Question, msg *D.Msg, network, source, proxyAdapter string) {
+	if msg == nil || (q.Qtype != D.TypeA && q.Qtype != D.TypeAAAA) {
+		return
+	}
+
+	var pr string
+	if network != "" {
+		network = network + "://"
+	}
+	if proxyAdapter != "" {
+		pr = "(" + proxyAdapter + ")"
+	}
+	log.Debug().
+		Str("source", fmt.Sprintf("%s%s%s", network, source, pr)).
+		Str("qType", D.Type(q.Qtype).String()).
+		Str("name", q.Name).
+		Strs("answer", msgToIPStr(msg)).
+		Msg("[DNS] dns response")
 }

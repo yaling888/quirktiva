@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	D "github.com/miekg/dns"
-	"github.com/phuslu/log"
 
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"
@@ -22,6 +21,8 @@ type client struct {
 	host         string
 	iface        string
 	proxyAdapter string
+	ip           string
+	isDHCP       bool
 }
 
 func (c *client) Exchange(m *D.Msg) (*D.Msg, error) {
@@ -29,18 +30,16 @@ func (c *client) Exchange(m *D.Msg) (*D.Msg, error) {
 }
 
 func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) {
-	var (
-		ip  netip.Addr
-		err error
-	)
-	if ip, err = netip.ParseAddr(c.host); err != nil {
+	var err error
+	if c.ip == "" {
 		if c.r == nil {
 			return nil, fmt.Errorf("dns %s not a valid ip", c.host)
 		} else {
+			var ip netip.Addr
 			if ip, err = resolver.ResolveIPWithResolver(ctx, c.host, c.r); err != nil {
 				return nil, fmt.Errorf("use default dns resolve failed: %w", err)
 			}
-			c.host = ip.String()
+			c.ip = ip.String()
 		}
 	}
 
@@ -49,20 +48,21 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 		network = "tcp"
 	}
 
-	options := []dialer.Option{}
+	var (
+		options []dialer.Option
+		conn    net.Conn
+	)
 	if c.iface != "" {
 		options = append(options, dialer.WithInterface(c.iface))
 	}
-
-	var conn net.Conn
 	if c.proxyAdapter != "" {
-		conn, err = dialContextWithProxyAdapter(ctx, c.proxyAdapter, network, ip, c.port, options...)
+		conn, err = dialContextWithProxyAdapter(ctx, c.proxyAdapter, network, netip.MustParseAddr(c.ip), c.port, options...)
 		if err == errProxyNotFound {
 			options = append(options[:0], dialer.WithInterface(c.proxyAdapter), dialer.WithRoutingMark(0))
-			conn, err = dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), c.port), options...)
+			conn, err = dialer.DialContext(ctx, network, net.JoinHostPort(c.ip, c.port), options...)
 		}
 	} else {
-		conn, err = dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), c.port), options...)
+		conn, err = dialer.DialContext(ctx, network, net.JoinHostPort(c.ip, c.port), options...)
 	}
 
 	if err != nil {
@@ -98,35 +98,13 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case ret := <-ch:
-		q := m.Question[0]
-		if ret.msg != nil && (q.Qtype == D.TypeA || q.Qtype == D.TypeAAAA) {
-			var (
-				ans []string
-				sc  string
-				pr  string
-			)
-			for _, r := range ret.msg.Answer {
-				if r != nil {
-					if a, ok := r.(*D.A); ok && a.A != nil {
-						ans = append(ans, a.A.String())
-					} else if a2, ok2 := r.(*D.AAAA); ok2 && a2.AAAA != nil {
-						ans = append(ans, a2.AAAA.String())
-					}
-				}
-			}
-			if c.Client.Net != "" {
-				sc = c.Client.Net + "://"
-			}
-			if c.proxyAdapter != "" {
-				pr = "(" + c.proxyAdapter + ")"
-			}
-			log.Debug().
-				Str("source", fmt.Sprintf("%s%s%s", sc, net.JoinHostPort(c.host, c.port), pr)).
-				Str("qType", D.Type(q.Qtype).String()).
-				Str("name", q.Name).
-				Strs("answer", ans).
-				Msg("[DNS] dns response")
+		clientNet := c.Client.Net
+		if clientNet == "tcp-tls" {
+			clientNet = "tls"
+		} else if c.isDHCP {
+			clientNet = "dhcp"
 		}
+		logDnsResponse(m.Question[0], ret.msg, clientNet, net.JoinHostPort(c.host, c.port), c.proxyAdapter)
 		return ret.msg, ret.err
 	}
 }

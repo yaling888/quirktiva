@@ -36,7 +36,10 @@ var (
 	ErrIPv6Disabled = errors.New("ipv6 disabled")
 )
 
-const firstIPKey = ipContextKey("key-lookup-first-ip")
+const (
+	firstIPKey       = ipContextKey("key-lookup-first-ip")
+	proxyServerIPKey = ipContextKey("key-lookup-proxy-server-ip")
+)
 
 type ipContextKey string
 
@@ -167,6 +170,11 @@ func ResolveIPWithResolver(ctx context.Context, host string, r Resolver) (netip.
 		return node.Data, nil
 	}
 
+	ip, err := netip.ParseAddr(host)
+	if err == nil {
+		return ip, nil
+	}
+
 	if r != nil {
 		if DisableIPv6 {
 			return r.ResolveIPv4(ctx, host)
@@ -174,11 +182,6 @@ func ResolveIPWithResolver(ctx context.Context, host string, r Resolver) (netip.
 		return r.ResolveIP(ctx, host)
 	} else if DisableIPv6 {
 		return resolveIPv4(ctx, host)
-	}
-
-	ip, err := netip.ParseAddr(host)
-	if err == nil {
-		return ip, nil
 	}
 
 	if DefaultResolver == nil {
@@ -226,7 +229,8 @@ func ResolveFirstIP(host string) (netip.Addr, error) {
 // ResolveIPv4ProxyServerHost proxies server host only
 func ResolveIPv4ProxyServerHost(host string) (netip.Addr, error) {
 	if ProxyServerHostResolver != nil {
-		return ResolveIPv4WithResolver(context.Background(), host, ProxyServerHostResolver)
+		ctx := context.WithValue(context.Background(), proxyServerIPKey, struct{}{})
+		return ResolveIPv4WithResolver(ctx, host, ProxyServerHostResolver)
 	}
 	return ResolveIPv4(host)
 }
@@ -234,7 +238,8 @@ func ResolveIPv4ProxyServerHost(host string) (netip.Addr, error) {
 // ResolveIPv6ProxyServerHost proxies server host only
 func ResolveIPv6ProxyServerHost(host string) (netip.Addr, error) {
 	if ProxyServerHostResolver != nil {
-		return ResolveIPv6WithResolver(context.Background(), host, ProxyServerHostResolver)
+		ctx := context.WithValue(context.Background(), proxyServerIPKey, struct{}{})
+		return ResolveIPv6WithResolver(ctx, host, ProxyServerHostResolver)
 	}
 	return ResolveIPv6(host)
 }
@@ -257,4 +262,8 @@ func resolveIPv4(ctx context.Context, host string) (netip.Addr, error) {
 
 func ShouldRandomIP(ctx context.Context) bool {
 	return ctx.Value(firstIPKey) == nil
+}
+
+func IsProxyServerIP(ctx context.Context) bool {
+	return ctx.Value(proxyServerIPKey) != nil
 }

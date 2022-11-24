@@ -14,7 +14,6 @@ import (
 
 	"github.com/lucas-clemente/quic-go"
 	D "github.com/miekg/dns"
-	"github.com/phuslu/log"
 
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"
@@ -81,32 +80,7 @@ func (dc *doqClient) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg,
 
 	if err == nil {
 		msg.Id = m.Id
-
-		q := m.Question[0]
-		if q.Qtype == D.TypeA || q.Qtype == D.TypeAAAA {
-			var (
-				ans []string
-				pr  string
-			)
-			for _, r := range msg.Answer {
-				if r != nil {
-					if a, ok := r.(*D.A); ok && a.A != nil {
-						ans = append(ans, a.A.String())
-					} else if a2, ok2 := r.(*D.AAAA); ok2 && a2.AAAA != nil {
-						ans = append(ans, a2.AAAA.String())
-					}
-				}
-			}
-			if dc.proxyAdapter != "" {
-				pr = "(" + dc.proxyAdapter + ")"
-			}
-			log.Debug().
-				Str("source", "quic://"+net.JoinHostPort(dc.host, dc.port)+pr).
-				Str("qType", D.Type(q.Qtype).String()).
-				Str("name", q.Name).
-				Strs("answer", ans).
-				Msg("[DNS] dns response")
-		}
+		logDnsResponse(m.Question[0], msg, "quic", net.JoinHostPort(dc.host, dc.port), dc.proxyAdapter)
 	}
 
 	return msg, err
