@@ -75,63 +75,74 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 			_ = tcp.Close()
 		}(stack.TCP())
 
-		for !ipStack.closed {
-			conn, err := stack.TCP().Accept()
-			if err != nil {
-				// log.Debug().
-				//	Err(err).
-				//	Msg("[Stack] accept connection failed")
+		for {
+			conn, err0 := stack.TCP().Accept()
+			if err0 != nil {
+				if ipStack.closed {
+					break
+				}
+				log.Warn().
+					Err(err0).
+					Msg("[Stack] accept connection failed")
 				continue
 			}
 
-			lAddr := conn.LocalAddr().(*net.TCPAddr).AddrPort()
-			rAddr := conn.RemoteAddr().(*net.TCPAddr).AddrPort()
+			lAddrPort := conn.LocalAddr().(*net.TCPAddr).AddrPort()
+			rAddrPort := conn.RemoteAddr().(*net.TCPAddr).AddrPort()
 
-			if rAddr.Addr().IsLoopback() {
+			if rAddrPort.Addr().IsLoopback() {
 				_ = conn.Close()
 
 				continue
 			}
 
-			if D.ShouldHijackDns(dnsAddr, rAddr, "tcp") {
-				go func() {
+			if D.ShouldHijackDns(dnsAddr, rAddrPort, "tcp") {
+				go func(dnsConn net.Conn, addr string) {
 					log.Debug().
-						Str("addr", rAddr.String()).
+						Str("addr", addr).
 						Msg("[TUN] hijack tcp dns")
 
-					buf := pool.Get(pool.UDPBufferSize)
-					defer func() {
-						_ = conn.Close()
-						_ = pool.Put(buf)
-					}()
+					defer func(c net.Conn) {
+						_ = c.Close()
+					}(dnsConn)
 
-					for {
-						if conn.SetReadDeadline(time.Now().Add(C.DefaultTCPTimeout)) != nil {
-							break
-						}
-
-						length := uint16(0)
-						if err := binary.Read(conn, binary.BigEndian, &length); err != nil {
-							break
-						}
-
-						if int(length) > len(buf) {
-							break
-						}
-
-						n, err := conn.Read(buf[:length])
-						if err != nil {
-							break
-						}
-
-						msg, err := D.RelayDnsPacket(buf[:n])
-						if err != nil {
-							break
-						}
-
-						_, _ = conn.Write(msg)
+					var err1 error
+					err1 = dnsConn.SetReadDeadline(time.Now().Add(C.DefaultTCPTimeout))
+					if err1 != nil {
+						return
 					}
-				}()
+
+					buf := pool.NewBuffer()
+					defer buf.Release()
+
+					_, err1 = buf.ReadFullFrom(dnsConn, 2)
+					if err1 != nil {
+						return
+					}
+
+					length := binary.BigEndian.Uint16(buf.Next(2))
+					_, err1 = buf.ReadFullFrom(dnsConn, int64(length))
+					if err1 != nil {
+						return
+					}
+
+					msg, err1 := D.RelayDnsPacket(buf.Bytes())
+					if err1 != nil {
+						return
+					}
+
+					buf.Reset()
+
+					length = uint16(len(msg))
+					_ = binary.Write(buf, binary.BigEndian, length)
+
+					_, err1 = buf.Write(msg)
+					if err1 != nil {
+						return
+					}
+
+					_, _ = buf.WriteTo(dnsConn)
+				}(conn, rAddrPort.String())
 
 				continue
 			}
@@ -139,10 +150,10 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 			metadata := &C.Metadata{
 				NetWork: C.TCP,
 				Type:    C.TUN,
-				SrcIP:   lAddr.Addr(),
-				DstIP:   rAddr.Addr(),
-				SrcPort: strconv.FormatUint(uint64(lAddr.Port()), 10),
-				DstPort: strconv.FormatUint(uint64(rAddr.Port()), 10),
+				SrcIP:   lAddrPort.Addr(),
+				DstIP:   rAddrPort.Addr(),
+				SrcPort: strconv.FormatUint(uint64(lAddrPort.Port()), 10),
+				DstPort: strconv.FormatUint(uint64(rAddrPort.Port()), 10),
 				Host:    "",
 			}
 
@@ -157,53 +168,61 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 			_ = udp.Close()
 		}(stack.UDP())
 
-		for !ipStack.closed {
+		for {
 			buf := pool.Get(pool.UDPBufferSize)
 
-			n, lAddr, rAddr, err := stack.UDP().ReadFrom(buf)
-			if err != nil {
+			n, lAddrPort, rAddrPort, err0 := stack.UDP().ReadFrom(buf)
+			if err0 != nil {
 				_ = pool.Put(buf)
-				break
+
+				if ipStack.closed {
+					break
+				}
+
+				log.Warn().
+					Err(err0).
+					Msg("[Stack] accept udp failed")
+				continue
 			}
 
-			if rAddr.Addr().IsLoopback() || rAddr.Addr() == gateway {
+			if rAddrPort.Addr().IsLoopback() || rAddrPort.Addr() == gateway {
 				_ = pool.Put(buf)
 
 				continue
 			}
 
-			if D.ShouldHijackDns(dnsAddr, rAddr, "udp") {
-				go func() {
-					defer func() {
-						_ = pool.Put(buf)
-					}()
+			if D.ShouldHijackDns(dnsAddr, rAddrPort, "udp") {
+				go func(dnsUdp *nat.UDP, b []byte, length int, rap, lap netip.AddrPort) {
+					defer func(bb []byte) {
+						_ = pool.Put(bb)
+					}(b)
 
-					msg, err := D.RelayDnsPacket(buf[:n])
-					if err != nil {
+					msg, err1 := D.RelayDnsPacket(b[:length])
+					if err1 != nil {
 						return
 					}
 
-					_, _ = stack.UDP().WriteTo(msg, rAddr, lAddr)
+					_, _ = dnsUdp.WriteTo(msg, rap, lap)
 
 					log.Debug().
-						Str("addr", rAddr.String()).
+						Str("addr", rap.String()).
 						Msg("[TUN] hijack udp dns")
-				}()
+				}(stack.UDP(), buf, n, rAddrPort, lAddrPort)
 
 				continue
 			}
 
 			pkt := &packet{
-				local:  lAddr,
+				local:  lAddrPort,
 				data:   buf,
 				offset: n,
 				writeBack: func(b []byte, addr net.Addr) (int, error) {
-					return stack.UDP().WriteTo(b, rAddr, lAddr)
+					return stack.UDP().WriteTo(b, rAddrPort, lAddrPort)
 				},
 			}
 
 			select {
-			case udpIn <- inbound.NewPacket(socks5.AddrFromStdAddrPort(rAddr), pkt, C.TUN):
+			case udpIn <- inbound.NewPacket(socks5.AddrFromStdAddrPort(rAddrPort), pkt, C.TUN):
 			default:
 				pkt.Drop()
 			}

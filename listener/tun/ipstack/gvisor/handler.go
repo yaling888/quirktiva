@@ -31,44 +31,52 @@ func (gh *gvHandler) HandleTCP(tunConn adapter.TCPConn) {
 	rAddrPort := tunConn.LocalAddr().(*net.TCPAddr).AddrPort()
 
 	if D.ShouldHijackDns(gh.dnsHijack, rAddrPort, "tcp") {
-		go func() {
+		go func(dnsConn net.Conn, addr string) {
 			log.Debug().
-				Str("addr", rAddrPort.String()).
+				Str("addr", addr).
 				Msg("[TUN] hijack tcp dns")
 
-			buf := pool.Get(pool.UDPBufferSize)
-			defer func() {
-				_ = tunConn.Close()
-				_ = pool.Put(buf)
-			}()
+			defer func(c net.Conn) {
+				_ = c.Close()
+			}(dnsConn)
 
-			for {
-				if tunConn.SetReadDeadline(time.Now().Add(D.DefaultDnsReadTimeout)) != nil {
-					break
-				}
-
-				length := uint16(0)
-				if err := binary.Read(tunConn, binary.BigEndian, &length); err != nil {
-					break
-				}
-
-				if int(length) > len(buf) {
-					break
-				}
-
-				n, err := tunConn.Read(buf[:length])
-				if err != nil {
-					break
-				}
-
-				msg, err := D.RelayDnsPacket(buf[:n])
-				if err != nil {
-					break
-				}
-
-				_, _ = tunConn.Write(msg)
+			var err1 error
+			err1 = dnsConn.SetReadDeadline(time.Now().Add(C.DefaultTCPTimeout))
+			if err1 != nil {
+				return
 			}
-		}()
+
+			buf := pool.NewBuffer()
+			defer buf.Release()
+
+			_, err1 = buf.ReadFullFrom(dnsConn, 2)
+			if err1 != nil {
+				return
+			}
+
+			length := binary.BigEndian.Uint16(buf.Next(2))
+			_, err1 = buf.ReadFullFrom(dnsConn, int64(length))
+			if err1 != nil {
+				return
+			}
+
+			msg, err1 := D.RelayDnsPacket(buf.Bytes())
+			if err1 != nil {
+				return
+			}
+
+			buf.Reset()
+
+			length = uint16(len(msg))
+			_ = binary.Write(buf, binary.BigEndian, length)
+
+			_, err1 = buf.Write(msg)
+			if err1 != nil {
+				return
+			}
+
+			_, _ = buf.WriteTo(dnsConn)
+		}(tunConn, rAddrPort.String())
 
 		return
 	}
@@ -97,22 +105,23 @@ func (gh *gvHandler) HandleUDP(tunConn adapter.UDPConn) {
 			}
 
 			if D.ShouldHijackDns(gh.dnsHijack, rAddrPort, "udp") {
-				go func() {
-					defer func() {
-						_ = pool.Put(buf)
-					}()
+				go func(dnsUdp adapter.UDPConn, b []byte, length int, rAddr net.Addr, rAddrStr string) {
+					defer func(udp adapter.UDPConn, bb []byte) {
+						_ = udp.Close()
+						_ = pool.Put(bb)
+					}(dnsUdp, b)
 
-					msg, err1 := D.RelayDnsPacket(buf[:n])
+					msg, err1 := D.RelayDnsPacket(b[:length])
 					if err1 != nil {
 						return
 					}
 
-					_, _ = tunConn.WriteTo(msg, addr)
+					_, _ = dnsUdp.WriteTo(msg, rAddr)
 
 					log.Debug().
-						Str("addr", rAddrPort.String()).
+						Str("addr", rAddrStr).
 						Msg("[TUN] hijack udp dns")
-				}()
+				}(tunConn, buf, n, addr, rAddrPort.String())
 
 				continue
 			}
