@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"net"
 	"net/netip"
 	"strconv"
@@ -15,6 +14,7 @@ import (
 	"github.com/lucas-clemente/quic-go"
 	D "github.com/miekg/dns"
 
+	"github.com/Dreamacro/clash/common/pool"
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"
 )
@@ -37,7 +37,7 @@ func (dc *doqClient) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg,
 	newM := *m
 	newM.Id = 0
 
-	bufMsg, err := (&newM).Pack()
+	msgBuff, err := (&newM).Pack()
 	if err != nil {
 		return nil, err
 	}
@@ -53,30 +53,37 @@ func (dc *doqClient) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg,
 		return nil, err
 	}
 
-	bufReq := make([]byte, 2+len(bufMsg))
-	binary.BigEndian.PutUint16(bufReq, uint16(len(bufMsg)))
-	copy(bufReq[2:], bufMsg)
+	buf := pool.NewBuffer()
+	defer buf.Release()
 
-	_, err = conn.Write(bufReq)
+	_ = binary.Write(buf, binary.BigEndian, uint16(len(msgBuff)))
+
+	_, err = buf.Write(msgBuff)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = buf.WriteTo(conn)
 	if err != nil {
 		return nil, err
 	}
 
 	_ = conn.Close()
 
-	var length uint16
-	if err = binary.Read(conn, binary.BigEndian, &length); err != nil {
+	buf.Reset()
+
+	_, err = buf.ReadFullFrom(conn, 2)
+	if err != nil {
 		return nil, err
 	}
 
-	buff := make([]byte, length)
-	_, err = io.ReadFull(conn, buff)
+	_, err = buf.ReadFullFrom(conn, int64(binary.BigEndian.Uint16(buf.Next(2))))
 	if err != nil {
 		return nil, err
 	}
 
 	msg = &D.Msg{}
-	err = msg.Unpack(buff)
+	err = msg.Unpack(buf.Bytes())
 
 	if err == nil {
 		msg.Id = m.Id
