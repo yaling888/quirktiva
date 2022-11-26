@@ -133,6 +133,16 @@ func ParseProxy(mapping map[string]any, forceCertVerify, udp, autoCipher, random
 			trojanOption.UDP = true
 		}
 		proxy, err = outbound.NewTrojan(*trojanOption)
+	case "wireguard":
+		wireguardOption := &outbound.WireGuardOption{}
+		err = decoder.Decode(mapping, wireguardOption)
+		if err != nil {
+			break
+		}
+		if udp {
+			wireguardOption.UDP = true
+		}
+		proxy, err = outbound.NewWireGuard(*wireguardOption)
 	default:
 		return nil, fmt.Errorf("unsupport proxy type: %s", proxyType)
 	}

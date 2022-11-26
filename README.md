@@ -331,6 +331,8 @@ Support outbound protocol `VLESS`.
 
 Support `Trojan` with XTLS.
 
+Support userspace `WireGuard` outbound.
+
 Support relay `UDP` traffic.
 
 Support filtering proxy providers in proxy groups.
@@ -372,6 +374,20 @@ proxies:
     # udp: true
     # sni: example.com # aka server name
     # skip-cert-verify: true
+  
+  # WireGuard
+  - name: "wg"
+    type: wireguard
+    server: 127.0.0.1
+    port: 443
+    ip: 127.0.0.1
+    # ipv6: your_ipv6
+    private-key: eCtXsJZ27+4PbhDkHnB923tkUn2Gj59wZw5wFA75MnU=
+    public-key: Cr8hWlKvtDt7nrvf+f0brNQQzabAqrjfBvas9pmowjo=
+    # preshared-key: base64
+    # dns: [1.1.1.1, 8.8.8.8]
+    # mtu: 1420
+    udp: true
 
 proxy-groups:
   # Relay chains the proxies. proxies shall not contain a relay.
@@ -423,6 +439,20 @@ proxy-providers:
       interval: 1200
       # lazy: false # default value is true
       url: http://www.gstatic.com/generate_204
+```
+
+### Tunnels configuration
+tunnels (like SSH local forwarding).
+```yaml
+tunnels:
+  # one line config
+  - tcp/udp,127.0.0.1:6553,114.114.114.114:53,proxy
+  - tcp,127.0.0.1:6666,rds.mysql.com:3306,vpn
+  # full yaml config
+  - network: [tcp, udp]
+    address: 127.0.0.1:7777
+    target: target.com
+    proxy: proxy
 ```
 
 ### eBPF
