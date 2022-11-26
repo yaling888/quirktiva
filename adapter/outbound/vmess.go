@@ -3,6 +3,7 @@ package outbound
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -400,7 +401,12 @@ type vmessPacketConn struct {
 	rAddr net.Addr
 }
 
-func (uc *vmessPacketConn) WriteTo(b []byte, _ net.Addr) (int, error) {
+func (uc *vmessPacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
+	realAddr := uc.rAddr.(*net.UDPAddr)
+	destAddr := addr.(*net.UDPAddr)
+	if !realAddr.IP.Equal(destAddr.IP) || realAddr.Port != destAddr.Port {
+		return 0, errors.New("udp packet dropped due to mismatched remote address")
+	}
 	return uc.Conn.Write(b)
 }
 
