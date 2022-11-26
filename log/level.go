@@ -9,6 +9,7 @@ import (
 
 // LogLevelMapping is a mapping for LogLevel enum
 var LogLevelMapping = map[string]LogLevel{
+	FATAL.String():   FATAL,
 	ERROR.String():   ERROR,
 	WARNING.String(): WARNING,
 	INFO.String():    INFO,
@@ -21,6 +22,7 @@ const (
 	INFO    = LogLevel(logger.InfoLevel)
 	WARNING = LogLevel(logger.WarnLevel)
 	ERROR   = LogLevel(logger.ErrorLevel)
+	FATAL   = LogLevel(logger.FatalLevel)
 	SILENT  = LogLevel(8)
 )
 
@@ -62,14 +64,16 @@ func (l LogLevel) MarshalYAML() (any, error) {
 
 func (l LogLevel) String() string {
 	switch l {
+	case DEBUG:
+		return "debug"
 	case INFO:
 		return "info"
 	case WARNING:
 		return "warning"
 	case ERROR:
 		return "error"
-	case DEBUG:
-		return "debug"
+	case FATAL:
+		return "fatal"
 	case SILENT:
 		return "silent"
 	default:

@@ -132,6 +132,8 @@ func (aw *apiWriter) Write(p []byte) (n int, err error) {
 		logLevel = WARNING
 	case "error":
 		logLevel = ERROR
+	case "fatal":
+		logLevel = FATAL
 	default:
 		logLevel = SILENT
 	}
