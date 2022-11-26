@@ -21,12 +21,20 @@ import (
 var moduleContext *starlarkstruct.Module
 
 func init() {
+	var (
+		resolveIPMethod   = starlark.NewBuiltin("resolve_ip", resolveIP)
+		processNameMethod = starlark.NewBuiltin("resolve_process_name", resolveProcessName)
+		processPathMethod = starlark.NewBuiltin("resolve_process_path", resolveProcessPath)
+		GeoIPMethod       = starlark.NewBuiltin("geoip", geoIP)
+	)
+
 	moduleContext = &starlarkstruct.Module{
 		Name: "clash_ctx",
 		Members: starlark.StringDict{
-			"resolve_ip":           starlark.NewBuiltin("resolve_ip", resolveIP),
-			"resolve_process_name": starlark.NewBuiltin("resolve_process_name", resolveProcessName),
-			"geoip":                starlark.NewBuiltin("geoip", geoIP),
+			"resolve_ip":           resolveIPMethod,
+			"resolve_process_name": processNameMethod,
+			"resolve_process_path": processPathMethod,
+			"geoip":                GeoIPMethod,
 			"log":                  starlark.NewBuiltin("log", log_),
 
 			"proxy_providers": newProxyProviders(),
@@ -35,9 +43,11 @@ func init() {
 	}
 
 	starlark.Universe["time"] = time.Module
-	starlark.Universe["resolve_ip"] = starlark.NewBuiltin("resolve_ip", resolveIP)
+	starlark.Universe["resolve_ip"] = resolveIPMethod
+	starlark.Universe["resolve_process_name"] = processNameMethod
+	starlark.Universe["resolve_process_path"] = processPathMethod
 	starlark.Universe["in_cidr"] = starlark.NewBuiltin("in_cidr", inCidr)
-	starlark.Universe["geoip"] = starlark.NewBuiltin("geoip", geoIP)
+	starlark.Universe["geoip"] = GeoIPMethod
 	starlark.Universe["match_provider"] = starlark.NewBuiltin("match_provider", matchRuleProviderByShortcut)
 	starlark.Universe["_clash_ctx"] = moduleContext
 }
@@ -74,18 +84,36 @@ func resolveProcessName(thread *starlark.Thread, _ *starlark.Builtin, _ starlark
 
 	mtd := obj.(*C.Metadata)
 
-	processName := mtd.Process
-	if processName == "" {
+	if mtd.Process == "" {
 		if srcPort, err := strconv.ParseUint(mtd.SrcPort, 10, 16); err == nil {
 			if path, err1 := P.FindProcessName(mtd.NetWork.String(), mtd.SrcIP, int(srcPort)); err1 == nil {
-				processName = filepath.Base(path)
-				mtd.Process = processName
+				mtd.Process = filepath.Base(path)
 				mtd.ProcessPath = path
 			}
 		}
 	}
 
-	return starlark.String(processName), nil
+	return starlark.String(mtd.Process), nil
+}
+
+func resolveProcessPath(thread *starlark.Thread, _ *starlark.Builtin, _ starlark.Tuple, _ []starlark.Tuple) (starlark.Value, error) {
+	obj := thread.Local(metadataLocalKey)
+	if obj == nil {
+		return nil, fmt.Errorf("call resolve_process_path error: metadata is nil")
+	}
+
+	mtd := obj.(*C.Metadata)
+
+	if mtd.ProcessPath == "" {
+		if srcPort, err := strconv.ParseUint(mtd.SrcPort, 10, 16); err == nil {
+			if path, err1 := P.FindProcessName(mtd.NetWork.String(), mtd.SrcIP, int(srcPort)); err1 == nil {
+				mtd.Process = filepath.Base(path)
+				mtd.ProcessPath = path
+			}
+		}
+	}
+
+	return starlark.String(mtd.ProcessPath), nil
 }
 
 func geoIP(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (_ starlark.Value, err error) {
@@ -221,12 +249,13 @@ func metadataToStringDict(mtd *C.Metadata, dict starlark.StringDict) (starlark.S
 	dict["dst_ip"] = starlark.String(dstIP)
 	dict["dst_port"] = starlark.MakeUint64(dstPort)
 	dict["user_agent"] = starlark.String(mtd.UserAgent)
+	dict["special_proxy"] = starlark.String(mtd.SpecialProxy)
 
 	return dict, nil
 }
 
 func metadataToDict(mtd *C.Metadata) (val *starlark.Dict, err error) {
-	dict := starlark.NewDict(8)
+	dict := starlark.NewDict(9)
 	err = dict.SetKey(starlark.String("type"), starlark.String(mtd.Type.String()))
 	if err != nil {
 		return
@@ -261,6 +290,10 @@ func metadataToDict(mtd *C.Metadata) (val *starlark.Dict, err error) {
 		return
 	}
 	err = dict.SetKey(starlark.String("user_agent"), starlark.String(mtd.UserAgent))
+	if err != nil {
+		return
+	}
+	err = dict.SetKey(starlark.String("special_proxy"), starlark.String(mtd.SpecialProxy))
 	if err != nil {
 		return
 	}

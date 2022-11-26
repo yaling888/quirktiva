@@ -224,16 +224,17 @@ now: {
   minute:     int
   second:     int
 }
-type:         string
-network:      string
-host:         string
-process_name: string
-process_path: string
-user_agent:   string
-src_ip:       string
-src_port:     int
-dst_ip:       string // call resolve_ip(host) if empty
-dst_port:     int
+type:            string
+network:         string
+host:            string
+process_name:    string
+process_path:    string
+user_agent:      string
+special_proxy:   string
+src_ip:          string
+src_port:        int
+dst_ip:          string // call resolve_ip(host) if empty
+dst_port:        int
 ```
 Script shortcut functions
 ```ts
@@ -241,6 +242,8 @@ type resolve_ip = (host: string) => string // ip string
 type in_cidr = (ip: string, cidr: string) => boolean // ip in cidr
 type geoip = (ip: string) => string // country code
 type match_provider = (name: string) => boolean // in rule provider
+type resolve_process_name = () => string // process name
+type resolve_process_path = () => string // process path
 ```
 
 ### Script configuration
@@ -305,6 +308,7 @@ interface Metadata {
   network: string // tcp、udp
   host: string
   user_agent: string
+  special_proxy: string
   src_ip: string
   src_port: string
   dst_ip: string
@@ -314,6 +318,7 @@ interface Metadata {
 interface Context {
   resolve_ip: (host: string) => string // ip string
   resolve_process_name: (metadata: Metadata) => string
+  resolve_process_path: (metadata: Metadata) => string
   geoip: (ip: string) => string // country code
   log: (log: string) => void
   proxy_providers: Record<string, Array<{ name: string, alive: boolean, delay: number }>>

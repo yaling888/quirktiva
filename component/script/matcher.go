@@ -14,18 +14,19 @@ import (
 const metadataLocalKey = "local.metadata_key"
 
 var keywordAllow = map[string]bool{
-	"_metadata":    true,
-	"now":          true,
-	"type":         true,
-	"network":      true,
-	"host":         true,
-	"process_name": true,
-	"process_path": true,
-	"src_ip":       true,
-	"src_port":     true,
-	"dst_ip":       true,
-	"dst_port":     true,
-	"user_agent":   true,
+	"_metadata":     true,
+	"now":           true,
+	"type":          true,
+	"network":       true,
+	"host":          true,
+	"process_name":  true,
+	"process_path":  true,
+	"src_ip":        true,
+	"src_port":      true,
+	"dst_ip":        true,
+	"dst_port":      true,
+	"user_agent":    true,
+	"special_proxy": true,
 }
 
 var _ C.Matcher = (*Matcher)(nil)
