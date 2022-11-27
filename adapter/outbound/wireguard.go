@@ -6,12 +6,14 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/netip"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/phuslu/log"
 	"golang.zx2c4.com/wireguard/device"
@@ -24,16 +26,26 @@ import (
 	"github.com/Dreamacro/clash/transport/wireguard"
 )
 
+const dialTimeout = 8 * time.Second
+
 type WireGuard struct {
 	*Base
 	wgDevice  *device.Device
 	tunDevice tun.Device
 	netStack  *netstack.Net
 	bind      *wireguard.WgBind
-	dialer    *wgDialer
-	endpoint  netip.AddrPort
-	upOnce    sync.Once
-	closeOnce sync.Once
+
+	dialer     *wgDialer
+	endpoint   netip.AddrPort
+	localIPs   []netip.Addr
+	dnsServers []netip.Addr
+	uapiConf   []string
+	threadId   string
+	mtu        int
+
+	upOnce   sync.Once
+	downOnce sync.Once
+	upErr    error
 }
 
 type WireGuardOption struct {
@@ -53,9 +65,19 @@ type WireGuardOption struct {
 
 func (w *WireGuard) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.Conn, error) {
 	w.up()
+	if w.upErr != nil {
+		return nil, fmt.Errorf("apply wireguard proxy %s config failure, cause: %w", w.threadId, w.upErr)
+	}
 	w.dialer.options = opts
 
-	c, err := w.netStack.DialContext(ctx, "tcp", metadata.RemoteAddress())
+	dialCtx := ctx
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		dialCtx, cancel = context.WithDeadline(ctx, time.Now().Add(dialTimeout))
+		defer cancel()
+	}
+
+	c, err := w.netStack.DialContext(dialCtx, "tcp", metadata.RemoteAddress())
 	if err != nil {
 		return nil, err
 	}
@@ -67,6 +89,9 @@ func (w *WireGuard) DialContext(ctx context.Context, metadata *C.Metadata, opts 
 
 func (w *WireGuard) ListenPacketContext(_ context.Context, _ *C.Metadata, opts ...dialer.Option) (C.PacketConn, error) {
 	w.up()
+	if w.upErr != nil {
+		return nil, fmt.Errorf("apply wireguard proxy %s config failure, cause: %w", w.threadId, w.upErr)
+	}
 	w.dialer.options = opts
 
 	pc, err := w.netStack.ListenUDPAddrPort(w.endpoint)
@@ -81,7 +106,15 @@ func (w *WireGuard) ListenPacketContext(_ context.Context, _ *C.Metadata, opts .
 
 func (w *WireGuard) up() {
 	w.upOnce.Do(func() {
-		w.tunDevice.Events() <- tun.EventUp
+		w.upErr = initWireGuard(w)
+	})
+}
+
+func (w *WireGuard) down() {
+	w.downOnce.Do(func() {
+		if w.wgDevice != nil {
+			w.wgDevice.Close()
+		}
 	})
 }
 
@@ -184,29 +217,7 @@ func NewWireGuard(option WireGuardOption) (*WireGuard, error) {
 		mtu = 1408
 	}
 
-	localDialer := &wgDialer{}
-	wgBind := wireguard.NewWgBind(context.Background(), localDialer, endpoint)
-
-	tunDevice, netStack, err := netstack.CreateNetTUN(localIPs, dnsServers, mtu)
-	if err != nil {
-		return nil, fmt.Errorf("create wireguard device failure, cause: %w", err)
-	}
-
-	wgDevice := device.NewDevice(tunDevice, wgBind, &device.Logger{
-		Verbosef: func(format string, args ...any) {
-			log.Debug().Msgf("[WireGuard] "+strings.ToLower(format), args...)
-		},
-		Errorf: func(format string, args ...any) {
-			log.Error().Msgf("[WireGuard] "+strings.ToLower(format), args...)
-		},
-	})
-
-	log.Info().Strs("config", uapiConf).Msg("[Config] initial wireguard")
-
-	err = wgDevice.IpcSet(strings.Join(uapiConf, "\n"))
-	if err != nil {
-		return nil, fmt.Errorf("initial wireguard failure, cause: %w", err)
-	}
+	threadId := fmt.Sprintf("%s-%d", option.Name, rand.Intn(100))
 
 	wireGuard := &WireGuard{
 		Base: &Base{
@@ -217,24 +228,50 @@ func NewWireGuard(option WireGuardOption) (*WireGuard, error) {
 			iface: option.Interface,
 			rmark: option.RoutingMark,
 		},
-		bind:      wgBind,
-		wgDevice:  wgDevice,
-		tunDevice: tunDevice,
-		netStack:  netStack,
-		endpoint:  endpoint,
-		dialer:    localDialer,
+		dialer:     &wgDialer{},
+		endpoint:   endpoint,
+		localIPs:   localIPs,
+		dnsServers: dnsServers,
+		uapiConf:   uapiConf,
+		threadId:   threadId,
+		mtu:        mtu,
 	}
-	runtime.SetFinalizer(wireGuard, wgCloser)
 	return wireGuard, nil
 }
 
-var wgCloser = func(w *WireGuard) {
-	w.closeOnce.Do(func() {
-		if w.wgDevice != nil {
-			w.wgDevice.Close()
-		}
-		if w.tunDevice != nil {
-			_ = w.tunDevice.Close()
-		}
+func initWireGuard(wg *WireGuard) error {
+	wgBind := wireguard.NewWgBind(context.Background(), wg.dialer, wg.endpoint)
+
+	tunDevice, netStack, err := netstack.CreateNetTUN(wg.localIPs, wg.dnsServers, wg.mtu)
+	if err != nil {
+		return fmt.Errorf("initial wireguard proxy %s failure, cause: %w", wg.threadId, err)
+	}
+
+	logger := &device.Logger{
+		Verbosef: func(format string, args ...any) {
+			log.Debug().Msgf("[WireGuard] [%s] "+strings.ToLower(format), append([]any{wg.threadId}, args...)...)
+		},
+		Errorf: func(format string, args ...any) {
+			log.Error().Msgf("[WireGuard] [%s] "+strings.ToLower(format), append([]any{wg.threadId}, args...)...)
+		},
+	}
+
+	wgDevice := device.NewDevice(tunDevice, wgBind, logger)
+
+	log.Debug().Strs("config", wg.uapiConf).Msg("[WireGuard] initial wireguard")
+
+	err = wgDevice.IpcSet(strings.Join(wg.uapiConf, "\n"))
+	if err != nil {
+		return fmt.Errorf("initial wireguard proxy %s failure, cause: %w", wg.threadId, err)
+	}
+
+	wg.bind = wgBind
+	wg.tunDevice = tunDevice
+	wg.netStack = netStack
+	wg.wgDevice = wgDevice
+
+	runtime.SetFinalizer(wg, func(w *WireGuard) {
+		w.down()
 	})
+	return nil
 }

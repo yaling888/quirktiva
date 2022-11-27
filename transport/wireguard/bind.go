@@ -19,7 +19,7 @@ var _ conn.Bind = (*WgBind)(nil)
 type WgBind struct {
 	ctx      context.Context
 	dialer   wgDialer
-	endpoint netip.AddrPort
+	endpoint conn.StdNetEndpoint
 	conn     *wgConn
 	connMux  sync.Mutex
 	done     chan struct{}
@@ -49,7 +49,7 @@ func (c *WgBind) connect() (*wgConn, error) {
 		}
 	}
 
-	udpConn, err := c.dialer.DialContext(c.ctx, "udp", c.endpoint)
+	udpConn, err := c.dialer.DialContext(c.ctx, "udp", (netip.AddrPort)(c.endpoint))
 	if err != nil {
 		return nil, &wgError{err}
 	}
@@ -87,7 +87,7 @@ func (c *WgBind) receive(b []byte) (n int, ep conn.Endpoint, err error) {
 		}
 		return
 	}
-	ep = Endpoint(c.endpoint)
+	ep = c.endpoint
 	return
 }
 
@@ -135,18 +135,18 @@ func (c *WgBind) Send(b []byte, _ conn.Endpoint) error {
 }
 
 func (c *WgBind) ParseEndpoint(_ string) (conn.Endpoint, error) {
-	return Endpoint(c.endpoint), nil
+	return c.endpoint, nil
 }
 
 func (c *WgBind) Endpoint() conn.Endpoint {
-	return Endpoint(c.endpoint)
+	return c.endpoint
 }
 
 func NewWgBind(ctx context.Context, dialer wgDialer, endpoint netip.AddrPort) *WgBind {
 	return &WgBind{
 		ctx:      ctx,
 		dialer:   dialer,
-		endpoint: endpoint,
+		endpoint: conn.StdNetEndpoint(endpoint),
 	}
 }
 
