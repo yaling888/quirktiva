@@ -3,8 +3,6 @@ name: CodeQL
 on:
   push:
     branches: [plus-pro]
-  pull_request:
-    branches: [plus-pro]
 
 jobs:
   analyze:

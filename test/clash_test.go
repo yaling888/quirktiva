@@ -36,6 +36,7 @@ const (
 	ImageTrojanGo        = "p4gefau1t/trojan-go:latest"
 	ImageSnell           = "ghcr.io/icpz/snell-server:latest"
 	ImageXray            = "teddysun/xray:latest"
+	ImageBoringTun       = "ghcr.io/ntkme/boringtun:edge"
 )
 
 var (
@@ -103,6 +104,7 @@ func init() {
 		ImageTrojanGo,
 		ImageSnell,
 		ImageXray,
+		ImageBoringTun,
 	}
 
 	for _, image := range images {
