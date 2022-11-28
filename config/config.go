@@ -919,6 +919,16 @@ func parseDNS(rawCfg *RawConfig, hosts *trie.DomainTrie[netip.Addr]) (*DNS, erro
 			}
 		}
 
+		if len(dnsCfg.NameServerPolicy) != 0 {
+			keys := lo.Keys(dnsCfg.NameServerPolicy)
+			for _, policy := range keys {
+				if net.ParseIP(policy) != nil {
+					continue
+				}
+				_ = host.Insert(policy, true)
+			}
+		}
+
 		pool, err := fakeip.New(fakeip.Options{
 			IPNet:       &ipnet,
 			Size:        1000,
