@@ -139,7 +139,7 @@ lookup:
 		return fmt.Errorf("parse server endpoint [%s] failure, cause: %w", w.Base.Addr(), err)
 	}
 
-	p, _ := strconv.Atoi(port)
+	p, _ := strconv.ParseUint(port, 10, 16)
 	endpoint := netip.AddrPortFrom(endpointIP, uint16(p))
 	w.uapiConf = append(w.uapiConf, fmt.Sprintf("endpoint=%s", endpoint))
 
