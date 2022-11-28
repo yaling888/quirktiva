@@ -109,6 +109,9 @@ type ProxyAdapter interface {
 
 	// Unwrap extracts the proxy from a proxy-group. It returns nil when nothing to extract.
 	Unwrap(metadata *Metadata) Proxy
+
+	// Cleanup released resources.
+	Cleanup()
 }
 
 type DelayHistory struct {

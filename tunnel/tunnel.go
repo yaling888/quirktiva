@@ -99,9 +99,14 @@ func Providers() map[string]provider.ProxyProvider {
 // UpdateProxies handle update proxies
 func UpdateProxies(newProxies map[string]C.Proxy, newProviders map[string]provider.ProxyProvider) {
 	configMux.Lock()
+	old := proxies
 	proxies = newProxies
 	providers = newProviders
 	C.GetScriptProxyProviders = scriptProxyProvidersGetter
+	statistic.DefaultManager.Cleanup()
+	for _, p := range old {
+		go p.(C.ProxyAdapter).Cleanup()
+	}
 	configMux.Unlock()
 }
 

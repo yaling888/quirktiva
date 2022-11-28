@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/samber/lo"
 	"go.uber.org/atomic"
 )
 
@@ -38,6 +39,21 @@ func (m *Manager) Join(c tracker) {
 
 func (m *Manager) Leave(c tracker) {
 	m.connections.Delete(c.ID())
+}
+
+func (m *Manager) KickOut(names ...string) {
+	seen := lo.SliceToMap(names, func(item string) (string, struct{}) {
+		return item, struct{}{}
+	})
+
+	snapshot := m.Snapshot()
+	for _, c := range snapshot.Connections {
+		if v, ok := c.(*tcpTracker); ok {
+			if _, ok = seen[v.Chains().Last()]; ok {
+				_ = v.Close()
+			}
+		}
+	}
 }
 
 func (m *Manager) PushUploaded(size int64) {
@@ -75,6 +91,13 @@ func (m *Manager) ResetStatistic() {
 	m.downloadTemp.Store(0)
 	m.downloadBlip.Store(0)
 	m.downloadTotal.Store(0)
+}
+
+func (m *Manager) Cleanup() {
+	snapshot := m.Snapshot()
+	for _, c := range snapshot.Connections {
+		_ = c.Close()
+	}
 }
 
 func (m *Manager) handle() {

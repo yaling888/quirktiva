@@ -8,12 +8,14 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/samber/lo"
 	"gopkg.in/yaml.v3"
 
 	"github.com/Dreamacro/clash/adapter"
 	"github.com/Dreamacro/clash/common/convert"
 	C "github.com/Dreamacro/clash/constant"
 	types "github.com/Dreamacro/clash/constant/provider"
+	"github.com/Dreamacro/clash/tunnel/statistic"
 )
 
 const (
@@ -87,11 +89,22 @@ func (pp *proxySetProvider) Touch() {
 }
 
 func (pp *proxySetProvider) setProxies(proxies []C.Proxy) {
+	old := pp.proxies
 	pp.proxies = proxies
 	pp.healthCheck.setProxy(proxies)
 
 	for _, use := range pp.providersInUse {
 		_ = use.Update()
+	}
+
+	if len(old) > 0 {
+		names := lo.Map(old, func(item C.Proxy, _ int) string {
+			p := item.(C.ProxyAdapter)
+			name := p.Name()
+			go p.Cleanup()
+			return name
+		})
+		statistic.DefaultManager.KickOut(names...)
 	}
 }
 

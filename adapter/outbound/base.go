@@ -69,6 +69,9 @@ func (b *Base) Unwrap(_ *C.Metadata) C.Proxy {
 	return nil
 }
 
+// Cleanup implements C.ProxyAdapter
+func (b *Base) Cleanup() {}
+
 // DialOptions return []dialer.Option from struct
 func (b *Base) DialOptions(opts ...dialer.Option) []dialer.Option {
 	if b.iface != "" {
