@@ -63,12 +63,11 @@ type WireGuardOption struct {
 	Reserved     string   `proxy:"reserved,omitempty"`
 }
 
-func (w *WireGuard) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.Conn, error) {
+func (w *WireGuard) DialContext(ctx context.Context, metadata *C.Metadata, _ ...dialer.Option) (C.Conn, error) {
 	w.up()
 	if w.upErr != nil {
 		return nil, fmt.Errorf("apply wireguard proxy %s config error: %w", w.threadId, w.upErr)
 	}
-	w.dialer.options = opts
 
 	dialCtx := ctx
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
@@ -87,15 +86,21 @@ func (w *WireGuard) DialContext(ctx context.Context, metadata *C.Metadata, opts 
 	return NewConn(&wgConn{c}, w), nil
 }
 
-func (w *WireGuard) ListenPacketContext(_ context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.PacketConn, error) {
+func (w *WireGuard) ListenPacketContext(ctx context.Context, metadata *C.Metadata, _ ...dialer.Option) (C.PacketConn, error) {
 	w.up()
 	if w.upErr != nil {
 		return nil, fmt.Errorf("apply wireguard proxy %s config failure, cause: %w", w.threadId, w.upErr)
 	}
-	w.dialer.options = opts
+
+	// lookup host by remote server
+	rAddrs, err := w.netStack.LookupContextHost(ctx, metadata.Host)
+	if err != nil {
+		return nil, err
+	}
+	metadata.TempDstIP = rAddrs[0]
 
 	var lAddr netip.Addr
-	if metadata.DstIP.Is6() {
+	if metadata.TempDstIP.Is6() {
 		lAddr = w.localIPv6
 	} else {
 		lAddr = w.localIP

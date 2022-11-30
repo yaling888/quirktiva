@@ -313,7 +313,8 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), C.DefaultUDPTimeout)
 		defer cancel()
-		rawPc, err := proxy.ListenPacketContext(ctx, metadata.Pure(false))
+		metadataPure := metadata.Pure(false)
+		rawPc, err := proxy.ListenPacketContext(ctx, metadataPure)
 		if err != nil {
 			if rule == nil {
 				log.Warn().
@@ -332,6 +333,11 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 			}
 			return
 		}
+
+		if metadataPure.TempDstIP.IsValid() {
+			metadata.DstIP = metadataPure.TempDstIP
+		}
+
 		pCtx.InjectPacketConn(rawPc)
 		pc := statistic.NewUDPTracker(rawPc, statistic.DefaultManager, metadata, rule)
 

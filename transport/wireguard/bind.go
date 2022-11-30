@@ -84,7 +84,7 @@ func (wb *WgBind) receive(b []byte) (n int, ep conn.Endpoint, err error) {
 			err = nil
 		}
 		if wgErr, ok := err.(*wgError); ok && wgErr.IsError(syscall.ENETUNREACH) {
-			time.Sleep(10 * time.Second)
+			time.Sleep(2 * time.Second)
 		}
 		return
 	}
