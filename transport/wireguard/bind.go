@@ -2,9 +2,12 @@ package wireguard
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/netip"
 	"sync"
+	"syscall"
+	"time"
 
 	"golang.zx2c4.com/wireguard/conn"
 )
@@ -73,7 +76,15 @@ func (c *WgBind) Open(_ uint16) (fns []conn.ReceiveFunc, actualPort uint16, err 
 func (c *WgBind) receive(b []byte) (n int, ep conn.Endpoint, err error) {
 	udpConn, err := c.connect()
 	if err != nil {
-		err = &wgError{err}
+		select {
+		case <-c.done:
+			err = net.ErrClosed
+		default:
+			err = nil
+		}
+		if wgErr, ok := err.(*wgError); ok && wgErr.IsError(syscall.ENETUNREACH) {
+			time.Sleep(10 * time.Second)
+		}
 		return
 	}
 
@@ -82,8 +93,11 @@ func (c *WgBind) receive(b []byte) (n int, ep conn.Endpoint, err error) {
 		_ = udpConn.Close()
 		select {
 		case <-c.done:
+			err = net.ErrClosed
+			return
 		default:
-			err = &wgError{err}
+			n = 0
+			err = nil
 		}
 		return
 	}
@@ -175,6 +189,10 @@ type wgError struct {
 
 func (w *wgError) Error() string {
 	return w.cause.Error()
+}
+
+func (w *wgError) IsError(target error) bool {
+	return errors.Is(w.cause, target)
 }
 
 func (w *wgError) Timeout() bool {
