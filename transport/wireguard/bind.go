@@ -14,7 +14,6 @@ import (
 
 type wgDialer interface {
 	DialContext(context.Context, string, netip.AddrPort) (net.Conn, error)
-	ListenPacket(context.Context, netip.AddrPort) (net.PacketConn, error)
 }
 
 var _ conn.Bind = (*WgBind)(nil)
@@ -23,13 +22,14 @@ type WgBind struct {
 	ctx      context.Context
 	dialer   wgDialer
 	endpoint conn.StdNetEndpoint
+	reserved []byte
 	conn     *wgConn
 	connMux  sync.Mutex
 	done     chan struct{}
 }
 
-func (c *WgBind) connect() (*wgConn, error) {
-	serverConn := c.conn
+func (wb *WgBind) connect() (*wgConn, error) {
+	serverConn := wb.conn
 	if serverConn != nil {
 		select {
 		case <-serverConn.done:
@@ -39,10 +39,10 @@ func (c *WgBind) connect() (*wgConn, error) {
 		}
 	}
 
-	c.connMux.Lock()
-	defer c.connMux.Unlock()
+	wb.connMux.Lock()
+	defer wb.connMux.Unlock()
 
-	serverConn = c.conn
+	serverConn = wb.conn
 	if serverConn != nil {
 		select {
 		case <-serverConn.done:
@@ -52,32 +52,33 @@ func (c *WgBind) connect() (*wgConn, error) {
 		}
 	}
 
-	udpConn, err := c.dialer.DialContext(c.ctx, "udp", (netip.AddrPort)(c.endpoint))
+	udpConn, err := wb.dialer.DialContext(wb.ctx, "udp", (netip.AddrPort)(wb.endpoint))
 	if err != nil {
 		return nil, &wgError{err}
 	}
-	c.conn = &wgConn{
+	wb.conn = &wgConn{
 		Conn: udpConn,
 		done: make(chan struct{}),
 	}
-	return c.conn, nil
+	return wb.conn, nil
 }
 
-func (c *WgBind) Open(_ uint16) (fns []conn.ReceiveFunc, actualPort uint16, err error) {
+func (wb *WgBind) Open(_ uint16) (fns []conn.ReceiveFunc, actualPort uint16, err error) {
 	select {
-	case <-c.done:
+	case <-wb.done:
 		err = net.ErrClosed
 		return
 	default:
 	}
-	return []conn.ReceiveFunc{c.receive}, 0, nil
+	return []conn.ReceiveFunc{wb.receive}, 0, nil
 }
 
-func (c *WgBind) receive(b []byte) (n int, ep conn.Endpoint, err error) {
-	udpConn, err := c.connect()
+func (wb *WgBind) receive(b []byte) (n int, ep conn.Endpoint, err error) {
+	var udpConn *wgConn
+	udpConn, err = wb.connect()
 	if err != nil {
 		select {
-		case <-c.done:
+		case <-wb.done:
 			err = net.ErrClosed
 		default:
 			err = nil
@@ -92,7 +93,7 @@ func (c *WgBind) receive(b []byte) (n int, ep conn.Endpoint, err error) {
 	if err != nil {
 		_ = udpConn.Close()
 		select {
-		case <-c.done:
+		case <-wb.done:
 			err = net.ErrClosed
 			return
 		default:
@@ -101,46 +102,48 @@ func (c *WgBind) receive(b []byte) (n int, ep conn.Endpoint, err error) {
 		}
 		return
 	}
-	ep = c.endpoint
+	wb.resetReserved(b)
+	ep = wb.endpoint
 	return
 }
 
-func (c *WgBind) Reset() {
-	c.connMux.Lock()
-	defer c.connMux.Unlock()
-	if c.conn != nil {
-		_ = c.conn.Close()
+func (wb *WgBind) Reset() {
+	wb.connMux.Lock()
+	defer wb.connMux.Unlock()
+	if wb.conn != nil {
+		_ = wb.conn.Close()
 	}
 }
 
-func (c *WgBind) Close() error {
-	c.connMux.Lock()
-	defer c.connMux.Unlock()
-	if c.conn != nil {
-		_ = c.conn.Close()
+func (wb *WgBind) Close() error {
+	wb.connMux.Lock()
+	defer wb.connMux.Unlock()
+	if wb.conn != nil {
+		_ = wb.conn.Close()
 	}
-	if c.done == nil {
-		c.done = make(chan struct{})
+	if wb.done == nil {
+		wb.done = make(chan struct{})
 		return nil
 	}
 	select {
-	case <-c.done:
+	case <-wb.done:
 		return net.ErrClosed
 	default:
-		close(c.done)
+		close(wb.done)
 	}
 	return nil
 }
 
-func (c *WgBind) SetMark(_ uint32) error {
+func (wb *WgBind) SetMark(_ uint32) error {
 	return nil
 }
 
-func (c *WgBind) Send(b []byte, _ conn.Endpoint) error {
-	udpConn, err := c.connect()
+func (wb *WgBind) Send(b []byte, _ conn.Endpoint) error {
+	udpConn, err := wb.connect()
 	if err != nil {
 		return err
 	}
+	wb.setReserved(b)
 	_, err = udpConn.Write(b)
 	if err != nil {
 		_ = udpConn.Close()
@@ -148,18 +151,37 @@ func (c *WgBind) Send(b []byte, _ conn.Endpoint) error {
 	return err
 }
 
-func (c *WgBind) ParseEndpoint(_ string) (conn.Endpoint, error) {
-	return c.endpoint, nil
+func (wb *WgBind) ParseEndpoint(_ string) (conn.Endpoint, error) {
+	return wb.endpoint, nil
 }
 
-func (c *WgBind) Endpoint() conn.Endpoint {
-	return c.endpoint
+func (wb *WgBind) Endpoint() conn.Endpoint {
+	return wb.endpoint
 }
 
-func NewWgBind(ctx context.Context, dialer wgDialer, endpoint netip.AddrPort) *WgBind {
+func (wb *WgBind) setReserved(b []byte) {
+	if len(b) < 4 || wb.reserved == nil {
+		return
+	}
+	b[1] = wb.reserved[0]
+	b[2] = wb.reserved[1]
+	b[3] = wb.reserved[2]
+}
+
+func (wb *WgBind) resetReserved(b []byte) {
+	if len(b) < 4 {
+		return
+	}
+	b[1] = 0x00
+	b[2] = 0x00
+	b[3] = 0x00
+}
+
+func NewWgBind(ctx context.Context, dialer wgDialer, endpoint netip.AddrPort, reserved []byte) *WgBind {
 	return &WgBind{
 		ctx:      ctx,
 		dialer:   dialer,
+		reserved: reserved,
 		endpoint: conn.StdNetEndpoint(endpoint),
 	}
 }

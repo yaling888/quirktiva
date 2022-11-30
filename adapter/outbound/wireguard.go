@@ -17,7 +17,6 @@ import (
 	"github.com/phuslu/log"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
-	"golang.zx2c4.com/wireguard/tun/netstack"
 
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"
@@ -31,13 +30,14 @@ type WireGuard struct {
 	*Base
 	wgDevice  *device.Device
 	tunDevice tun.Device
-	netStack  *netstack.Net
+	netStack  *wireguard.Net
 	bind      *wireguard.WgBind
 
 	dialer     *wgDialer
 	localIP    netip.Addr
 	localIPv6  netip.Addr
 	dnsServers []netip.Addr
+	reserved   []byte
 	uapiConf   []string
 	threadId   string
 	mtu        int
@@ -60,6 +60,7 @@ type WireGuardOption struct {
 	DNS          []string `proxy:"dns,omitempty"`
 	MTU          int      `proxy:"mtu,omitempty"`
 	UDP          bool     `proxy:"udp,omitempty"`
+	Reserved     string   `proxy:"reserved,omitempty"`
 }
 
 func (w *WireGuard) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.Conn, error) {
@@ -143,7 +144,7 @@ lookup:
 	endpoint := netip.AddrPortFrom(endpointIP, uint16(p))
 	w.uapiConf = append(w.uapiConf, fmt.Sprintf("endpoint=%s", endpoint))
 
-	wgBind := wireguard.NewWgBind(context.Background(), w.dialer, endpoint)
+	wgBind := wireguard.NewWgBind(context.Background(), w.dialer, endpoint, w.reserved)
 
 	localIPs := make([]netip.Addr, 0, 2)
 	if w.localIP.IsValid() {
@@ -153,7 +154,7 @@ lookup:
 		localIPs = append(localIPs, w.localIPv6)
 	}
 
-	tunDevice, netStack, err := netstack.CreateNetTUN(localIPs, w.dnsServers, w.mtu)
+	tunDevice, netStack, err := wireguard.CreateNetTUN(localIPs, w.dnsServers, w.mtu)
 	if err != nil {
 		return err
 	}
@@ -182,6 +183,7 @@ lookup:
 	w.wgDevice = wgDevice
 	w.uapiConf = nil
 	w.dnsServers = nil
+	w.reserved = nil
 	return nil
 }
 
@@ -205,6 +207,17 @@ func NewWireGuard(option WireGuardOption) (*WireGuard, error) {
 			return nil, fmt.Errorf("decode wireguard preshared key failure, cause: %w", err)
 		}
 		uapiConf = append(uapiConf, fmt.Sprintf("preshared_key=%s", hex.EncodeToString(bytes)))
+	}
+
+	var reservedBytes []byte
+	if option.Reserved != "" {
+		reserved := option.Reserved
+		if _, b, ok := strings.Cut(strings.ToLower(reserved), "0x"); ok {
+			reserved = b
+		}
+		if reservedBytes, err = hex.DecodeString(reserved); err != nil || len(reservedBytes) != 3 {
+			return nil, fmt.Errorf("decode wireguard reserved 3 bytes failure %w", err)
+		}
 	}
 
 	var (
@@ -256,19 +269,21 @@ func NewWireGuard(option WireGuardOption) (*WireGuard, error) {
 
 	threadId := fmt.Sprintf("%s-%d", option.Name, rand.Intn(100))
 
+	base := &Base{
+		name:  option.Name,
+		addr:  net.JoinHostPort(option.Server, strconv.Itoa(option.Port)),
+		tp:    C.WireGuard,
+		udp:   option.UDP,
+		iface: option.Interface,
+		rmark: option.RoutingMark,
+	}
 	wireGuard := &WireGuard{
-		Base: &Base{
-			name:  option.Name,
-			addr:  net.JoinHostPort(option.Server, strconv.Itoa(option.Port)),
-			tp:    C.WireGuard,
-			udp:   option.UDP,
-			iface: option.Interface,
-			rmark: option.RoutingMark,
-		},
-		dialer:     &wgDialer{},
+		Base:       base,
+		dialer:     &wgDialer{options: base.DialOptions()},
 		localIP:    localIP,
 		localIPv6:  localIPv6,
 		dnsServers: dnsServers,
+		reserved:   reservedBytes,
 		uapiConf:   uapiConf,
 		threadId:   threadId,
 		mtu:        mtu,
@@ -282,10 +297,6 @@ type wgDialer struct {
 
 func (d *wgDialer) DialContext(ctx context.Context, network string, address netip.AddrPort) (net.Conn, error) {
 	return dialer.DialContext(ctx, network, address.String(), d.options...)
-}
-
-func (d *wgDialer) ListenPacket(ctx context.Context, _ netip.AddrPort) (net.PacketConn, error) {
-	return dialer.ListenPacket(ctx, "udp", "", d.options...)
 }
 
 type wgConn struct {
