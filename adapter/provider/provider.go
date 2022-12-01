@@ -336,17 +336,22 @@ func proxiesOnUpdate(pd *proxySetProvider) func([]C.Proxy) {
 
 func proxiesParseAndFilter(filter string, filterReg *regexp.Regexp, forceCertVerify, udp, randomHost bool, prefixName string) parser[[]C.Proxy] {
 	return func(buf []byte) ([]C.Proxy, error) {
-		schema := &ProxySchema{}
-
-		if err := yaml.Unmarshal(buf, schema); err != nil {
-			proxies, err1 := convert.ConvertsV2Ray(buf)
-			if err1 != nil {
-				return nil, fmt.Errorf("%w, %s", err, err1.Error())
-			}
-			schema.Proxies = proxies
+		var (
+			schema = &ProxySchema{}
+			err    error
+		)
+		err = yaml.Unmarshal(buf, schema)
+		if err != nil {
+			schema.Proxies, err = convert.ConvertsV2Ray(buf)
+		}
+		if err != nil {
+			schema.Proxies, err = convert.ConvertsWireGuard(buf)
+		}
+		if err != nil {
+			return nil, errors.New("parse config file failure")
 		}
 
-		if schema.Proxies == nil {
+		if len(schema.Proxies) == 0 {
 			return nil, errors.New("file must have a `proxies` field")
 		}
 

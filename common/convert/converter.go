@@ -1,11 +1,15 @@
 package convert
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/netip"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -344,4 +348,105 @@ func uniqueName(names map[string]int, name string) string {
 		names[name] = index
 	}
 	return name
+}
+
+func ConvertsWireGuard(buf []byte) ([]map[string]any, error) {
+	var (
+		proxies = make([]map[string]any, 0, 50)
+		wgMap   map[string]any
+		scanner = bufio.NewScanner(bytes.NewReader(buf))
+	)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			line = strings.ToLower(strings.TrimSpace(line))
+			if line == "[interface]" {
+				if wgMap != nil && wgMap["name"] == nil {
+					if pk, ok := wgMap["public-key"].(string); ok && len(pk) >= 8 {
+						wgMap["name"] = fmt.Sprintf("wg-%s", pk[:8])
+					}
+				}
+				wgMap = make(map[string]any, 12)
+				wgMap["type"] = "wireguard"
+				wgMap["dns"] = make([]string, 0, 5)
+				wgMap["udp"] = true
+				proxies = append(proxies, wgMap)
+			}
+			continue
+		}
+
+		key = strings.ToLower(strings.TrimSpace(key))
+		value = strings.TrimSpace(value)
+
+		switch key {
+		case "name":
+			wgMap["name"] = value
+		case "endpoint":
+			host, port, err := net.SplitHostPort(value)
+			if err != nil {
+				return nil, err
+			}
+			p, err := strconv.Atoi(port)
+			if err != nil {
+				return nil, err
+			}
+			wgMap["server"] = host
+			wgMap["port"] = p
+		case "address":
+			ips := strings.Split(value, ",")
+			for _, v := range ips {
+				e, _, _ := strings.Cut(v, "/")
+				ip, err := netip.ParseAddr(strings.TrimSpace(e))
+				if err != nil {
+					return nil, err
+				}
+				if ip.Is4() {
+					wgMap["ip"] = ip.String()
+				} else {
+					wgMap["ipv6"] = ip.String()
+				}
+			}
+		case "privatekey":
+			wgMap["private-key"] = value
+		case "publickey":
+			wgMap["public-key"] = value
+		case "presharedkey":
+			wgMap["preshared-key"] = value
+		case "dns":
+			ips := strings.Split(value, ",")
+			for _, v := range ips {
+				v = strings.TrimSpace(v)
+				ip, err := netip.ParseAddr(v)
+				if err != nil {
+					return nil, err
+				}
+				dnses := wgMap["dns"].([]string)
+				wgMap["dns"] = append(dnses, ip.String())
+			}
+		case "mtu":
+			v, err := strconv.Atoi(value)
+			if err != nil {
+				return nil, err
+			}
+			wgMap["mtu"] = v
+		}
+	}
+
+	if len(proxies) == 0 {
+		return nil, fmt.Errorf("convert WireGuard error: format invalid")
+	}
+
+	if pk, ok := wgMap["public-key"].(string); ok && wgMap["name"] == nil && len(pk) >= 8 {
+		wgMap["name"] = fmt.Sprintf("wg-%s", pk[:8])
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return proxies, nil
 }
