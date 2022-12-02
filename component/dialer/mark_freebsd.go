@@ -8,6 +8,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+type controlFn = func(network, address string, c syscall.RawConn) error
+
 func bindMarkToDialer(mark int, dialer *net.Dialer, _ string, _ netip.Addr) {
 	dialer.Control = bindMarkToControl(mark, dialer.Control)
 }
@@ -31,7 +33,7 @@ func bindMarkToControl(mark int, chain controlFn) controlFn {
 
 		var innerErr error
 		err = c.Control(func(fd uintptr) {
-			innerErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_MARK, mark)
+			innerErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_USER_COOKIE, mark)
 		})
 		if err == nil && innerErr != nil {
 			err = innerErr
