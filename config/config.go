@@ -363,8 +363,24 @@ func UnmarshalRawConfig(buf []byte) (*RawConfig, error) {
 	return rawCfg, nil
 }
 
-func ParseRawConfig(rawCfg *RawConfig) (*Config, error) {
-	config := &Config{}
+func ParseRawConfig(rawCfg *RawConfig) (config *Config, err error) {
+	defer func() {
+		if err != nil {
+			for _, p := range config.Proxies {
+				go p.(C.ProxyAdapter).Cleanup()
+			}
+			for _, pd := range config.Providers {
+				if pd.VehicleType() == providerTypes.Compatible {
+					continue
+				}
+				for _, p := range pd.Proxies() {
+					go p.(C.ProxyAdapter).Cleanup()
+				}
+			}
+		}
+	}()
+
+	config = &Config{}
 
 	config.Experimental = &rawCfg.Experimental
 	config.Profile = &rawCfg.Profile
@@ -420,7 +436,22 @@ func ParseRawConfig(rawCfg *RawConfig) (*Config, error) {
 	// verify tunnels
 	for _, t := range config.Tunnels {
 		if _, ok := config.Proxies[t.Proxy]; !ok {
-			return nil, fmt.Errorf("tunnel proxy %s not found", t.Proxy)
+			pds := config.Providers
+		loop:
+			for _, pd := range pds {
+				if pd.VehicleType() == providerTypes.Compatible {
+					continue
+				}
+				for _, p := range pd.Proxies() {
+					ok = p.Name() == t.Proxy
+					if ok {
+						break loop
+					}
+				}
+			}
+			if !ok {
+				return nil, fmt.Errorf("tunnel proxy %s not found", t.Proxy)
+			}
 		}
 	}
 
