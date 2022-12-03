@@ -336,19 +336,17 @@ func proxiesOnUpdate(pd *proxySetProvider) func([]C.Proxy) {
 
 func proxiesParseAndFilter(filter string, filterReg *regexp.Regexp, forceCertVerify, udp, randomHost bool, prefixName string) parser[[]C.Proxy] {
 	return func(buf []byte) ([]C.Proxy, error) {
-		var (
-			schema = &ProxySchema{}
-			err    error
-		)
-		err = yaml.Unmarshal(buf, schema)
-		if err != nil {
-			schema.Proxies, err = convert.ConvertsV2Ray(buf)
-		}
-		if err != nil {
-			schema.Proxies, err = convert.ConvertsWireGuard(buf)
-		}
-		if err != nil {
-			return nil, errors.New("parse config file failure")
+		schema := &ProxySchema{}
+
+		if err := yaml.Unmarshal(buf, schema); err != nil {
+			proxies, err1 := convert.ConvertsV2Ray(buf)
+			if err1 != nil {
+				proxies, err1 = convert.ConvertsWireGuard(buf)
+			}
+			if err1 != nil {
+				return nil, errors.New("parse config file failure")
+			}
+			schema.Proxies = proxies
 		}
 
 		if len(schema.Proxies) == 0 {
