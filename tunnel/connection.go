@@ -46,9 +46,10 @@ func handleUDPToLocal(packet C.UDPPacket, pc net.PacketConn, key string, oAddr, 
 		fromUDPAddr := from.(*net.UDPAddr)
 		if fAddr.IsValid() {
 			fromAddr, _ := netip.AddrFromSlice(fromUDPAddr.IP)
-			fromAddr.Unmap()
+			fromAddr = fromAddr.Unmap()
 			if oAddr == fromAddr {
 				fromUDPAddr.IP = fAddr.AsSlice()
+				fromUDPAddr.Zone = fAddr.Zone()
 			}
 		}
 

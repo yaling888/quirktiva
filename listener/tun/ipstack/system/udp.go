@@ -10,12 +10,11 @@ import (
 type packet struct {
 	local     netip.AddrPort
 	data      []byte
-	offset    int
 	writeBack func(b []byte, addr net.Addr) (int, error)
 }
 
 func (pkt *packet) Data() []byte {
-	return pkt.data[:pkt.offset]
+	return pkt.data
 }
 
 func (pkt *packet) WriteBack(b []byte, addr net.Addr) (n int, err error) {

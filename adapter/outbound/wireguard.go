@@ -63,6 +63,7 @@ type WireGuardOption struct {
 	Reserved     string   `proxy:"reserved,omitempty"`
 }
 
+// DialContext implements C.ProxyAdapter
 func (w *WireGuard) DialContext(ctx context.Context, metadata *C.Metadata, _ ...dialer.Option) (C.Conn, error) {
 	w.up()
 	if w.upErr != nil {
@@ -86,6 +87,7 @@ func (w *WireGuard) DialContext(ctx context.Context, metadata *C.Metadata, _ ...
 	return NewConn(&wgConn{c}, w), nil
 }
 
+// ListenPacketContext implements C.ProxyAdapter
 func (w *WireGuard) ListenPacketContext(ctx context.Context, metadata *C.Metadata, _ ...dialer.Option) (C.PacketConn, error) {
 	w.up()
 	if w.upErr != nil {

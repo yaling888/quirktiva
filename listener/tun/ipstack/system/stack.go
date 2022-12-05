@@ -168,13 +168,10 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 			_ = udp.Close()
 		}(stack.UDP())
 
+		buf := make([]byte, 65535)
 		for {
-			buf := pool.Get(pool.UDPBufferSize)
-
 			n, lAddrPort, rAddrPort, err0 := stack.UDP().ReadFrom(buf)
 			if err0 != nil {
-				_ = pool.Put(buf)
-
 				if ipStack.closed {
 					break
 				}
@@ -186,18 +183,18 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 			}
 
 			if rAddrPort.Addr().IsLoopback() || rAddrPort.Addr() == gateway {
-				_ = pool.Put(buf)
-
 				continue
 			}
 
+			poolBuf := pool.Get(n)
+			_ = copy(poolBuf, buf[:n])
 			if D.ShouldHijackDns(dnsAddr, rAddrPort, "udp") {
-				go func(dnsUdp *nat.UDP, b []byte, length int, rap, lap netip.AddrPort) {
+				go func(dnsUdp *nat.UDP, b []byte, rap, lap netip.AddrPort) {
 					defer func(bb []byte) {
 						_ = pool.Put(bb)
 					}(b)
 
-					msg, err1 := D.RelayDnsPacket(b[:length])
+					msg, err1 := D.RelayDnsPacket(b)
 					if err1 != nil {
 						return
 					}
@@ -207,17 +204,19 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 					log.Debug().
 						Str("addr", rap.String()).
 						Msg("[TUN] hijack udp dns")
-				}(stack.UDP(), buf, n, rAddrPort, lAddrPort)
+				}(stack.UDP(), poolBuf, rAddrPort, lAddrPort)
 
 				continue
 			}
 
 			pkt := &packet{
-				local:  lAddrPort,
-				data:   buf,
-				offset: n,
+				local: lAddrPort,
+				data:  poolBuf,
 				writeBack: func(b []byte, addr net.Addr) (int, error) {
-					return stack.UDP().WriteTo(b, rAddrPort, lAddrPort)
+					a := addr.(*net.UDPAddr)
+					na, _ := netip.AddrFromSlice(a.IP)
+					na = na.WithZone(a.Zone)
+					return stack.UDP().WriteTo(b, netip.AddrPortFrom(na.Unmap(), uint16(a.Port)), lAddrPort)
 				},
 			}
 

@@ -576,8 +576,10 @@ func matchScript(metadata *C.Metadata) (C.Proxy, error) {
 		return nil, err
 	}
 
-	if _, ok := proxies[adapter]; !ok {
+	if proxy, ok := proxies[adapter]; !ok {
 		return nil, fmt.Errorf("proxy adapter [%s] not found by script", adapter)
+	} else if metadata.NetWork == C.UDP && !proxy.SupportUDP() {
+		return nil, fmt.Errorf("proxy adapter [%s] UDP is not supported", adapter)
 	}
 
 	return proxies[adapter], nil
