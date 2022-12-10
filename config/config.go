@@ -387,46 +387,46 @@ func ParseRawConfig(rawCfg *RawConfig) (config *Config, err error) {
 
 	general, err := parseGeneral(rawCfg)
 	if err != nil {
-		return nil, err
+		return
 	}
 	config.General = general
 
 	proxies, providers, err := parseProxies(rawCfg)
 	if err != nil {
-		return nil, err
+		return
 	}
 	config.Proxies = proxies
 	config.Providers = providers
 
 	matchers, rawRules, err := parseScript(rawCfg.Script, rawCfg.Rule)
 	if err != nil {
-		return nil, err
+		return
 	}
 	rawCfg.Rule = rawRules
 	config.MainMatcher = matchers["main"]
 
 	rules, ruleProviders, err := parseRules(rawCfg, proxies, matchers)
 	if err != nil {
-		return nil, err
+		return
 	}
 	config.Rules = rules
 	config.RuleProviders = ruleProviders
 
 	hosts, err := parseHosts(rawCfg)
 	if err != nil {
-		return nil, err
+		return
 	}
 	config.Hosts = hosts
 
 	dnsCfg, err := parseDNS(rawCfg, hosts)
 	if err != nil {
-		return nil, err
+		return
 	}
 	config.DNS = dnsCfg
 
 	mitm, err := parseMitm(rawCfg.MITM)
 	if err != nil {
-		return nil, err
+		return
 	}
 	config.Mitm = mitm
 
@@ -450,16 +450,14 @@ func ParseRawConfig(rawCfg *RawConfig) (config *Config, err error) {
 				}
 			}
 			if !ok {
-				return nil, fmt.Errorf("tunnel proxy %s not found", t.Proxy)
+				err = fmt.Errorf("tunnel proxy %s not found", t.Proxy)
+				return
 			}
 		}
 	}
 
-	if err = testScriptMatcher(config, matchers); err != nil {
-		return nil, err
-	}
-
-	return config, nil
+	err = verifyScriptMatcher(config, matchers)
+	return
 }
 
 func parseGeneral(cfg *RawConfig) (*General, error) {
@@ -1137,12 +1135,16 @@ func parseMitm(rawMitm RawMitm) (*Mitm, error) {
 	}, nil
 }
 
-func testScriptMatcher(config *Config, matchers map[string]C.Matcher) (err error) {
+func verifyScriptMatcher(config *Config, matchers map[string]C.Matcher) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("test script code panic: %v", r)
 		}
 	}()
+
+	if len(matchers) == 0 {
+		return
+	}
 
 	metadata := &C.Metadata{
 		Type:    C.SOCKS5,
@@ -1173,9 +1175,10 @@ func testScriptMatcher(config *Config, matchers map[string]C.Matcher) (err error
 			_, err = v.Match(metadata)
 		}
 		if err != nil {
-			return fmt.Errorf("check script code failed: %w", err)
+			err = fmt.Errorf("check script code failed: %w", err)
+			return
 		}
 	}
 
-	return nil
+	return
 }
