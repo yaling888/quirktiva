@@ -157,7 +157,7 @@ func (tun *netTun) Flush() error {
 }
 
 func (tun *netTun) Close() error {
-	tun.stack.RemoveNIC(1)
+	tun.stack.Destroy()
 
 	if tun.events != nil {
 		close(tun.events)

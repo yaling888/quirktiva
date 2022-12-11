@@ -34,8 +34,7 @@ func (s *gvStack) Close() error {
 		err = s.device.Close()
 	}
 	if s.Stack != nil {
-		s.Stack.Close()
-		s.Stack.Wait()
+		s.Stack.Destroy()
 	}
 	return err
 }
