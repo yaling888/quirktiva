@@ -16,8 +16,9 @@ import (
 var enc = base64.StdEncoding
 
 func DecodeBase64(buf []byte) ([]byte, error) {
-	dBuf := make([]byte, enc.DecodedLen(len(buf)))
-	n, err := enc.Decode(dBuf, buf)
+	buff := bytes.TrimSpace(buf)
+	dBuf := make([]byte, enc.DecodedLen(len(buff)))
+	n, err := enc.Decode(dBuf, buff)
 	if err != nil {
 		return nil, err
 	}
@@ -26,8 +27,9 @@ func DecodeBase64(buf []byte) ([]byte, error) {
 }
 
 func DecodeRawBase64(buf []byte) ([]byte, error) {
-	dBuf := make([]byte, base64.RawStdEncoding.DecodedLen(len(buf)))
-	n, err := base64.RawStdEncoding.Decode(dBuf, buf)
+	buff := bytes.TrimSpace(buf)
+	dBuf := make([]byte, base64.RawStdEncoding.DecodedLen(len(buff)))
+	n, err := base64.RawStdEncoding.Decode(dBuf, buff)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +121,12 @@ func ConvertsV2Ray(buf []byte) ([]map[string]any, error) {
 				continue
 			}
 
-			name := uniqueName(names, values["ps"].(string))
+			name, ok := values["ps"].(string)
+			if !ok {
+				continue
+			}
+
+			name = uniqueName(names, name)
 			vmess := make(map[string]any, 20)
 
 			vmess["name"] = name
@@ -133,11 +140,16 @@ func ConvertsV2Ray(buf []byte) ([]map[string]any, error) {
 			vmess["skip-cert-verify"] = false
 
 			host := values["host"]
-			network := strings.ToLower(values["net"].(string))
-
+			network := "tcp"
+			if n, ok := values["net"].(string); ok {
+				network = strings.ToLower(n)
+			}
 			vmess["network"] = network
 
-			tls := strings.ToLower(values["tls"].(string))
+			tls := ""
+			if t, ok := values["tls"].(string); ok {
+				tls = strings.ToLower(t)
+			}
 			if tls != "" && tls != "0" && tls != "null" {
 				if host != nil {
 					vmess["servername"] = host
