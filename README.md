@@ -21,7 +21,7 @@
 ## Features
 
 - Local HTTP/HTTPS/SOCKS server with authentication support
-- Shadowsocks(R), VMess, VLESS, Trojan, Snell, SOCKS5, HTTP(S) outbound support
+- Shadowsocks(R), VMess, VLESS, Trojan, Snell, WireGuard, SOCKS5, HTTP(S) outbound support
 - Built-in [fake-ip](https://www.rfc-editor.org/rfc/rfc3089) DNS server that aims to minimize DNS pollution attack impact. DoH/DoT upstream supported.
 - Rules based off domains, GEOIP, GEOSITE, IP-CIDR or process names to route packets to different destinations
 - Proxy groups allow users to implement powerful rules. Supports automatic fallback, load balancing or auto select proxy based off latency
@@ -169,6 +169,9 @@ Finally, open the Clash
 - Support rule `GEOSITE`.
 - Support rule `USER-AGENT`.
 - Support `multiport` condition for rule `SRC-PORT` and `DST-PORT`.
+- Support `network` condition for all rules.
+- Support `process` condition for all rules.
+- Support source IPCIDR condition for all rules, just append to the end.
 
 The `GEOIP` databases via [https://github.com/Loyalsoldier/geoip](https://raw.githubusercontent.com/Loyalsoldier/geoip/release/Country.mmdb).
 
@@ -191,8 +194,15 @@ rules:
   - SCRIPT,BilibiliUdp,REJECT
   - SCRIPT,ParentalControls,REJECT
 
+  # network condition for all rules
+  - DOMAIN-SUFFIX,example.com,DIRECT,tcp
+  - DOMAIN-SUFFIX,example.com,REJECT,udp
+
+  # process condition for all rules (add 'P:' prefix)
+  - DOMAIN-SUFFIX,example.com,REJECT,P:Google Chrome Helper
+
   # multiport condition for rules SRC-PORT and DST-PORT
-  - DST-PORT,123/136/137-139,DIRECT
+  - DST-PORT,123/136/137-139,DIRECT,udp
 
   # USER-AGENT payload cannot include the comma character, '*' meaning any character.
   - USER-AGENT,*example*,PROXY
@@ -208,6 +218,9 @@ rules:
   - GEOSITE,geolocation-cn,DIRECT
   - GEOSITE,geolocation-!cn,PROXY
 
+  # source IPCIDR condition for all rules in gateway proxy
+  #- GEOSITE,geolocation-!cn,REJECT,192.168.1.88/32,192.168.1.99/32
+  
   - GEOIP,telegram,PROXY,no-resolve
   - GEOIP,lan,DIRECT,no-resolve
   - GEOIP,cn,DIRECT

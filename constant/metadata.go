@@ -28,6 +28,7 @@ var MetadataTypeMapping = map[string]Type{
 const (
 	TCP NetWork = iota
 	UDP
+	ALLNet
 )
 
 const (
@@ -50,7 +51,7 @@ func (n NetWork) String() string {
 	} else if n == UDP {
 		return "udp"
 	}
-	return "unknown"
+	return "all"
 }
 
 func (n NetWork) MarshalJSON() ([]byte, error) {
@@ -180,7 +181,7 @@ func (m *Metadata) NetworkFromString(s string) {
 	case "udp":
 		m.NetWork = UDP
 	default:
-		m.NetWork = -1
+		m.NetWork = ALLNet
 	}
 }
 

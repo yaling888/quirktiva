@@ -39,6 +39,10 @@ func (s *Script) ShouldResolveIP() bool {
 	return false
 }
 
+func (s *Script) RuleExtra() *C.RuleExtra {
+	return nil
+}
+
 func (s *Script) SetMatcher(m C.Matcher) {
 	s.matcher = m
 }
