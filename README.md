@@ -7,7 +7,7 @@
 
 <p align="center">
   <a href="https://github.com/yaling888/clash/actions">
-    <img src="https://img.shields.io/github/workflow/status/yaling888/clash/Go?style=flat-square" alt="Github Actions">
+    <img src="https://img.shields.io/github/actions/workflow/status/yaling888/clash/release.yml?branch=plus-pro&style=flat-square" alt="Github Actions">
   </a>
   <a href="https://goreportcard.com/report/github.com/yaling888/clash">
     <img src="https://goreportcard.com/badge/github.com/yaling888/clash?style=flat-square">
