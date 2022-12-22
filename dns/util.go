@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"strings"
 	"time"
 
 	D "github.com/miekg/dns"
@@ -23,6 +24,10 @@ import (
 var errProxyNotFound = errors.New("proxy adapter not found")
 
 func putMsgToCache(c *cache.LruCache[string, *D.Msg], key string, msg *D.Msg) {
+	if q := msg.Question[0]; q.Qtype == D.TypeTXT && strings.HasPrefix(q.Name, "_acme-challenge") {
+		return
+	}
+
 	var ttl uint32
 	switch {
 	case len(msg.Answer) != 0:

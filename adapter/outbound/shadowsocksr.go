@@ -85,7 +85,9 @@ func (ssr *ShadowSocksR) DialContext(ctx context.Context, metadata *C.Metadata, 
 	}
 	tcpKeepAlive(c)
 
-	defer safeConnClose(c, err)
+	defer func(cc net.Conn, e error) {
+		safeConnClose(cc, e)
+	}(c, err)
 
 	c, err = ssr.StreamConn(c, metadata)
 	return NewConn(c, ssr), err

@@ -126,7 +126,9 @@ func (t *Trojan) DialContext(ctx context.Context, metadata *C.Metadata, opts ...
 			return nil, err
 		}
 
-		defer safeConnClose(c, err)
+		defer func(cc net.Conn, e error) {
+			safeConnClose(cc, e)
+		}(c, err)
 
 		c, err = t.instance.PrepareXTLSConn(c)
 		if err != nil {
@@ -146,7 +148,9 @@ func (t *Trojan) DialContext(ctx context.Context, metadata *C.Metadata, opts ...
 	}
 	tcpKeepAlive(c)
 
-	defer safeConnClose(c, err)
+	defer func(cc net.Conn, e error) {
+		safeConnClose(cc, e)
+	}(c, err)
 
 	c, err = t.StreamConn(c, metadata)
 	if err != nil {
@@ -167,7 +171,9 @@ func (t *Trojan) ListenPacketContext(ctx context.Context, metadata *C.Metadata, 
 			return nil, err
 		}
 
-		defer safeConnClose(c, err)
+		defer func(cc net.Conn, e error) {
+			safeConnClose(cc, e)
+		}(c, err)
 
 		c, err = t.instance.PrepareXTLSConn(c)
 		if err != nil {
@@ -190,7 +196,9 @@ func (t *Trojan) ListenPacketContext(ctx context.Context, metadata *C.Metadata, 
 
 	tcpKeepAlive(c)
 
-	defer safeConnClose(c, err)
+	defer func(cc net.Conn, e error) {
+		safeConnClose(cc, e)
+	}(c, err)
 
 	c, err = t.StreamPacketConn(c, metadata)
 	if err != nil {

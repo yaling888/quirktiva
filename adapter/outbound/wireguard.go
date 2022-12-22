@@ -118,6 +118,7 @@ func (w *WireGuard) ListenPacketContext(ctx context.Context, metadata *C.Metadat
 	return NewPacketConn(&wgPConn{pc}, w), nil
 }
 
+// Cleanup implements C.Cleanup
 func (w *WireGuard) Cleanup() {
 	w.downOnce.Do(func() {
 		if w.wgDevice != nil {

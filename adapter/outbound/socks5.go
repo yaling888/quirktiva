@@ -120,7 +120,9 @@ func (ss *Socks5) DialContext(ctx context.Context, metadata *C.Metadata, opts ..
 	}
 	tcpKeepAlive(c)
 
-	defer safeConnClose(c, err)
+	defer func(cc net.Conn, e error) {
+		safeConnClose(cc, e)
+	}(c, err)
 
 	c, err = ss.StreamConn(c, metadata)
 	if err != nil {
@@ -137,7 +139,9 @@ func (ss *Socks5) ListenPacketContext(ctx context.Context, metadata *C.Metadata,
 		return nil, fmt.Errorf("%s connect error: %w", ss.addr, err)
 	}
 
-	defer safeConnClose(c, err)
+	defer func(cc net.Conn, e error) {
+		safeConnClose(cc, e)
+	}(c, err)
 
 	pc, err := dialer.ListenPacket(ctx, "udp", "", ss.Base.DialOptions(opts...)...)
 	if err != nil {

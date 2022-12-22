@@ -93,7 +93,9 @@ func (s *Snell) DialContext(ctx context.Context, metadata *C.Metadata, opts ...d
 	}
 	tcpKeepAlive(c)
 
-	defer safeConnClose(c, err)
+	defer func(cc net.Conn, e error) {
+		safeConnClose(cc, e)
+	}(c, err)
 
 	c, err = s.StreamConn(c, metadata)
 	return NewConn(c, s), err
