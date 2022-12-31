@@ -124,9 +124,9 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 		}
 		c, err = vmess.StreamWebsocketConn(c, wsOpts)
 	case "http":
+		host, _, _ := net.SplitHostPort(v.addr)
 		// readability first, so just copy default TLS logic
 		if v.option.TLS {
-			host, _, _ := net.SplitHostPort(v.addr)
 			tlsOpts := &vmess.TLSConfig{
 				Host:           host,
 				SkipCertVerify: v.option.SkipCertVerify,
@@ -140,17 +140,24 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 			if err != nil {
 				return nil, err
 			}
-		} else if v.option.RandomHost || len(v.option.HTTPOpts.Headers["Host"]) == 0 {
-			v.option.HTTPOpts.Headers["Host"] = []string{convert.RandHost()}
-			v.option.HTTPOpts.Headers["User-Agent"] = []string{convert.RandUserAgent()}
 		}
 
-		host, _, _ := net.SplitHostPort(v.addr)
 		httpOpts := &vmess.HTTPConfig{
 			Host:    host,
 			Method:  v.option.HTTPOpts.Method,
 			Path:    v.option.HTTPOpts.Path,
-			Headers: v.option.HTTPOpts.Headers,
+			Headers: make(map[string][]string),
+		}
+
+		if len(v.option.HTTPOpts.Headers) != 0 {
+			for key, value := range v.option.HTTPOpts.Headers {
+				httpOpts.Headers[key] = value
+			}
+		}
+
+		if !v.option.TLS && (v.option.RandomHost || len(v.option.HTTPOpts.Headers["Host"]) == 0) {
+			httpOpts.Headers["Host"] = []string{convert.RandHost()}
+			httpOpts.Headers["User-Agent"] = []string{convert.RandUserAgent()}
 		}
 
 		c = vmess.StreamHTTPConn(c, httpOpts)
