@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/phuslu/log"
@@ -120,7 +121,15 @@ func GetGeneral() *config.General {
 	return general
 }
 
-func updateExperimental(_ *config.Config) {}
+func updateExperimental(c *config.Config) {
+	tunnel.UDPFallbackMatch.Store(c.Experimental.UDPFallbackMatch)
+
+	udpPolicy := c.Experimental.UDPFallbackPolicy
+	if strings.EqualFold(udpPolicy, "direct") || strings.EqualFold(udpPolicy, "reject") {
+		udpPolicy = strings.ToUpper(udpPolicy)
+	}
+	tunnel.UDPFallbackPolicy.Store(udpPolicy)
+}
 
 func updateDNS(c *config.DNS, t *config.Tun) {
 	cfg := dns.Config{

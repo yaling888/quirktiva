@@ -135,7 +135,10 @@ type EBpf struct {
 }
 
 // Experimental config
-type Experimental struct{}
+type Experimental struct {
+	UDPFallbackMatch  bool   `yaml:"udp-fallback-match"`
+	UDPFallbackPolicy string `yaml:"udp-fallback-policy"`
+}
 
 // Config is clash config manager
 type Config struct {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/phuslu/log"
+	"go.uber.org/atomic"
 
 	A "github.com/Dreamacro/clash/adapter"
 	"github.com/Dreamacro/clash/adapter/inbound"
@@ -58,6 +59,9 @@ var (
 		}
 		return providersMap
 	}
+
+	UDPFallbackMatch  = atomic.NewBool(false)
+	UDPFallbackPolicy = atomic.NewString("")
 )
 
 func init() {
@@ -549,10 +553,10 @@ func match(metadata *C.Metadata) (C.Proxy, C.Rule, error) {
 				continue
 			}
 
-			if metadata.NetWork == C.UDP && !adapter.SupportUDP() {
+			if metadata.NetWork == C.UDP && !adapter.SupportUDP() && UDPFallbackMatch.Load() {
 				log.Debug().
 					Str("proxy", adapter.Name()).
-					Msg("[Matcher] UDP is not supported")
+					Msg("[Matcher] UDP is not supported, skip match")
 				continue
 			}
 
@@ -575,6 +579,10 @@ func match(metadata *C.Metadata) (C.Proxy, C.Rule, error) {
 		}
 	}
 
+	if adapter, ok := proxies[UDPFallbackPolicy.Load()]; ok {
+		return adapter, nil, nil
+	}
+
 	return proxies["REJECT"], nil, nil
 }
 
@@ -594,7 +602,11 @@ func matchScript(metadata *C.Metadata) (C.Proxy, error) {
 	if proxy, ok := proxies[adapter]; !ok {
 		return nil, fmt.Errorf("proxy adapter [%s] not found by script", adapter)
 	} else if metadata.NetWork == C.UDP && !proxy.SupportUDP() {
-		return nil, fmt.Errorf("proxy adapter [%s] UDP is not supported", adapter)
+		if UDPFallbackMatch.Load() {
+			return nil, fmt.Errorf("proxy adapter [%s] UDP is not supported", adapter)
+		} else if proxy, ok = proxies[UDPFallbackPolicy.Load()]; ok {
+			return proxy, nil
+		}
 	}
 
 	return proxies[adapter], nil
