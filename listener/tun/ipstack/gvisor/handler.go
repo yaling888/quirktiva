@@ -27,8 +27,18 @@ type gvHandler struct {
 	udpIn chan<- *inbound.PacketAdapter
 }
 
-func (gh *gvHandler) HandleTCP(tunConn adapter.TCPConn) {
-	rAddrPort := tunConn.LocalAddr().(*net.TCPAddr).AddrPort()
+func (gh *gvHandler) HandleTCP(tunConn net.Conn) {
+	var rAddrPort netip.AddrPort
+	if ap, ok := tunConn.LocalAddr().(*net.TCPAddr); ok {
+		rAddrPort = ap.AddrPort()
+	}
+
+	if !rAddrPort.IsValid() {
+		log.Warn().
+			Msg("[gVisor] tcp endpoint not connected")
+		_ = tunConn.Close()
+		return
+	}
 
 	if D.ShouldHijackDns(gh.dnsHijack, rAddrPort, "tcp") {
 		go func(dnsConn net.Conn, addr string) {
@@ -84,8 +94,18 @@ func (gh *gvHandler) HandleTCP(tunConn adapter.TCPConn) {
 	gh.tcpIn <- inbound.NewSocket(socks5.AddrFromStdAddrPort(rAddrPort), tunConn, C.TUN)
 }
 
-func (gh *gvHandler) HandleUDP(tunConn adapter.UDPConn) {
-	rAddrPort := tunConn.LocalAddr().(*net.UDPAddr).AddrPort()
+func (gh *gvHandler) HandleUDP(tunConn net.PacketConn) {
+	var rAddrPort netip.AddrPort
+	if ap, ok := tunConn.LocalAddr().(*net.UDPAddr); ok {
+		rAddrPort = ap.AddrPort()
+	}
+
+	if !rAddrPort.IsValid() {
+		log.Warn().
+			Msg("[gVisor] udp endpoint not connected")
+		_ = tunConn.Close()
+		return
+	}
 
 	if rAddrPort.Addr() == gh.gateway || rAddrPort.Addr() == gh.broadcast {
 		_ = tunConn.Close()
@@ -105,8 +125,8 @@ func (gh *gvHandler) HandleUDP(tunConn adapter.UDPConn) {
 			}
 
 			if D.ShouldHijackDns(gh.dnsHijack, rAddrPort, "udp") {
-				go func(dnsUdp adapter.UDPConn, b []byte, length int, rAddr net.Addr, rAddrStr string) {
-					defer func(udp adapter.UDPConn, bb []byte) {
+				go func(dnsUdp net.PacketConn, b []byte, length int, rAddr net.Addr, rAddrStr string) {
+					defer func(udp net.PacketConn, bb []byte) {
 						_ = udp.Close()
 						_ = pool.Put(bb)
 					}(dnsUdp, b)

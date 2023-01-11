@@ -203,7 +203,7 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 func (v *Vmess) StreamPacketConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 	// vmess use stream-oriented udp with a special address, so we need a net.UDPAddr
 	if !metadata.Resolved() {
-		ip, err := resolver.ResolveFirstIP(metadata.Host)
+		ip, err := resolver.LookupFirstIP(context.Background(), metadata.Host)
 		if err != nil {
 			return c, fmt.Errorf("can't resolve ip: %w", err)
 		}
@@ -213,7 +213,7 @@ func (v *Vmess) StreamPacketConn(c net.Conn, metadata *C.Metadata) (net.Conn, er
 	var err error
 	c, err = v.StreamConn(c, metadata)
 	if err != nil {
-		return c, fmt.Errorf("new vmess client error: %v", err)
+		return c, fmt.Errorf("new vmess client error: %w", err)
 	}
 
 	return WrapConn(&vmessPacketConn{Conn: c, rAddr: metadata.UDPAddr()}), nil
@@ -241,7 +241,7 @@ func (v *Vmess) DialContext(ctx context.Context, metadata *C.Metadata, opts ...d
 
 	c, err := dialer.DialContext(ctx, "tcp", v.addr, v.Base.DialOptions(opts...)...)
 	if err != nil {
-		return nil, fmt.Errorf("%s connect error: %s", v.addr, err.Error())
+		return nil, fmt.Errorf("%s connect error: %w", v.addr, err)
 	}
 	tcpKeepAlive(c)
 	defer func(cc net.Conn, e error) {
@@ -259,7 +259,7 @@ func (v *Vmess) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 	if v.transport != nil && len(opts) == 0 {
 		// vmess use stream-oriented udp with a special address, so we need a net.UDPAddr
 		if !metadata.Resolved() {
-			ip, err := resolver.ResolveFirstIP(metadata.Host)
+			ip, err := resolver.LookupFirstIP(ctx, metadata.Host)
 			if err != nil {
 				return nil, fmt.Errorf("can't resolve ip: %w", err)
 			}
@@ -276,7 +276,7 @@ func (v *Vmess) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 
 		c, err = v.client.StreamConn(c, parseVmessAddr(metadata))
 		if err != nil {
-			return nil, fmt.Errorf("new vmess client error: %v", err)
+			return nil, fmt.Errorf("new vmess client error: %w", err)
 		}
 
 		return NewPacketConn(&vmessPacketConn{Conn: c, rAddr: metadata.UDPAddr()}, v), nil
@@ -284,7 +284,7 @@ func (v *Vmess) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 
 	c, err = dialer.DialContext(ctx, "tcp", v.addr, v.Base.DialOptions(opts...)...)
 	if err != nil {
-		return nil, fmt.Errorf("%s connect error: %s", v.addr, err.Error())
+		return nil, fmt.Errorf("%s connect error: %w", v.addr, err)
 	}
 
 	tcpKeepAlive(c)
@@ -294,7 +294,7 @@ func (v *Vmess) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 
 	c, err = v.StreamPacketConn(c, metadata)
 	if err != nil {
-		return nil, fmt.Errorf("new vmess client error: %v", err)
+		return nil, fmt.Errorf("new vmess client error: %w", err)
 	}
 
 	return NewPacketConn(c.(net.PacketConn), v), nil
@@ -343,7 +343,7 @@ func NewVmess(option VmessOption) (*Vmess, error) {
 		dialFn := func(network, addr string) (net.Conn, error) {
 			c, err := dialer.DialContext(context.Background(), "tcp", v.addr, v.Base.DialOptions()...)
 			if err != nil {
-				return nil, fmt.Errorf("%s connect error: %s", v.addr, err.Error())
+				return nil, fmt.Errorf("%s connect error: %w", v.addr, err)
 			}
 			tcpKeepAlive(c)
 			return c, nil

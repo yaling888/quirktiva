@@ -17,58 +17,22 @@ import (
 func withUDPHandler(handle adapter.UDPHandleFunc) option.Option {
 	return func(s *stack.Stack) error {
 		udpForwarder := udp.NewForwarder(s, func(r *udp.ForwarderRequest) {
-			var (
-				wq waiter.Queue
-				id = r.ID()
-			)
+			var wq waiter.Queue
 			ep, err := r.CreateEndpoint(&wq)
 			if err != nil {
-				log.Warn().
-					Str("error", err.String()).
-					Str("rAddr", id.RemoteAddress.String()).
-					Uint16("rPort", id.RemotePort).
-					Str("lAddr", id.LocalAddress.String()).
-					Uint16("lPort", id.LocalPort).
-					Msg("[gVisor] forward udp request failed")
+				log.Debug().Err(toError(err)).Msg("[gVisor] forward udp request failed")
 				return
 			}
 
-			conn := &udpConn{
-				UDPConn: gonet.NewUDPConn(s, &wq, ep),
-				id:      id,
-			}
-			handle(conn)
+			handle(gonet.NewUDPConn(s, &wq, ep))
 		})
 		s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
 		return nil
 	}
 }
 
-type udpConn struct {
-	*gonet.UDPConn
-	id stack.TransportEndpointID
-}
-
-func (c *udpConn) ID() *stack.TransportEndpointID {
-	return &c.id
-}
-
-func (c *udpConn) LocalAddr() net.Addr {
-	return &net.UDPAddr{
-		IP:   net.IP(c.id.LocalAddress),
-		Port: int(c.id.LocalPort),
-	}
-}
-
-func (c *udpConn) RemoteAddr() net.Addr {
-	return &net.UDPAddr{
-		IP:   net.IP(c.id.RemoteAddress),
-		Port: int(c.id.RemotePort),
-	}
-}
-
 type packet struct {
-	pc      adapter.UDPConn
+	pc      net.PacketConn
 	rAddr   net.Addr
 	payload []byte
 	offset  int

@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"net/http"
 
@@ -96,10 +98,13 @@ func newDoHClient(url string, r *Resolver, proxyAdapter string) *dohClient {
 					return nil, err
 				}
 
-				ip, err := resolver.ResolveIPWithResolver(ctx, host, r)
+				ips, err := resolver.LookupIPByResolver(ctx, host, r)
 				if err != nil {
 					return nil, err
+				} else if len(ips) == 0 {
+					return nil, fmt.Errorf("%w: %s", resolver.ErrIPNotFound, host)
 				}
+				ip := ips[rand.Intn(len(ips))]
 
 				if proxyAdapter != "" {
 					var conn net.Conn

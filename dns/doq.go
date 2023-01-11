@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/netip"
 	"strconv"
@@ -142,10 +143,14 @@ func (dc *doqClient) openConnection(ctx context.Context) (quic.Connection, error
 		if dc.r == nil {
 			return nil, fmt.Errorf("dns %s not a valid ip", dc.host)
 		} else {
-			var ip netip.Addr
-			if ip, err = resolver.ResolveIPWithResolver(ctx, dc.host, dc.r); err != nil {
+			var ips []netip.Addr
+			ips, err = resolver.LookupIPByResolver(ctx, dc.host, dc.r)
+			if err != nil {
 				return nil, fmt.Errorf("use default dns resolve failed: %w", err)
+			} else if len(ips) == 0 {
+				return nil, fmt.Errorf("%w: %s", resolver.ErrIPNotFound, dc.host)
 			}
+			ip := ips[rand.Intn(len(ips))]
 			dc.ip = ip
 		}
 	}

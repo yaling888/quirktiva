@@ -299,8 +299,9 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 
 	// local resolve UDP dns
 	if !metadata.Resolved() {
-		ip, err := resolver.ResolveFirstIP(metadata.Host)
+		ip, err := resolver.LookupFirstIP(context.Background(), metadata.Host)
 		if err != nil {
+			log.Warn().Err(err).Msg("[Metadata] lookup IP failed")
 			return
 		}
 		metadata.DstIP = ip

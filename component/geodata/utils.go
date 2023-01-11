@@ -1,12 +1,12 @@
 package geodata
 
 import (
-	"github.com/samber/lo"
+	"strings"
 
 	"github.com/Dreamacro/clash/component/geodata/router"
 )
 
-func loadGeoSiteMatcher(countryCode string) (*router.DomainMatcher, int, error) {
+func loadGeoSiteMatcher(countryCode string, not bool) (*router.DomainMatcher, int, error) {
 	geoLoaderName := "standard"
 	geoLoader, err := GetGeoDataLoader(geoLoaderName)
 	if err != nil {
@@ -20,10 +20,10 @@ func loadGeoSiteMatcher(countryCode string) (*router.DomainMatcher, int, error) 
 
 	/**
 	linear: linear algorithm
-	matcher, err := router.NewDomainMatcher(domains)
+	matcher, err := router.NewDomainMatcher(domains, not)
 	mph：minimal perfect hash algorithm
 	*/
-	matcher, err := router.NewMphMatcherGroup(domains)
+	matcher, err := router.NewMphMatcherGroup(domains, not)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -33,29 +33,20 @@ func loadGeoSiteMatcher(countryCode string) (*router.DomainMatcher, int, error) 
 
 var ruleProviders = make(map[string]*router.DomainMatcher)
 
-// HasProvider has geo site provider by county code
-func HasProvider(countyCode string) (ok bool) {
-	_, ok = ruleProviders[countyCode]
-	return ok
+func CleanGeoSiteCache() {
+	ruleProviders = make(map[string]*router.DomainMatcher)
 }
 
-// GetProvidersList get geo site providers
-func GetProvidersList(countyCode string) []*router.DomainMatcher {
-	return lo.Values(ruleProviders)
-}
-
-// GetProviderByCode get geo site provider by county code
-func GetProviderByCode(countyCode string) (matcher *router.DomainMatcher, ok bool) {
-	matcher, ok = ruleProviders[countyCode]
-	return
-}
-
-func LoadProviderByCode(countyCode string) (matcher *router.DomainMatcher, count int, err error) {
-	var ok bool
-	matcher, ok = ruleProviders[countyCode]
+func LoadProviderByCode(countryCode string) (matcher *router.DomainMatcher, count int, err error) {
+	var (
+		ok   bool
+		not  = strings.HasPrefix(countryCode, "!")
+		code = strings.TrimPrefix(countryCode, "!")
+	)
+	matcher, ok = ruleProviders[countryCode]
 	if !ok {
-		if matcher, count, err = loadGeoSiteMatcher(countyCode); err == nil {
-			ruleProviders[countyCode] = matcher
+		if matcher, count, err = loadGeoSiteMatcher(code, not); err == nil {
+			ruleProviders[countryCode] = matcher
 		}
 	}
 	return

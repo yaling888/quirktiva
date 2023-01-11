@@ -381,6 +381,7 @@ func ParseRawConfig(rawCfg *RawConfig) (config *Config, err error) {
 				}
 			}
 		}
+		geodata.CleanGeoSiteCache()
 	}()
 
 	config = &Config{}
@@ -1178,7 +1179,7 @@ func verifyScriptMatcher(config *Config, matchers map[string]C.Matcher) (err err
 			_, err = v.Match(metadata)
 		}
 		if err != nil {
-			err = fmt.Errorf("check script code failed: %w", err)
+			err = fmt.Errorf("verify script code failed: %w", err)
 			return
 		}
 	}

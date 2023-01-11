@@ -1,7 +1,7 @@
 package gvisor
 
 import (
-	"net"
+	"errors"
 	"time"
 
 	"github.com/phuslu/log"
@@ -24,13 +24,13 @@ const (
 
 	// maxConnAttempts specifies the maximum number
 	// of in-flight tcp connection attempts.
-	maxConnAttempts = 1 << 10
+	maxConnAttempts = 2 << 10
 
 	// tcpKeepaliveCount is the maximum number of
 	// TCP keep-alive probes to send before giving up
 	// and killing the connection if no response is
 	// obtained from the other end.
-	tcpKeepaliveCount = 8
+	tcpKeepaliveCount = 9
 
 	// tcpKeepaliveIdle specifies the time a connection
 	// must remain idle before the first TCP keepalive
@@ -50,18 +50,15 @@ func withTCPHandler(handle adapter.TCPHandleFunc) option.Option {
 				wq  waiter.Queue
 				ep  tcpip.Endpoint
 				err tcpip.Error
-				id  = r.ID()
 			)
 
 			defer func() {
 				if err != nil {
-					log.Warn().
-						Str("error", err.String()).
-						Str("rAddr", id.RemoteAddress.String()).
-						Uint16("rPort", id.RemotePort).
-						Str("lAddr", id.LocalAddress.String()).
-						Uint16("lPort", id.LocalPort).
-						Msg("[gVisor] forward tcp request failed")
+					if ep != nil {
+						ep.Close()
+					}
+
+					log.Debug().Err(toError(err)).Msg("[gVisor] forward tcp request failed")
 				}
 			}()
 
@@ -72,30 +69,19 @@ func withTCPHandler(handle adapter.TCPHandleFunc) option.Option {
 				r.Complete(true)
 				return
 			}
+			defer r.Complete(false)
+
+			_, err = ep.GetRemoteAddress()
+			if err != nil {
+				return
+			}
 
 			err = setSocketOptions(s, ep)
 			if err != nil {
-				ep.Close()
-				r.Complete(true)
-				return
-			}
-			defer r.Complete(false)
-
-			conn := &tcpConn{
-				TCPConn: gonet.NewTCPConn(&wq, ep),
-				id:      id,
-			}
-
-			if conn.RemoteAddr() == nil {
-				log.Warn().
-					Str("state", tcp.EndpointState(ep.State()).String()).
-					Msg("[gVisor] endpoint is not connected")
-
-				_ = conn.Close()
 				return
 			}
 
-			handle(conn)
+			handle(gonet.NewTCPConn(&wq, ep))
 		})
 		s.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
 		return nil
@@ -134,25 +120,6 @@ func setSocketOptions(s *stack.Stack, ep tcpip.Endpoint) tcpip.Error {
 	return nil
 }
 
-type tcpConn struct {
-	*gonet.TCPConn
-	id stack.TransportEndpointID
-}
-
-func (c *tcpConn) ID() *stack.TransportEndpointID {
-	return &c.id
-}
-
-func (c *tcpConn) LocalAddr() net.Addr {
-	return &net.TCPAddr{
-		IP:   net.IP(c.id.LocalAddress),
-		Port: int(c.id.LocalPort),
-	}
-}
-
-func (c *tcpConn) RemoteAddr() net.Addr {
-	return &net.TCPAddr{
-		IP:   net.IP(c.id.RemoteAddress),
-		Port: int(c.id.RemotePort),
-	}
+func toError(e tcpip.Error) error {
+	return errors.New(e.String())
 }

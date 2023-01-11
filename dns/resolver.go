@@ -3,6 +3,7 @@ package dns
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"net/netip"
 	"strings"
@@ -44,39 +45,75 @@ type Resolver struct {
 	proxyServer           []dnsClient
 }
 
-// ResolveIP request with TypeA and TypeAAAA, priority return TypeA
-func (r *Resolver) ResolveIP(ctx context.Context, host string) (ip netip.Addr, err error) {
-	ch := make(chan netip.Addr, 1)
+// LookupIP request with TypeA and TypeAAAA, priority return TypeA
+func (r *Resolver) LookupIP(ctx context.Context, host string) (ip []netip.Addr, err error) {
+	ctx1, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	ch := make(chan []netip.Addr, 1)
 	go func() {
 		defer close(ch)
-		ip, err := r.resolveIP(ctx, host, D.TypeAAAA)
+		ip, err := r.lookupIP(ctx1, host, D.TypeAAAA)
 		if err != nil {
 			return
 		}
 		ch <- ip
 	}()
 
-	ip, err = r.resolveIP(ctx, host, D.TypeA)
+	ip, err = r.lookupIP(ctx1, host, D.TypeA)
 	if err == nil {
 		return
 	}
 
 	ip, open := <-ch
 	if !open {
-		return netip.Addr{}, resolver.ErrIPNotFound
+		return nil, resolver.ErrIPNotFound
 	}
 
 	return ip, nil
 }
 
+// ResolveIP request with TypeA and TypeAAAA, priority return TypeA
+func (r *Resolver) ResolveIP(host string) (ip netip.Addr, err error) {
+	ips, err := r.LookupIP(context.Background(), host)
+	if err != nil {
+		return netip.Addr{}, err
+	} else if len(ips) == 0 {
+		return netip.Addr{}, fmt.Errorf("%w: %s", resolver.ErrIPNotFound, host)
+	}
+	return ips[rand.Intn(len(ips))], nil
+}
+
+// LookupIPv4 request with TypeA
+func (r *Resolver) LookupIPv4(ctx context.Context, host string) ([]netip.Addr, error) {
+	return r.lookupIP(ctx, host, D.TypeA)
+}
+
 // ResolveIPv4 request with TypeA
-func (r *Resolver) ResolveIPv4(ctx context.Context, host string) (ip netip.Addr, err error) {
-	return r.resolveIP(ctx, host, D.TypeA)
+func (r *Resolver) ResolveIPv4(host string) (ip netip.Addr, err error) {
+	ips, err := r.lookupIP(context.Background(), host, D.TypeA)
+	if err != nil {
+		return netip.Addr{}, err
+	} else if len(ips) == 0 {
+		return netip.Addr{}, fmt.Errorf("%w: %s", resolver.ErrIPNotFound, host)
+	}
+	return ips[rand.Intn(len(ips))], nil
+}
+
+// LookupIPv6 request with TypeAAAA
+func (r *Resolver) LookupIPv6(ctx context.Context, host string) ([]netip.Addr, error) {
+	return r.lookupIP(ctx, host, D.TypeAAAA)
 }
 
 // ResolveIPv6 request with TypeAAAA
-func (r *Resolver) ResolveIPv6(ctx context.Context, host string) (ip netip.Addr, err error) {
-	return r.resolveIP(ctx, host, D.TypeAAAA)
+func (r *Resolver) ResolveIPv6(host string) (ip netip.Addr, err error) {
+	ips, err := r.lookupIP(context.Background(), host, D.TypeAAAA)
+	if err != nil {
+		return netip.Addr{}, err
+	} else if len(ips) == 0 {
+		return netip.Addr{}, fmt.Errorf("%w: %s", resolver.ErrIPNotFound, host)
+	}
+	return ips[rand.Intn(len(ips))], nil
 }
 
 func (r *Resolver) shouldIPFallback(ip netip.Addr) bool {
@@ -243,17 +280,19 @@ func (r *Resolver) ipExchange(ctx context.Context, m *D.Msg) (msg *D.Msg, err er
 	return
 }
 
-func (r *Resolver) resolveIP(ctx context.Context, host string, dnsType uint16) (ip netip.Addr, err error) {
-	ip, err = netip.ParseAddr(host)
+func (r *Resolver) lookupIP(ctx context.Context, host string, dnsType uint16) ([]netip.Addr, error) {
+	ip, err := netip.ParseAddr(host)
 	if err == nil {
-		ip = ip.Unmap()
+		if dnsType != D.TypeAAAA {
+			ip = ip.Unmap()
+		}
 		isIPv4 := ip.Is4()
 		if dnsType == D.TypeAAAA && !isIPv4 {
-			return ip, nil
+			return []netip.Addr{ip}, nil
 		} else if dnsType == D.TypeA && isIPv4 {
-			return ip, nil
+			return []netip.Addr{ip}, nil
 		} else {
-			return netip.Addr{}, resolver.ErrIPVersion
+			return nil, resolver.ErrIPVersion
 		}
 	}
 
@@ -262,22 +301,15 @@ func (r *Resolver) resolveIP(ctx context.Context, host string, dnsType uint16) (
 
 	msg, err := r.ExchangeContext(ctx, query)
 	if err != nil {
-		return netip.Addr{}, err
+		return nil, err
 	}
 
 	ips := msgToIP(msg)
-	ipLength := len(ips)
-	if ipLength == 0 {
-		return netip.Addr{}, resolver.ErrIPNotFound
+	if len(ips) == 0 {
+		return nil, resolver.ErrIPNotFound
 	}
 
-	index := 0
-	if ipLength > 1 && resolver.ShouldRandomIP(ctx) {
-		index = rand.Intn(ipLength)
-	}
-
-	ip = ips[index]
-	return
+	return ips, nil
 }
 
 func (r *Resolver) msgToDomain(msg *D.Msg) string {
