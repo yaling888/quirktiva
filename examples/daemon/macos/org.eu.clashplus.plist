@@ -1,0 +1,43 @@
+<!--
+Install:
+curl -LO https://github.com/yaling888/clash/raw/plus-pro/examples/daemon/macos/org.eu.clashplus.plist
+cp org.eu.clashplus.plist ~/Library/LaunchAgents/
+launchctl load -w ~/Library/LaunchAgents/org.eu.clashplus.plist
+launchctl start org.eu.clashplus
+launchctl list | grep org.eu.clashplus
+ps -ef | grep clash
+cat ~/.config/clash/clashplus.log
+
+Uninstall:
+launchctl stop org.eu.clashplus
+launchctl unload -w ~/Library/LaunchAgents/org.eu.clashplus.plist
+rm ~/Library/LaunchAgents/org.eu.clashplus.plist
+rm ~/.config/clash/clashplus.log
+
+executable file: /usr/local/bin/clash
+configuration folder: ~/.config/clash/
+-->
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>org.eu.clashplus</string>
+	<key>ProgramArguments</key>
+	<array>
+        <string>sudo</string>
+        <string>/usr/local/bin/clash</string>
+    </array>
+    <key>KeepAlive</key>
+    <dict>
+    	<key>SuccessfulExit</key>
+    	<false/>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <!-- <key>StandardErrorPath</key>
+    <string>/Users/your_user_name/.config/clash/clashplus.log</string>
+    <key>StandardOutPath</key>
+    <string>/Users/your_user_name/.config/clash/clashplus.log</string> -->
+</dict>
+</plist>

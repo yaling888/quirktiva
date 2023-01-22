@@ -1,16 +1,14 @@
-####################################################################################
+###################################################################
 #
-# Work on Linux, as a transparent proxy gateway, just replace the Subscription-1 URL.
+# Work as a single local client, just replace the Subscription-1 URL.
+# 作为本地客户端使用，只需替换Subscription-1的订阅链接.
 #
-# 运行在Linux机器上，作为透明代理网关使用，只需替换Subscription-1的订阅链接，
-# 请把客户端的网关和DNS指向Linux机器的IP，客户端DNS为公网DNS时可不用指向网关的DNS。
-#
-####################################################################################
+###################################################################
 
 #mixed-port: 7890
 #mitm-port: 7891
 
-allow-lan: true
+allow-lan: false
 
 bind-address: '*'
 
@@ -18,10 +16,9 @@ bind-address: '*'
 mode: rule
 
 # set log level to stdout (default value is info)
-# info / warning / error / debug
+# debug / info / warning / error
 log-level: warning
 
-# outbound ipv6
 ipv6: false
 
 sniffing: false
@@ -31,10 +28,10 @@ force-cert-verify: true
 profile:
   store-selected: true
   store-fake-ip: true
-  tracing: false # default value is true
+#  tracing: false # default value is true
 
 # A RESTful API for clash
-external-controller: 0.0.0.0:9090
+external-controller: 127.0.0.1:9090
 
 # Secret for RESTful API (Optional)
 #secret: xxxx
@@ -42,22 +39,17 @@ external-controller: 0.0.0.0:9090
 external-ui: ./dashboard
 
 # outbound interface name
-interface-name: eth0
-
-ebpf:
-  redirect-to-tun:
-    - eth0 # gateway interface name, 网关对应的网卡接口名称
-#    - wlan0
+#interface-name: en0
 
 tun:
   enable: true
-  stack: system # system or gvisor
+  stack: system # system or gvisor, use gvisor on Windows if system not work
   device: tun://utun
   dns-hijack:
     - any:53
     - tcp://any:53
-  auto-route: false # auto set global route, conflict with redirect-to-tun
-#  auto-detect-interface: true # conflict with interface-name
+  auto-route: true # auto set global route
+  auto-detect-interface: true # conflict with interface-name
 
 hosts:
   'localhost': '127.0.0.1'
@@ -65,10 +57,10 @@ hosts:
 dns:
   enable: true
   use-hosts: true
+  ipv6: false
   enhanced-mode: fake-ip
   fake-ip-range: 198.18.0.1/16
-  ipv6: false
-  listen: 0.0.0.0:53
+#  listen: 127.0.0.1:53
 #  nameserver-policy:
 #    +.example.com: 192.168.1.254
   default-nameserver:
@@ -146,7 +138,7 @@ proxy-groups:
     interval: 600
     tolerance: 100
     url: http://www.gstatic.com/generate_204
-    filter: "America|US|美国"
+    filter: "America|United States|US|美国"
     use: *Use
 
   - name: Geo-UK
@@ -155,6 +147,14 @@ proxy-groups:
     tolerance: 100
     url: http://www.gstatic.com/generate_204
     filter: "Britain|England|UK|英国"
+    use: *Use
+
+  - name: Geo-DE
+    type: fallback
+    interval: 600
+    tolerance: 100
+    url: http://www.gstatic.com/generate_204
+    filter: "Germany|Deutsch|DE|德国"
     use: *Use
 
   - name: Geo-CN
@@ -176,6 +176,7 @@ proxy-groups:
       - Geo-JP
       - Geo-US
       - Geo-UK
+      - Geo-DE
       - Geo-CN
 
   - name: Proxy
@@ -189,6 +190,7 @@ proxy-groups:
       - Geo-JP
       - Geo-US
       - Geo-UK
+      - Geo-DE
       - Geo-CN
       - DIRECT
       - Block
@@ -205,6 +207,7 @@ proxy-groups:
       - Geo-JP
       - Geo-US
       - Geo-UK
+      - Geo-DE
       - Geo-CN
       - DIRECT
       - Block
@@ -224,7 +227,7 @@ proxy-groups:
     use: *Use
     proxies: *Proxy
 
-  - name: Microsoft
+  - name: MicrosoftCN
     type: select
     use: *Use
     proxies: *Proxy
@@ -316,11 +319,23 @@ script:
 #  path: ./script.star
   code: |
     blockHosts = ['analytics', 'adservice', 'firebase', 'bugly', 'safebrowsing', 'doubleclick']
-    directHosts = ['push.apple.com', 'iosapps.itunes.apple.com', 'jetbrains.com']
+    directHosts = ['iosapps.itunes.apple.com', 'jetbrains.com', 'msftconnecttest.com']
 
     def main(ctx, metadata):
-      if metadata["network"] == 'udp' and metadata["dst_port"] == 443:
+      processName = ctx.resolve_process_name(metadata)
+      if processName == 'apsd':
+        return "DIRECT"
+
+      if processName == 'Telegram':
+        return "Telegram"
+
+      network = metadata["network"]
+      dst_port = metadata["dst_port"]
+      if network == 'udp' and dst_port == 443:
         return "REJECT"
+
+      if network == "udp" and (dst_port == 123 or (dst_port >= 136 and dst_port <=139)):
+        return "DIRECT"
 
       host = metadata["host"]
       for kw in blockHosts:
@@ -341,7 +356,7 @@ script:
         return "Apple"
 
       if ctx.rule_providers['microsoft@cn'].match(metadata):
-        return "Microsoft"
+        return "MicrosoftCN"
 
       if ctx.rule_providers['paypal@cn'].match(metadata):
         return "CN"
@@ -385,31 +400,36 @@ script:
       return "Mismatch" # default policy for requests which are not matched by any other script
 
   shortcuts:
-    QUIC: network == "udp" and dst_port == 443
+    QUIC: |
+      network == "udp" and dst_port == 443
     Privacy: |
       "analytics" in host or "adservice" in host or "firebase" in host or "safebrowsing" in host or
       "doubleclick" in host or "bugly" in host
     BilibiliUdp: |
       network == "udp" and match_provider("bilibili")
+    DirectUdp: |
+      network == "udp" and (dst_port == 123 or (dst_port >= 136 and dst_port <=139))
 
 rules:
+  - PROCESS-NAME,apsd,DIRECT
+
   - GEOIP,private,DIRECT,no-resolve
   - GEOIP,telegram,Telegram,no-resolve
 
   - SCRIPT,QUIC,REJECT # Disable QUIC
   - SCRIPT,Privacy,REJECT
   - SCRIPT,BilibiliUdp,REJECT
-
-  - DOMAIN-SUFFIX,push.apple.com,DIRECT
+  - SCRIPT,DirectUdp,DIRECT
 
   - GEOSITE,category-ads-all,Block
 
   - DOMAIN-SUFFIX,jetbrains.com,DIRECT
+  - DOMAIN-SUFFIX,msftconnecttest.com,DIRECT
   - DOMAIN,iosapps.itunes.apple.com,DIRECT
 
   - GEOSITE,icloud,iCloud
   - GEOSITE,apple,Apple
-  - GEOSITE,microsoft@cn,Microsoft
+  - GEOSITE,microsoft@cn,MicrosoftCN
   - GEOSITE,paypal@cn,CN
   - GEOSITE,paypal,PayPal
   - GEOSITE,twitter,Twitter
