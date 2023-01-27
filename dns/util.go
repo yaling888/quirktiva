@@ -82,9 +82,6 @@ func transform(servers []NameServer, resolver *Resolver) []dnsClient {
 		case "https":
 			ret = append(ret, newDoHClient(s.Addr, resolver, s.ProxyAdapter))
 			continue
-		case "quic":
-			ret = append(ret, newDoqClient(s.Addr, resolver, s.ProxyAdapter))
-			continue
 		case "dhcp":
 			ret = append(ret, newDHCPClient(s.Addr))
 			continue
