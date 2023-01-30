@@ -32,6 +32,7 @@ type Conn struct {
 	respBodyKey []byte
 	respV       byte
 	security    byte
+	option      byte
 	isAead      bool
 
 	received bool
@@ -71,7 +72,7 @@ func (vc *Conn) sendRequest() error {
 	buf.Write(vc.reqBodyIV[:])
 	buf.Write(vc.reqBodyKey[:])
 	buf.WriteByte(vc.respV)
-	buf.WriteByte(OptionChunkStream)
+	buf.WriteByte(vc.option)
 
 	pad, err := rand.Int(rand.Reader, big.NewInt(16))
 	if err != nil {
@@ -207,6 +208,7 @@ func newConn(conn net.Conn, id *ID, dst *DstAddr, security Security, isAead bool
 	copy(reqBodyIV[:], randBytes[:16])
 	copy(reqBodyKey[:], randBytes[16:32])
 	respV := randBytes[32]
+	option := OptionChunkStream
 
 	var (
 		respBodyKey []byte
@@ -228,6 +230,16 @@ func newConn(conn net.Conn, id *ID, dst *DstAddr, security Security, isAead bool
 	var writer io.Writer
 	var reader io.Reader
 	switch security {
+	case SecurityZero:
+		security = SecurityNone
+		if !dst.UDP {
+			reader = conn
+			writer = conn
+			option = 0
+		} else {
+			reader = newChunkReader(conn)
+			writer = newChunkWriter(conn)
+		}
 	case SecurityNone:
 		reader = newChunkReader(conn)
 		writer = newChunkWriter(conn)
@@ -268,6 +280,7 @@ func newConn(conn net.Conn, id *ID, dst *DstAddr, security Security, isAead bool
 		reader:      reader,
 		writer:      writer,
 		security:    security,
+		option:      option,
 		isAead:      isAead,
 	}
 	if err := c.sendRequest(); err != nil {

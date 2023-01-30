@@ -26,14 +26,8 @@ const (
 	SecurityAES128GCM        Security = 3
 	SecurityCHACHA20POLY1305 Security = 4
 	SecurityNone             Security = 5
+	SecurityZero             Security = 6
 )
-
-// CipherMapping return
-var CipherMapping = map[string]byte{
-	"none":              SecurityNone,
-	"aes-128-gcm":       SecurityAES128GCM,
-	"chacha20-poly1305": SecurityCHACHA20POLY1305,
-}
 
 // Command types
 const (
@@ -95,6 +89,8 @@ func NewClient(config Config) (*Client, error) {
 		security = SecurityCHACHA20POLY1305
 	case "none":
 		security = SecurityNone
+	case "zero":
+		security = SecurityZero
 	case "auto":
 		security = SecurityCHACHA20POLY1305
 		if runtime.GOARCH == "amd64" || runtime.GOARCH == "s390x" || runtime.GOARCH == "arm64" {
