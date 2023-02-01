@@ -12,16 +12,7 @@ type cachefileStore struct {
 
 // GetByHost implements store.GetByHost
 func (c *cachefileStore) GetByHost(host string) (netip.Addr, bool) {
-	elm := c.cache.GetFakeip([]byte(host))
-	if elm == nil {
-		return netip.Addr{}, false
-	}
-
-	if len(elm) == 4 {
-		return netip.AddrFrom4(*(*[4]byte)(elm)), true
-	} else {
-		return netip.AddrFrom16(*(*[16]byte)(elm)), true
-	}
+	return netip.AddrFromSlice(c.cache.GetFakeip([]byte(host)))
 }
 
 // PutByHost implements store.PutByHost

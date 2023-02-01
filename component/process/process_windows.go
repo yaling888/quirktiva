@@ -32,27 +32,27 @@ var (
 func initWin32API() error {
 	h, err := windows.LoadLibrary("iphlpapi.dll")
 	if err != nil {
-		return fmt.Errorf("LoadLibrary iphlpapi.dll failed: %s", err.Error())
+		return fmt.Errorf("LoadLibrary iphlpapi.dll failed: %w", err)
 	}
 
 	getExTCPTable, err = windows.GetProcAddress(h, tcpTableFunc)
 	if err != nil {
-		return fmt.Errorf("GetProcAddress of %s failed: %s", tcpTableFunc, err.Error())
+		return fmt.Errorf("GetProcAddress of %s failed: %w", tcpTableFunc, err)
 	}
 
 	getExUDPTable, err = windows.GetProcAddress(h, udpTableFunc)
 	if err != nil {
-		return fmt.Errorf("GetProcAddress of %s failed: %s", udpTableFunc, err.Error())
+		return fmt.Errorf("GetProcAddress of %s failed: %w", udpTableFunc, err)
 	}
 
 	h, err = windows.LoadLibrary("kernel32.dll")
 	if err != nil {
-		return fmt.Errorf("LoadLibrary kernel32.dll failed: %s", err.Error())
+		return fmt.Errorf("LoadLibrary kernel32.dll failed: %w", err)
 	}
 
 	queryProcName, err = windows.GetProcAddress(h, queryProcNameFunc)
 	if err != nil {
-		return fmt.Errorf("GetProcAddress of %s failed: %s", queryProcNameFunc, err.Error())
+		return fmt.Errorf("GetProcAddress of %s failed: %w", queryProcNameFunc, err)
 	}
 
 	return nil

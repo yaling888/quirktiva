@@ -3,10 +3,13 @@ package structure
 // references: https://github.com/mitchellh/mapstructure
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/Dreamacro/clash/common/errors2"
 )
 
 // Option is the configuration that is used to create a new decoder
@@ -31,7 +34,7 @@ func NewDecoder(option Option) *Decoder {
 // Decode transform a map[string]any to a struct
 func (d *Decoder) Decode(src map[string]any, dst any) error {
 	if reflect.TypeOf(dst).Kind() != reflect.Ptr {
-		return fmt.Errorf("Decode must recive a ptr struct")
+		return fmt.Errorf("decode must recive a ptr struct")
 	}
 	t := reflect.TypeOf(dst).Elem()
 	v := reflect.ValueOf(dst).Elem()
@@ -66,8 +69,10 @@ func (d *Decoder) Decode(src map[string]any, dst any) error {
 
 func (d *Decoder) decode(name string, data any, val reflect.Value) error {
 	switch val.Kind() {
-	case reflect.Int:
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return d.decodeInt(name, data, val)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return d.decodeUint(name, data, val)
 	case reflect.String:
 		return d.decodeString(name, data, val)
 	case reflect.Bool:
@@ -89,8 +94,12 @@ func (d *Decoder) decodeInt(name string, data any, val reflect.Value) (err error
 	dataVal := reflect.ValueOf(data)
 	kind := dataVal.Kind()
 	switch {
-	case kind == reflect.Int:
+	case kind == reflect.Int, kind == reflect.Int8, kind == reflect.Int16,
+		kind == reflect.Int32, kind == reflect.Int64:
 		val.SetInt(dataVal.Int())
+	case kind == reflect.Uint, kind == reflect.Uint8, kind == reflect.Uint16,
+		kind == reflect.Uint32, kind == reflect.Uint64:
+		val.SetInt(int64(dataVal.Uint()))
 	case kind == reflect.Float64 && d.option.WeaklyTypedInput:
 		val.SetInt(int64(dataVal.Float()))
 	case kind == reflect.String && d.option.WeaklyTypedInput:
@@ -99,7 +108,36 @@ func (d *Decoder) decodeInt(name string, data any, val reflect.Value) (err error
 		if err == nil {
 			val.SetInt(i)
 		} else {
-			err = fmt.Errorf("cannot parse '%s' as int: %s", name, err)
+			err = fmt.Errorf("cannot parse '%s' as int: %w", name, err)
+		}
+	default:
+		err = fmt.Errorf(
+			"'%s' expected type '%s', got unconvertible type '%s'",
+			name, val.Type(), dataVal.Type(),
+		)
+	}
+	return err
+}
+
+func (d *Decoder) decodeUint(name string, data any, val reflect.Value) (err error) {
+	dataVal := reflect.ValueOf(data)
+	kind := dataVal.Kind()
+	switch {
+	case kind == reflect.Int, kind == reflect.Int8, kind == reflect.Int16, kind == reflect.Int32,
+		kind == reflect.Int64:
+		val.SetUint(uint64(dataVal.Int()))
+	case kind == reflect.Uint, kind == reflect.Uint8, kind == reflect.Uint16,
+		kind == reflect.Uint32, kind == reflect.Uint64:
+		val.SetUint(dataVal.Uint())
+	case kind == reflect.Float64 && d.option.WeaklyTypedInput:
+		val.SetUint(uint64(dataVal.Float()))
+	case kind == reflect.String && d.option.WeaklyTypedInput:
+		var i uint64
+		i, err = strconv.ParseUint(dataVal.String(), 0, val.Type().Bits())
+		if err == nil {
+			val.SetUint(i)
+		} else {
+			err = fmt.Errorf("cannot parse '%s' as int: %w", name, err)
 		}
 	default:
 		err = fmt.Errorf(
@@ -165,7 +203,8 @@ func (d *Decoder) decodeSlice(name string, data any, val reflect.Value) error {
 			if d.option.WeaklyTypedInput {
 				continue
 			}
-			// in non-weakly type mode, null will convert to nil if element's zero value is nil, otherwise return an error
+			// in non-weakly type mode, null will convert to nil if element's zero value is nil
+			// otherwise return an error
 			if elemKind := valElemType.Kind(); elemKind == reflect.Map || elemKind == reflect.Slice {
 				continue
 			}
@@ -206,8 +245,6 @@ func (d *Decoder) decodeMapFromMap(name string, dataVal reflect.Value, val refle
 	valKeyType := valType.Key()
 	valElemType := valType.Elem()
 
-	errors := make([]string, 0)
-
 	if dataVal.Len() == 0 {
 		if dataVal.IsNil() {
 			if !val.IsNil() {
@@ -220,24 +257,25 @@ func (d *Decoder) decodeMapFromMap(name string, dataVal reflect.Value, val refle
 		return nil
 	}
 
+	var errs error
 	for _, k := range dataVal.MapKeys() {
 		fieldName := fmt.Sprintf("%s[%s]", name, k)
 
 		currentKey := reflect.Indirect(reflect.New(valKeyType))
 		if err := d.decode(fieldName, k.Interface(), currentKey); err != nil {
-			errors = append(errors, err.Error())
+			errs = errors.Join(errs, err)
 			continue
 		}
 
 		v := dataVal.MapIndex(k).Interface()
 		if v == nil {
-			errors = append(errors, fmt.Sprintf("filed %s invalid", fieldName))
+			errs = errors.Join(errs, fmt.Errorf("filed %s invalid", fieldName))
 			continue
 		}
 
 		currentVal := reflect.Indirect(reflect.New(valElemType))
 		if err := d.decode(fieldName, v, currentVal); err != nil {
-			errors = append(errors, err.Error())
+			errs = errors.Join(errs, err)
 			continue
 		}
 
@@ -246,8 +284,8 @@ func (d *Decoder) decodeMapFromMap(name string, dataVal reflect.Value, val refle
 
 	val.Set(valMap)
 
-	if len(errors) > 0 {
-		return fmt.Errorf(strings.Join(errors, ","))
+	if errs != nil {
+		return errors2.New(errs)
 	}
 
 	return nil
@@ -287,8 +325,6 @@ func (d *Decoder) decodeStructFromMap(name string, dataVal, val reflect.Value) e
 		dataValKeysUnused[dataValKey.Interface()] = struct{}{}
 	}
 
-	errors := make([]string, 0)
-
 	// This slice will keep track of all the structs we'll be decoding.
 	// There can be more than one struct if there are embedded structs
 	// that are squashed.
@@ -301,7 +337,11 @@ func (d *Decoder) decodeStructFromMap(name string, dataVal, val reflect.Value) e
 		field reflect.StructField
 		val   reflect.Value
 	}
-	fields := []field{}
+
+	var (
+		fields []field
+		errs   error
+	)
 	for len(structs) > 0 {
 		structVal := structs[0]
 		structs = structs[1:]
@@ -324,8 +364,10 @@ func (d *Decoder) decodeStructFromMap(name string, dataVal, val reflect.Value) e
 
 			if squash {
 				if fieldKind != reflect.Struct {
-					errors = append(errors,
-						fmt.Errorf("%s: unsupported type for squash: %s", fieldType.Name, fieldKind).Error())
+					errs = errors.Join(
+						errs,
+						fmt.Errorf("%s: unsupported type for squash: %s", fieldType.Name, fieldKind),
+					)
 				} else {
 					structs = append(structs, structVal.FieldByName(fieldType.Name))
 				}
@@ -339,10 +381,10 @@ func (d *Decoder) decodeStructFromMap(name string, dataVal, val reflect.Value) e
 
 	// for fieldType, field := range fields {
 	for _, f := range fields {
-		field, fieldValue := f.field, f.val
-		fieldName := field.Name
+		fieldM, fieldValue := f.field, f.val
+		fieldName := fieldM.Name
 
-		tagValue := field.Tag.Get(d.option.TagName)
+		tagValue := fieldM.Tag.Get(d.option.TagName)
 		tagValue = strings.SplitN(tagValue, ",", 2)[0]
 		if tagValue != "" {
 			fieldName = tagValue
@@ -374,7 +416,7 @@ func (d *Decoder) decodeStructFromMap(name string, dataVal, val reflect.Value) e
 			}
 		}
 
-		// Delete the key we're using from the unused map so we stop tracking
+		// Delete the key we're using from the unused map so stop tracking
 		delete(dataValKeysUnused, rawMapKey.Interface())
 
 		if !fieldValue.IsValid() {
@@ -395,18 +437,18 @@ func (d *Decoder) decodeStructFromMap(name string, dataVal, val reflect.Value) e
 		}
 
 		if err := d.decode(fieldName, rawMapVal.Interface(), fieldValue); err != nil {
-			errors = append(errors, err.Error())
+			errs = errors.Join(errs, err)
 		}
 	}
 
-	if len(errors) > 0 {
-		return fmt.Errorf(strings.Join(errors, ","))
+	if errs != nil {
+		return errors2.New(errs)
 	}
 
 	return nil
 }
 
-func (d *Decoder) setInterface(name string, data any, val reflect.Value) (err error) {
+func (d *Decoder) setInterface(_ string, data any, val reflect.Value) (err error) {
 	dataVal := reflect.ValueOf(data)
 	val.Set(dataVal)
 	return nil

@@ -60,8 +60,8 @@ func ServerHandshake(rw io.ReadWriter, authenticator auth.Authenticator) (addr s
 	}
 
 	var (
-		dstIP   = netip.AddrFrom4(*(*[4]byte)(req[4:8])) // [4]byte
-		dstPort = req[2:4]                               // [2]byte
+		dstIP   = netip.AddrFrom4([4]byte(req[4:8])) // [4]byte
+		dstPort = req[2:4]                           // [2]byte
 	)
 
 	var (

@@ -139,39 +139,27 @@ func getProxies(mapping map[string]C.Proxy, list []string) ([]C.Proxy, error) {
 }
 
 func getProviders(mapping map[string]types.ProxyProvider, groupOption *GroupCommonOption, filterRegx *regexp.Regexp) ([]types.ProxyProvider, error) {
-	var (
-		ps        []types.ProxyProvider
-		list      = groupOption.Use
-		groupName = groupOption.Name
-	)
-
-	for _, name := range list {
+	var ps []types.ProxyProvider
+	for _, name := range groupOption.Use {
 		p, ok := mapping[name]
 		if !ok {
 			return nil, fmt.Errorf("'%s' not found", name)
 		}
 
-		if p.VehicleType() == types.Compatible {
+		var pp *provider.ProxySetProvider
+		if pp, ok = p.(*provider.ProxySetProvider); !ok {
 			return nil, fmt.Errorf("proxy group %s can't contains in `use`", name)
 		}
 
-		if filterRegx != nil {
-			hc, err := newHealthCheck([]C.Proxy{}, groupOption)
-			if err != nil {
-				return nil, err
-			}
-
-			gName := groupName
-			if _, ok = mapping[gName]; ok {
-				gName = groupName + " -> " + p.Name()
-			}
-
-			pd := p.(*provider.ProxySetProvider)
-			p = provider.NewProxyFilterProvider(gName, pd, hc, filterRegx)
-			pd.RegisterProvidersInUse(p)
+		hc, err := newHealthCheck([]C.Proxy{}, groupOption)
+		if err != nil {
+			return nil, err
 		}
 
-		ps = append(ps, p)
+		fpName := fmt.Sprintf("%s-in-%s", name, groupOption.Name)
+		fp := provider.NewProxyFilterProvider(fpName, pp, hc, filterRegx)
+		pp.RegisterProvidersInUse(fp)
+		ps = append(ps, fp)
 	}
 	return ps, nil
 }

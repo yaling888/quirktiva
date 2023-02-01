@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/phuslu/log"
 
 	"github.com/Dreamacro/clash/constant/provider"
 	"github.com/Dreamacro/clash/tunnel"
@@ -38,11 +39,14 @@ func getProvider(w http.ResponseWriter, r *http.Request) {
 
 func updateProvider(w http.ResponseWriter, r *http.Request) {
 	provider := r.Context().Value(CtxKeyProvider).(provider.ProxyProvider)
+	log.Info().Str("name", provider.Name()).Msg("[API] proxy provider updating...")
 	if err := provider.Update(); err != nil {
 		render.Status(r, http.StatusServiceUnavailable)
 		render.JSON(w, r, newError(err.Error()))
+		log.Error().Err(err).Str("name", provider.Name()).Msg("[API] update proxy provider failed")
 		return
 	}
+	log.Info().Str("name", provider.Name()).Msg("[API] proxy provider updated")
 	render.NoContent(w, r)
 }
 

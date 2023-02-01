@@ -48,7 +48,7 @@ func (gs *GEOSITE) GetDomainMatcher() *router.DomainMatcher {
 func NewGEOSITE(country string, adapter string) (*GEOSITE, error) {
 	matcher, recordsCount, err := geodata.LoadProviderByCode(country)
 	if err != nil {
-		return nil, fmt.Errorf("load GeoSite data error, %s", err.Error())
+		return nil, fmt.Errorf("load GeoSite data error, %w", err)
 	}
 
 	count := fmt.Sprintf("%d", recordsCount)

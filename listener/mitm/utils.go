@@ -58,7 +58,7 @@ func NewErrorResponse(req *http.Request, err error) *http.Response {
 		date = time.Now().Format(http.TimeFormat)
 	}
 
-	w := fmt.Sprintf(`199 "clash" %q %q`, err.Error(), date)
+	w := fmt.Sprintf(`199 "clash" %s %s`, err.Error(), date)
 	res.Header.Add("Warning", w)
 	return res
 }

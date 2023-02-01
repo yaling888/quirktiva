@@ -93,7 +93,7 @@ Loop:
 func Decode(filename, code string) ([]byte, error) {
 	f, err := os.Open(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %s, base error: %s", filename, err.Error())
+		return nil, fmt.Errorf("failed to open file: %s, base error: %w", filename, err)
 	}
 	defer func(f *os.File) {
 		_ = f.Close()

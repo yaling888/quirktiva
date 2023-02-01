@@ -10,14 +10,7 @@ jobs:
         uses: actions/setup-go@v3
         with:
           check-latest: true
-          go-version: '1.19'
-
-      - name: TestWireGuard
-        if: contains(github.event.head_commit.message, 'test')
-        run: |
-          cd test/
-          go mod tidy
-          go test -run=TestWireGuard -v
+          go-version: '1.20'
 
       - name: TestAll
         if: contains(github.event.head_commit.message, 'test')

@@ -17,7 +17,7 @@ func (m *memConservativeLoader) LoadIP(filename, country string) ([]*router.CIDR
 	defer runtime.GC()
 	geoip, err := m.geoipcache.Unmarshal(filename, country)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode geodata file: %s, base error: %s", filename, err.Error())
+		return nil, fmt.Errorf("failed to decode geodata file: %s, base error: %w", filename, err)
 	}
 	return geoip.Cidr, nil
 }
@@ -26,7 +26,7 @@ func (m *memConservativeLoader) LoadSite(filename, list string) ([]*router.Domai
 	defer runtime.GC()
 	geosite, err := m.geositecache.Unmarshal(filename, list)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode geodata file: %s, base error: %s", filename, err.Error())
+		return nil, fmt.Errorf("failed to decode geodata file: %s, base error: %w", filename, err)
 	}
 	return geosite.Domain, nil
 }

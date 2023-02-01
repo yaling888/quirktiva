@@ -38,7 +38,7 @@ func proxyGroupsDagSort(groupsConfig []map[string]any) error {
 	for _, mapping := range groupsConfig {
 		option := &outboundgroup.GroupCommonOption{}
 		if err := decoder.Decode(mapping, option); err != nil {
-			return fmt.Errorf("ProxyGroup %s: %s", option.Name, err.Error())
+			return fmt.Errorf("ProxyGroup %s: %w", option.Name, err)
 		}
 
 		groupName := option.Name

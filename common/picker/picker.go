@@ -2,6 +2,7 @@ package picker
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 )
@@ -73,7 +74,7 @@ func (p *Picker[T]) Go(f func() (T, error)) {
 			})
 		} else {
 			p.errOnce.Do(func() {
-				p.err = err
+				p.err = errors.Join(p.err, err)
 			})
 		}
 	}()

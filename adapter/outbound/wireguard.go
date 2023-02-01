@@ -219,10 +219,7 @@ func NewWireGuard(option WireGuardOption) (*WireGuard, error) {
 
 	var reservedBytes []byte
 	if option.Reserved != "" {
-		reserved := option.Reserved
-		if _, b, ok := strings.Cut(strings.ToLower(reserved), "0x"); ok {
-			reserved = b
-		}
+		reserved := strings.TrimPrefix(strings.ToLower(option.Reserved), "0x")
 		if reservedBytes, err = hex.DecodeString(reserved); err != nil || len(reservedBytes) != 3 {
 			return nil, fmt.Errorf("decode wireguard reserved 3 bytes failure %w", err)
 		}

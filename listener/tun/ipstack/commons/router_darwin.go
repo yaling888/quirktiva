@@ -94,9 +94,8 @@ func defaultRouteInterface() (*net.Interface, error) {
 
 		addresses := routeMessage.Addrs
 
-		if (addresses[0].Family() == syscall.AF_INET && addresses[0].(*route.Inet4Addr).IP != *(*[4]byte)(net.IPv4zero)) ||
-			(addresses[0].Family() == syscall.AF_INET6 && addresses[0].(*route.Inet6Addr).IP != *(*[16]byte)(net.IPv6zero)) {
-
+		if (addresses[0].Family() == syscall.AF_INET && addresses[0].(*route.Inet4Addr).IP != [4]byte(net.IPv4zero)) ||
+			(addresses[0].Family() == syscall.AF_INET6 && addresses[0].(*route.Inet6Addr).IP != [16]byte(net.IPv6zero)) {
 			continue
 		}
 

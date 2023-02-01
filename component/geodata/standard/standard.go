@@ -32,7 +32,7 @@ func ReadAsset(file string) ([]byte, error) {
 func loadIP(filename, country string) ([]*router.CIDR, error) {
 	geoipBytes, err := ReadAsset(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %s, base error: %s", filename, err.Error())
+		return nil, fmt.Errorf("failed to open file: %s, base error: %w", filename, err)
 	}
 	var geoipList router.GeoIPList
 	if err := proto.Unmarshal(geoipBytes, &geoipList); err != nil {
@@ -51,7 +51,7 @@ func loadIP(filename, country string) ([]*router.CIDR, error) {
 func loadSite(filename, list string) ([]*router.Domain, error) {
 	geositeBytes, err := ReadAsset(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %s, base error: %s", filename, err.Error())
+		return nil, fmt.Errorf("failed to open file: %s, base error: %w", filename, err)
 	}
 	var geositeList router.GeoSiteList
 	if err := proto.Unmarshal(geositeBytes, &geositeList); err != nil {

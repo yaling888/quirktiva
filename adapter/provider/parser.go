@@ -47,6 +47,14 @@ func ParseProxyProvider(name string, mapping map[string]any, forceCertVerify boo
 		schema.ForceCertVerify = true
 	}
 
+	if schema.Interval < 0 {
+		schema.Interval = 0
+	}
+
+	if schema.HealthCheck.Interval < 0 {
+		schema.HealthCheck.Interval = 0
+	}
+
 	if err := decoder.Decode(mapping, schema); err != nil {
 		return nil, err
 	}
@@ -69,7 +77,7 @@ func ParseProxyProvider(name string, mapping map[string]any, forceCertVerify boo
 		return nil, fmt.Errorf("%w: %s", errVehicleType, schema.Type)
 	}
 
-	interval := time.Duration(uint(schema.Interval)) * time.Second
+	interval := time.Duration(schema.Interval) * time.Second
 	filter := schema.Filter
 	return NewProxySetProvider(name, interval, filter, vehicle, hc, schema.ForceCertVerify,
 		schema.UDP, schema.RandomHost, schema.PrefixName)
