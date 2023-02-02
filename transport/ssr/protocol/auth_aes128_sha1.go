@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"bytes"
+	R "crypto/rand"
 	"encoding/binary"
 	"math"
 	"math/rand"
@@ -65,7 +66,7 @@ func (a *authAES128) initUserData() {
 	}
 	if len(a.userKey) == 0 {
 		a.userKey = a.Key
-		rand.Read(a.userID[:])
+		R.Read(a.userID[:])
 	}
 }
 

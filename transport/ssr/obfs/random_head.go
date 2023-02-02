@@ -1,6 +1,7 @@
 package obfs
 
 import (
+	R "crypto/rand"
 	"encoding/binary"
 	"hash/crc32"
 	"math/rand"
@@ -56,7 +57,7 @@ func (c *randomHeadConn) Write(b []byte) (int, error) {
 		dataLength := rand.Intn(96) + 4
 		buf := pool.Get(dataLength + 4)
 		defer pool.Put(buf)
-		rand.Read(buf[:dataLength])
+		R.Read(buf[:dataLength])
 		binary.LittleEndian.PutUint32(buf[dataLength:], 0xffffffff-crc32.ChecksumIEEE(buf[:dataLength]))
 		_, err := c.Conn.Write(buf)
 		return len(b), err

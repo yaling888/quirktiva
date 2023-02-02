@@ -2,10 +2,10 @@ package obfs
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/base64"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	"net/http"
 

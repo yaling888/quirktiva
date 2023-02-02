@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	R "crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
 	"math/rand"
@@ -38,7 +39,7 @@ func (a *authData) next() *authData {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
 	if a.connectionID > 0xff000000 || a.connectionID == 0 {
-		rand.Read(a.clientID[:])
+		R.Read(a.clientID[:])
 		a.connectionID = rand.Uint32() & 0xffffff
 	}
 	a.connectionID++

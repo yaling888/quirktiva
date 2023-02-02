@@ -6,21 +6,18 @@ import (
 	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/md5"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 	"hash/fnv"
 	"io"
-	"math/rand"
+	"math/big"
 	"net"
 	"time"
 
 	"golang.org/x/crypto/chacha20poly1305"
 )
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
 
 // Conn wrapper a net.Conn with vmess protocol
 type Conn struct {
@@ -76,7 +73,11 @@ func (vc *Conn) sendRequest() error {
 	buf.WriteByte(vc.respV)
 	buf.WriteByte(OptionChunkStream)
 
-	p := rand.Intn(16)
+	pad, err := rand.Int(rand.Reader, big.NewInt(16))
+	if err != nil {
+		return err
+	}
+	p := pad.Uint64()
 	// P Sec Reserve Cmd
 	buf.WriteByte(byte(p<<4) | byte(vc.security))
 	buf.WriteByte(0)
@@ -118,7 +119,7 @@ func (vc *Conn) sendRequest() error {
 	var fixedLengthCmdKey [16]byte
 	copy(fixedLengthCmdKey[:], vc.id.CmdKey)
 	vmessout := sealVMessAEADHeader(fixedLengthCmdKey, buf.Bytes(), timestamp)
-	_, err := vc.Conn.Write(vmessout)
+	_, err = vc.Conn.Write(vmessout)
 	return err
 }
 

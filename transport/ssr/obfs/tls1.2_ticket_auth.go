@@ -3,6 +3,7 @@ package obfs
 import (
 	"bytes"
 	"crypto/hmac"
+	R "crypto/rand"
 	"encoding/binary"
 	"math/rand"
 	"net"
@@ -25,7 +26,7 @@ type tls12Ticket struct {
 
 func newTLS12Ticket(b *Base) Obfs {
 	r := &tls12Ticket{Base: b, authData: &authData{}}
-	rand.Read(r.clientID[:])
+	R.Read(r.clientID[:])
 	return r
 }
 
