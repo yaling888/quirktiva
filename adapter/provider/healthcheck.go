@@ -102,7 +102,10 @@ func (hc *HealthCheck) close() {
 		return
 	}
 	hc.running.Store(false)
-	hc.done <- struct{}{}
+	select {
+	case hc.done <- struct{}{}:
+	default:
+	}
 }
 
 func NewHealthCheck(proxies []C.Proxy, url string, interval uint, lazy bool) *HealthCheck {

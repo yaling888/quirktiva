@@ -70,6 +70,7 @@ type ProxyProvider interface {
 	// Commonly used in DialContext and DialPacketConn
 	Touch()
 	HealthCheck()
+	Finalize()
 }
 
 // Rule Type
@@ -102,4 +103,20 @@ type RuleProvider interface {
 	Match(*constant.Metadata) bool
 	ShouldResolveIP() bool
 	AsRule(adaptor string) constant.Rule
+}
+
+func Cleanup(proxies map[string]constant.Proxy, providers map[string]ProxyProvider) {
+	for _, p := range proxies {
+		go p.(constant.ProxyAdapter).Cleanup()
+	}
+	for _, pd := range providers {
+		go func(pp ProxyProvider) {
+			pp.Finalize()
+			if pp.VehicleType() != Compatible {
+				for _, p := range pp.Proxies() {
+					p.(constant.ProxyAdapter).Cleanup()
+				}
+			}
+		}(pd)
+	}
 }

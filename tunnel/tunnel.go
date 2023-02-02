@@ -130,17 +130,7 @@ func UpdateProxies(newProxies map[string]C.Proxy, newProviders map[string]provid
 	providers = newProviders
 	C.GetScriptProxyProviders = scriptProxyProvidersGetter
 	statistic.DefaultManager.Cleanup()
-	for _, p := range old {
-		go p.(C.ProxyAdapter).Cleanup()
-	}
-	for _, pd := range oldPDs {
-		if pd.VehicleType() == provider.Compatible {
-			continue
-		}
-		for _, p := range pd.Proxies() {
-			go p.(C.ProxyAdapter).Cleanup()
-		}
-	}
+	provider.Cleanup(old, oldPDs)
 	configMux.Unlock()
 }
 

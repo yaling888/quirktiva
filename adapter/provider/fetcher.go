@@ -54,7 +54,7 @@ func (f *fetcher[V]) Initial() (V, error) {
 		modTime := stat.ModTime()
 		f.updatedAt = &modTime
 		isLocal = true
-		immediatelyUpdate = time.Since(modTime) > f.interval
+		immediatelyUpdate = f.interval != 0 && time.Since(modTime) > f.interval<<2
 	} else {
 		buf, err = f.vehicle.Read()
 	}
@@ -132,13 +132,17 @@ func (f *fetcher[V]) Update() (V, bool, error) {
 
 func (f *fetcher[V]) Destroy() error {
 	if f.ticker != nil {
-		f.done <- struct{}{}
+		select {
+		case f.done <- struct{}{}:
+		default:
+		}
 	}
 	return nil
 }
 
 func (f *fetcher[V]) pullLoop(immediately bool) {
 	update := func() {
+		log.Debug().Str("name", f.Name()).Msg("[Provider] proxies updating...")
 		elm, same, err := f.Update()
 		if err != nil {
 			log.Warn().Err(err).Str("name", f.Name()).Msg("[Provider] pull failed")

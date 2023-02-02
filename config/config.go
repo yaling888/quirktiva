@@ -369,17 +369,7 @@ func UnmarshalRawConfig(buf []byte) (*RawConfig, error) {
 func ParseRawConfig(rawCfg *RawConfig) (config *Config, err error) {
 	defer func() {
 		if err != nil {
-			for _, p := range config.Proxies {
-				go p.(C.ProxyAdapter).Cleanup()
-			}
-			for _, pd := range config.Providers {
-				if pd.VehicleType() == providerTypes.Compatible {
-					continue
-				}
-				for _, p := range pd.Proxies() {
-					go p.(C.ProxyAdapter).Cleanup()
-				}
-			}
+			providerTypes.Cleanup(config.Proxies, config.Providers)
 		}
 		geodata.CleanGeoSiteCache()
 	}()

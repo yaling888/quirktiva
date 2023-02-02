@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"runtime"
 	"time"
 
 	"github.com/samber/lo"
@@ -88,6 +87,18 @@ func (pp *proxySetProvider) Touch() {
 	pp.healthCheck.touch()
 }
 
+func (pp *proxySetProvider) RegisterProvidersInUse(providers ...types.ProxyProvider) {
+	pp.providersInUse = append(pp.providersInUse, providers...)
+}
+
+func (pp *proxySetProvider) Finalize() {
+	pp.healthCheck.close()
+	_ = pp.fetcher.Destroy()
+	for _, pd := range pp.providersInUse {
+		pd.Finalize()
+	}
+}
+
 func (pp *proxySetProvider) setProxies(proxies []C.Proxy) {
 	old := pp.proxies
 	pp.proxies = proxies
@@ -106,15 +117,6 @@ func (pp *proxySetProvider) setProxies(proxies []C.Proxy) {
 		})
 		statistic.DefaultManager.KickOut(names...)
 	}
-}
-
-func (pp *proxySetProvider) RegisterProvidersInUse(providers ...types.ProxyProvider) {
-	pp.providersInUse = append(pp.providersInUse, providers...)
-}
-
-func stopProxyProvider(pd *ProxySetProvider) {
-	pd.healthCheck.close()
-	_ = pd.fetcher.Destroy()
 }
 
 func NewProxySetProvider(
@@ -151,7 +153,6 @@ func NewProxySetProvider(
 	)
 
 	wrapper := &ProxySetProvider{pd}
-	runtime.SetFinalizer(wrapper, stopProxyProvider)
 	return wrapper, nil
 }
 
@@ -209,8 +210,8 @@ func (cp *compatibleProvider) Touch() {
 	cp.healthCheck.touch()
 }
 
-func stopCompatibleProvider(pd *CompatibleProvider) {
-	pd.healthCheck.close()
+func (cp *compatibleProvider) Finalize() {
+	cp.healthCheck.close()
 }
 
 func NewCompatibleProvider(name string, proxies []C.Proxy, hc *HealthCheck) (*CompatibleProvider, error) {
@@ -229,7 +230,6 @@ func NewCompatibleProvider(name string, proxies []C.Proxy, hc *HealthCheck) (*Co
 	}
 
 	wrapper := &CompatibleProvider{pd}
-	runtime.SetFinalizer(wrapper, stopCompatibleProvider)
 	return wrapper, nil
 }
 
@@ -294,7 +294,7 @@ func (pf *proxyFilterProvider) Initial() error {
 }
 
 func (pf *proxyFilterProvider) VehicleType() types.VehicleType {
-	return pf.psd.VehicleType()
+	return types.Compatible
 }
 
 func (pf *proxyFilterProvider) Type() types.ProviderType {
@@ -309,7 +309,7 @@ func (pf *proxyFilterProvider) Touch() {
 	pf.healthCheck.touch()
 }
 
-func stopProxyFilterProvider(pf *ProxyFilterProvider) {
+func (pf *proxyFilterProvider) Finalize() {
 	pf.healthCheck.close()
 }
 
@@ -324,7 +324,6 @@ func NewProxyFilterProvider(name string, psd *ProxySetProvider, hc *HealthCheck,
 	_ = pd.Update()
 
 	wrapper := &ProxyFilterProvider{pd}
-	runtime.SetFinalizer(wrapper, stopProxyFilterProvider)
 	return wrapper
 }
 
@@ -344,7 +343,7 @@ func proxiesParseAndFilter(filter string, filterReg *regexp.Regexp, forceCertVer
 				proxies, err1 = convert.ConvertsWireGuard(buf)
 			}
 			if err1 != nil {
-				return nil, errors.New("parse config file failure")
+				return nil, errors.New("parse proxy provider failure, invalid data format")
 			}
 			schema.Proxies = proxies
 		}
