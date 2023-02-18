@@ -108,7 +108,7 @@ func (tun *netTun) File() *os.File {
 	return nil
 }
 
-func (tun *netTun) Events() chan tun.Event {
+func (tun *netTun) Events() <-chan tun.Event {
 	return tun.events
 }
 
