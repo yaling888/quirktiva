@@ -4,7 +4,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"go.uber.org/atomic"
 
 	C "github.com/Dreamacro/clash/constant"

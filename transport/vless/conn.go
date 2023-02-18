@@ -8,7 +8,7 @@ import (
 	"io"
 	"net"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	xtls "github.com/xtls/go"
 	"google.golang.org/protobuf/proto"
 )
