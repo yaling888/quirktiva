@@ -8,12 +8,17 @@ import (
 )
 
 type TcEBpfProgram struct {
-	pros    []C.EBpf
-	rawNICs []string
+	pros         []C.EBpf
+	rawNICs      []string
+	rawInterface string
 }
 
 func (t *TcEBpfProgram) RawNICs() []string {
 	return t.rawNICs
+}
+
+func (t *TcEBpfProgram) RawInterface() string {
+	return t.rawInterface
 }
 
 func (t *TcEBpfProgram) Close() {

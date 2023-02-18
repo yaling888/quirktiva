@@ -372,7 +372,9 @@ func ReCreateTun(tunConf *config.Tun, tcpIn chan<- C.ConnContext, udpIn chan<- *
 		}
 	}()
 
-	tunConf.DNSHijack = C.RemoveDuplicateDNSUrl(tunConf.DNSHijack)
+	tunConf.DNSHijack = lo.UniqBy(tunConf.DNSHijack, func(item C.DNSUrl) string {
+		return item.String()
+	})
 
 	if tunStackListener != nil {
 		if !hasTunConfigChange(tunConf) {
@@ -481,8 +483,7 @@ func ReCreateRedirToTun(ifaceNames []string) {
 	tcMux.Lock()
 	defer tcMux.Unlock()
 
-	nicArr := ifaceNames
-	nicArr = lo.FindUniques(nicArr)
+	nicArr := lo.Uniq(ifaceNames)
 
 	if tcProgram != nil {
 		tcProgram.Close()
@@ -507,7 +508,7 @@ func ReCreateRedirToTun(ifaceNames []string) {
 	log.Info().Strs("interfaces", tcProgram.RawNICs()).Msg("[Inbound] Attached tc ebpf program")
 }
 
-func ReCreateAutoRedir(ifaceNames []string, tcpIn chan<- C.ConnContext, _ chan<- *inbound.PacketAdapter) {
+func ReCreateAutoRedir(ifaceNames []string, defaultInterface string, tcpIn chan<- C.ConnContext, _ chan<- *inbound.PacketAdapter) {
 	autoRedirMux.Lock()
 	defer autoRedirMux.Unlock()
 
@@ -526,13 +527,21 @@ func ReCreateAutoRedir(ifaceNames []string, tcpIn chan<- C.ConnContext, _ chan<-
 		}
 	}()
 
-	nicArr := ifaceNames
-	nicArr = lo.FindUniques(nicArr)
+	nicArr := lo.Uniq(ifaceNames)
+	defaultRouteInterfaceName := defaultInterface
 
-	if redirListener != nil && autoRedirProgram != nil {
-		_ = redirListener.Close()
+	if autoRedirListener != nil && autoRedirProgram != nil {
+		if defaultRouteInterfaceName == "" {
+			defaultRouteInterfaceName, _ = commons.GetAutoDetectInterface()
+		}
+		if autoRedirProgram.RawInterface() == defaultRouteInterfaceName &&
+			len(autoRedirProgram.RawNICs()) == len(nicArr) &&
+			lo.Every(autoRedirProgram.RawNICs(), nicArr) {
+			return
+		}
+		_ = autoRedirListener.Close()
 		autoRedirProgram.Close()
-		redirListener = nil
+		autoRedirListener = nil
 		autoRedirProgram = nil
 	}
 
@@ -540,9 +549,11 @@ func ReCreateAutoRedir(ifaceNames []string, tcpIn chan<- C.ConnContext, _ chan<-
 		return
 	}
 
-	defaultRouteInterfaceName, err := commons.GetAutoDetectInterface()
-	if err != nil {
-		return
+	if defaultRouteInterfaceName == "" {
+		defaultRouteInterfaceName, err = commons.GetAutoDetectInterface()
+		if err != nil {
+			return
+		}
 	}
 
 	addr := genAddr("*", C.TcpAutoRedirPort, true)
@@ -733,18 +744,11 @@ func hasTunConfigChange(tunConf *config.Tun) bool {
 		return true
 	}
 
-	if len(lastTunConf.DNSHijack) != len(tunConf.DNSHijack) {
+	if len(lastTunConf.DNSHijack) != len(tunConf.DNSHijack) || !lo.Every(lastTunConf.DNSHijack, tunConf.DNSHijack) {
 		return true
 	}
 
-	for i, dns := range tunConf.DNSHijack {
-		if dns != lastTunConf.DNSHijack[i] {
-			return true
-		}
-	}
-
 	if lastTunConf.Enable != tunConf.Enable ||
-		lastTunConf.Device != tunConf.Device ||
 		lastTunConf.Stack != tunConf.Stack ||
 		lastTunConf.AutoRoute != tunConf.AutoRoute ||
 		lastTunConf.AutoDetectInterface != tunConf.AutoDetectInterface {

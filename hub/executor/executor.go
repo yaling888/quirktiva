@@ -251,7 +251,7 @@ func updateGeneral(general *config.General, force bool) {
 	listener.ReCreateHTTP(general.Port, tcpIn)
 	listener.ReCreateSocks(general.SocksPort, tcpIn, udpIn)
 	listener.ReCreateRedir(general.RedirPort, tcpIn, udpIn)
-	listener.ReCreateAutoRedir(general.EBpf.AutoRedir, tcpIn, udpIn)
+	listener.ReCreateAutoRedir(general.EBpf.AutoRedir, general.Interface, tcpIn, udpIn)
 	listener.ReCreateTProxy(general.TProxyPort, tcpIn, udpIn)
 	listener.ReCreateMixed(general.MixedPort, tcpIn, udpIn)
 	listener.ReCreateMitm(general.MitmPort, tcpIn)
