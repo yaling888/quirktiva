@@ -20,8 +20,10 @@ func init() {
 }
 
 func (t *TUN) LUID() uint64 {
-	return t.nt.LUID()
+	return t.nt.(*tun.NativeTun).LUID()
 }
+
+func (t *TUN) close() {}
 
 func newDevice(name string, mtu int) (nt tun.Device, err error) {
 	if err = driver.InitWintun(); err != nil {

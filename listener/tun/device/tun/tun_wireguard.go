@@ -1,5 +1,3 @@
-//go:build !(linux && amd64) && !(linux && arm64)
-
 package tun
 
 import (
@@ -16,7 +14,7 @@ import (
 type TUN struct {
 	*iobased.Endpoint
 
-	nt     *tun.NativeTun
+	nt     tun.Device
 	mtu    uint32
 	name   string
 	offset int
@@ -53,7 +51,7 @@ func Open(name string, mtu uint32) (_ device.Device, err error) {
 		return nil, fmt.Errorf("create tun: %w", err)
 	}
 
-	t.nt = nt.(*tun.NativeTun)
+	t.nt = nt
 
 	tunMTU, err := nt.MTU()
 	if err != nil {
@@ -98,6 +96,8 @@ func (t *TUN) Write(packet []byte) (int, error) {
 }
 
 func (t *TUN) Close() error {
+	t.close()
+
 	defer func(ep *iobased.Endpoint) {
 		if ep != nil {
 			ep.Close()
