@@ -87,7 +87,7 @@ func (hc *HealthCheck) check() {
 		b.Go(p.Name(), func() (bool, error) {
 			ctx, cancel := context.WithTimeout(context.Background(), defaultURLTestTimeout)
 			defer cancel()
-			_, _ = p.URLTest(ctx, hc.url)
+			_, _, _ = p.URLTest(ctx, hc.url)
 			return false, nil
 		})
 	}
