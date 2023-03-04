@@ -41,6 +41,9 @@ func ParseProxyProvider(name string, mapping map[string]any, forceCertVerify boo
 		HealthCheck: healthCheckSchema{
 			Lazy: true,
 		},
+		Header: map[string][]string{
+			"User-Agent": {"Clash/" + C.Version},
+		},
 	}
 
 	if forceCertVerify {
