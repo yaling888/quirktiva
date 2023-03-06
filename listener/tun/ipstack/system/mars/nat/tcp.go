@@ -34,8 +34,6 @@ func (t *TCP) Accept() (net.Conn, error) {
 
 	addition(c)
 
-	_ = c.SetLinger(0)
-
 	return &conn{
 		Conn:  c,
 		tuple: tup,
