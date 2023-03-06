@@ -14,7 +14,6 @@ import (
 	"github.com/Dreamacro/clash/config"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/listener/tun/device"
-	"github.com/Dreamacro/clash/listener/tun/device/fdbased"
 	"github.com/Dreamacro/clash/listener/tun/device/tun"
 	"github.com/Dreamacro/clash/listener/tun/ipstack"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/commons"
@@ -138,16 +137,7 @@ func parseDevice(s string, mtu uint32) (device.Device, error) {
 	}
 
 	name := u.Host
-	driver := strings.ToLower(u.Scheme)
-
-	switch driver {
-	case fdbased.Driver:
-		return fdbased.Open(name, mtu)
-	case tun.Driver:
-		return tun.Open(name, mtu)
-	default:
-		return nil, fmt.Errorf("unsupported driver: %s", driver)
-	}
+	return tun.Open(name, mtu)
 }
 
 func setAtLatest(stackType C.TUNStack, devName string) {

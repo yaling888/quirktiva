@@ -1,17 +1,14 @@
 package nat
 
 import (
-	"io"
 	"net"
 	"net/netip"
 
 	dev "github.com/Dreamacro/clash/listener/tun/device"
-	"github.com/Dreamacro/clash/listener/tun/device/fdbased"
-	"github.com/Dreamacro/clash/listener/tun/device/tun"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/system/mars/tcpip"
 )
 
-func Start(device io.ReadWriter, gateway, portal, broadcast netip.Addr) (*TCP, *UDP, error) {
+func Start(device dev.Device, gateway, portal, broadcast netip.Addr) (*TCP, *UDP, error) {
 	if !portal.Is4() || !gateway.Is4() {
 		return nil, nil, net.InvalidAddrError("only ipv4 supported")
 	}
@@ -22,17 +19,9 @@ func Start(device io.ReadWriter, gateway, portal, broadcast netip.Addr) (*TCP, *
 	}
 
 	var (
-		t   dev.Device
-		mtu uint32
-		ok  bool
+		offset     = device.Offset()
+		bufferSize = int(device.MTU()) + offset
 	)
-	if t, ok = device.(*tun.TUN); ok {
-		mtu = t.MTU()
-	} else if t, ok = device.(*fdbased.FD); ok {
-		mtu = t.MTU()
-	}
-
-	bufferSize := int(mtu)
 
 	if bufferSize == 0 {
 		bufferSize = 64 * 1024
