@@ -4,17 +4,17 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/Dreamacro/clash/common/pool"
+	"gvisor.dev/gvisor/pkg/bufferv2"
 )
 
 type packet struct {
 	local     netip.AddrPort
-	data      []byte
+	data      *bufferv2.View
 	writeBack func(b []byte, addr net.Addr) (int, error)
 }
 
 func (pkt *packet) Data() []byte {
-	return pkt.data
+	return pkt.data.AsSlice()
 }
 
 func (pkt *packet) WriteBack(b []byte, addr net.Addr) (n int, err error) {
@@ -22,7 +22,8 @@ func (pkt *packet) WriteBack(b []byte, addr net.Addr) (n int, err error) {
 }
 
 func (pkt *packet) Drop() {
-	_ = pool.Put(pkt.data)
+	pkt.data.Release()
+	pkt.data = nil
 }
 
 func (pkt *packet) LocalAddr() net.Addr {

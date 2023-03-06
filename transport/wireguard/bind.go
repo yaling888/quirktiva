@@ -21,7 +21,7 @@ var _ conn.Bind = (*WgBind)(nil)
 type WgBind struct {
 	ctx      context.Context
 	dialer   wgDialer
-	endpoint conn.StdNetEndpoint
+	endpoint StdNetEndpoint
 	reserved []byte
 	conn     *wgConn
 	connMux  sync.Mutex
@@ -73,7 +73,7 @@ func (wb *WgBind) Open(_ uint16) (fns []conn.ReceiveFunc, actualPort uint16, err
 	return []conn.ReceiveFunc{wb.receive}, 0, nil
 }
 
-func (wb *WgBind) receive(b []byte) (n int, ep conn.Endpoint, err error) {
+func (wb *WgBind) receive(packets [][]byte, sizes []int, eps []conn.Endpoint) (n int, err error) {
 	var udpConn *wgConn
 	udpConn, err = wb.connect()
 	if err != nil {
@@ -89,21 +89,27 @@ func (wb *WgBind) receive(b []byte) (n int, ep conn.Endpoint, err error) {
 		return
 	}
 
-	n, err = udpConn.Read(b)
-	if err != nil {
-		_ = udpConn.Close()
-		select {
-		case <-wb.done:
-			err = net.ErrClosed
+	for i, b := range packets {
+		var size int
+		size, err = udpConn.Read(b)
+		sizes[i] = size
+		n = i
+		if err != nil {
+			_ = udpConn.Close()
+			select {
+			case <-wb.done:
+				err = net.ErrClosed
+				return
+			default:
+				sizes[i] = 0
+				err = nil
+			}
 			return
-		default:
-			n = 0
-			err = nil
 		}
-		return
+		wb.resetReserved(b)
+		eps[i] = wb.endpoint
 	}
-	wb.resetReserved(b)
-	ep = wb.endpoint
+	n = len(packets)
 	return
 }
 
@@ -138,17 +144,24 @@ func (wb *WgBind) SetMark(_ uint32) error {
 	return nil
 }
 
-func (wb *WgBind) Send(b []byte, _ conn.Endpoint) error {
+func (wb *WgBind) BatchSize() int {
+	return 1
+}
+
+func (wb *WgBind) Send(buffs [][]byte, _ conn.Endpoint) error {
 	udpConn, err := wb.connect()
 	if err != nil {
 		return err
 	}
-	wb.setReserved(b)
-	_, err = udpConn.Write(b)
-	if err != nil {
-		_ = udpConn.Close()
+	for _, b := range buffs {
+		wb.setReserved(b)
+		_, err = udpConn.Write(b)
+		if err != nil {
+			_ = udpConn.Close()
+			return err
+		}
 	}
-	return err
+	return nil
 }
 
 func (wb *WgBind) ParseEndpoint(_ string) (conn.Endpoint, error) {
@@ -182,7 +195,7 @@ func NewWgBind(ctx context.Context, dialer wgDialer, endpoint netip.AddrPort, re
 		ctx:      ctx,
 		dialer:   dialer,
 		reserved: reserved,
-		endpoint: conn.StdNetEndpoint(endpoint),
+		endpoint: StdNetEndpoint(endpoint),
 	}
 }
 
@@ -226,4 +239,29 @@ func (w *wgError) Timeout() bool {
 
 func (w *wgError) Temporary() bool {
 	return true
+}
+
+type StdNetEndpoint netip.AddrPort
+
+func (StdNetEndpoint) ClearSrc() {}
+
+func (e StdNetEndpoint) DstIP() netip.Addr {
+	return (netip.AddrPort)(e).Addr()
+}
+
+func (e StdNetEndpoint) SrcIP() netip.Addr {
+	return netip.Addr{} // not supported
+}
+
+func (e StdNetEndpoint) DstToBytes() []byte {
+	b, _ := (netip.AddrPort)(e).MarshalBinary()
+	return b
+}
+
+func (e StdNetEndpoint) DstToString() string {
+	return (netip.AddrPort)(e).String()
+}
+
+func (e StdNetEndpoint) SrcToString() string {
+	return ""
 }

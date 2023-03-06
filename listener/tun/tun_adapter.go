@@ -107,10 +107,11 @@ func New(tunConf *config.Tun, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.
 	log.Info().
 		Str("iface", devName).
 		Str("gateway", tunAddress.Masked().Addr().Next().String()).
-		Int("mtu", mtu).
-		Bool("auto-route", autoRoute).
-		Bool("auto-detect-interface", tunConf.AutoDetectInterface).
-		Str("ip-stack", stackType.String()).
+		Uint32("mtu", tunDevice.MTU()).
+		Int("batchSize", tunDevice.BatchSize()).
+		Bool("autoRoute", autoRoute).
+		Bool("autoDetectInterface", tunConf.AutoDetectInterface).
+		Str("ipStack", stackType.String()).
 		Msg("[Inbound] TUN listening")
 	return tunStack, nil
 }

@@ -5,7 +5,7 @@ package iobased
 import (
 	"context"
 	"errors"
-	"io"
+	"os"
 	"sync"
 
 	"gvisor.dev/gvisor/pkg/bufferv2"
@@ -13,6 +13,8 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
+
+	dev "github.com/Dreamacro/clash/listener/tun/device"
 )
 
 const (
@@ -26,7 +28,7 @@ type Endpoint struct {
 	*channel.Endpoint
 
 	// rw is the io.ReadWriter for reading and writing packets.
-	rw io.ReadWriter
+	rw dev.Device
 
 	// mtu (maximum transmission unit) is the maximum size of a packet.
 	mtu uint32
@@ -42,7 +44,7 @@ type Endpoint struct {
 }
 
 // New returns stack.LinkEndpoint(.*Endpoint) and error.
-func New(rw io.ReadWriter, mtu uint32, offset int) (*Endpoint, error) {
+func New(rw dev.Device, mtu uint32, offset int) (*Endpoint, error) {
 	if mtu == 0 {
 		return nil, errors.New("MTU size is zero")
 	}
@@ -91,39 +93,59 @@ func (e *Endpoint) dispatchLoop(cancel context.CancelFunc) {
 	// gracefully after (*Endpoint).dispatchLoop(context.CancelFunc) returns.
 	defer cancel()
 
-	mtu := int(e.mtu)
-	data := make([]byte, mtu)
+	var (
+		readErr   error
+		device    = e.rw
+		offset    = e.offset
+		mtu       = int(e.mtu)
+		count     = 0
+		batchSize = device.BatchSize()
+		buffs     = make([][]byte, batchSize)
+		sizes     = make([]int, batchSize)
+	)
+
+	for i := range buffs {
+		buffs[i] = make([]byte, mtu+offset)
+	}
+
 	for {
-		n, err := e.rw.Read(data)
-		if err != nil {
-			break
+		count, readErr = device.Read(buffs, sizes, offset)
+		for i := 0; i < count; i++ {
+			if sizes[i] < 1 {
+				continue
+			}
+
+			if !e.IsAttached() {
+				continue /* unattached, drop packet */
+			}
+
+			data := buffs[i][offset : offset+sizes[i]]
+
+			var p tcpip.NetworkProtocolNumber
+			switch header.IPVersion(data) {
+			case header.IPv4Version:
+				p = header.IPv4ProtocolNumber
+			case header.IPv6Version:
+				p = header.IPv6ProtocolNumber
+			default:
+				continue
+			}
+
+			pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
+				Payload: bufferv2.MakeWithData(data),
+			})
+
+			e.InjectInbound(p, pkt)
+
+			pkt.DecRef()
 		}
 
-		if n == 0 || n > mtu {
+		if readErr != nil {
+			if errors.Is(readErr, os.ErrClosed) {
+				return
+			}
 			continue
 		}
-
-		if !e.IsAttached() {
-			continue /* unattached, drop packet */
-		}
-
-		var p tcpip.NetworkProtocolNumber
-		switch header.IPVersion(data) {
-		case header.IPv4Version:
-			p = header.IPv4ProtocolNumber
-		case header.IPv6Version:
-			p = header.IPv6ProtocolNumber
-		default:
-			continue
-		}
-
-		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
-			Payload: bufferv2.MakeWithData(data[:n]),
-		})
-
-		e.InjectInbound(p, pkt)
-
-		pkt.DecRef()
 	}
 }
 
@@ -141,14 +163,19 @@ func (e *Endpoint) outboundLoop(ctx context.Context) {
 
 // writePacket writes outbound packets to the io.Writer.
 func (e *Endpoint) writePacket(pkt stack.PacketBufferPtr) tcpip.Error {
-	pktView := pkt.ToView()
+	pktBuff := pkt.ToBuffer()
 
 	defer func() {
-		pktView.Release()
+		pktBuff.Release()
 		pkt.DecRef()
 	}()
 
-	if _, err := pktView.WriteTo(e.rw); err != nil {
+	offset := e.offset
+	if offset > 0 {
+		_ = pktBuff.Prepend(bufferv2.NewViewSize(offset))
+	}
+
+	if _, err := e.rw.Write([][]byte{pktBuff.Flatten()}, offset); err != nil {
 		return &tcpip.ErrInvalidEndpointState{}
 	}
 	return nil

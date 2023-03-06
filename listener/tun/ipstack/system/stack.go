@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/phuslu/log"
+	"gvisor.dev/gvisor/pkg/bufferv2"
 
 	"github.com/Dreamacro/clash/adapter/inbound"
 	"github.com/Dreamacro/clash/common/nnip"
@@ -186,32 +187,27 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 				continue
 			}
 
-			poolBuf := pool.Get(n)
-			_ = copy(poolBuf, buf[:n])
+			data := bufferv2.NewViewWithData(buf[:n])
 			if D.ShouldHijackDns(dnsAddr, rAddrPort, "udp") {
-				go func(dnsUdp *nat.UDP, b []byte, rap, lap netip.AddrPort) {
-					defer func(bb []byte) {
-						_ = pool.Put(bb)
-					}(b)
+				go func(st *mars.StackListener, dat *bufferv2.View, rap, lap netip.AddrPort) {
+					log.Debug().Str("addr", rap.String()).Msg("[TUN] hijack udp dns")
 
-					msg, err1 := D.RelayDnsPacket(b)
+					defer dat.Release()
+
+					msg, err1 := D.RelayDnsPacket(dat.AsSlice())
 					if err1 != nil {
 						return
 					}
 
-					_, _ = dnsUdp.WriteTo(msg, rap, lap)
-
-					log.Debug().
-						Str("addr", rap.String()).
-						Msg("[TUN] hijack udp dns")
-				}(stack.UDP(), poolBuf, rAddrPort, lAddrPort)
+					_, _ = st.UDP().WriteTo(msg, rap, lap)
+				}(stack, data, rAddrPort, lAddrPort)
 
 				continue
 			}
 
 			pkt := &packet{
 				local: lAddrPort,
-				data:  poolBuf,
+				data:  data,
 				writeBack: func(b []byte, addr net.Addr) (int, error) {
 					a := addr.(*net.UDPAddr)
 					na, _ := netip.AddrFromSlice(a.IP)

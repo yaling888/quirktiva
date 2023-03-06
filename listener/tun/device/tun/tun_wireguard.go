@@ -18,8 +18,6 @@ type TUN struct {
 	mtu    uint32
 	name   string
 	offset int
-
-	cache []byte
 }
 
 func Open(name string, mtu uint32) (_ device.Device, err error) {
@@ -58,41 +56,19 @@ func Open(name string, mtu uint32) (_ device.Device, err error) {
 		return nil, fmt.Errorf("get mtu: %w", err)
 	}
 
-	if t.mtu == 0 {
+	if tunMTU > 0 {
 		t.mtu = uint32(tunMTU)
-	}
-
-	if t.offset > 0 {
-		t.cache = make([]byte, int(t.mtu)+t.offset)
 	}
 
 	return t, nil
 }
 
-func (t *TUN) Read(packet []byte) (int, error) {
-	if t.offset == 0 {
-		return t.nt.Read(packet, t.offset)
-	}
-
-	n, err := t.nt.Read(t.cache, t.offset)
-
-	copy(packet, t.cache[t.offset:t.offset+n])
-
-	return n, err
+func (t *TUN) Read(buffs [][]byte, sizes []int, offset int) (n int, err error) {
+	return t.nt.Read(buffs, sizes, offset)
 }
 
-func (t *TUN) Write(packet []byte) (int, error) {
-	if t.offset == 0 {
-		return t.nt.Write(packet, t.offset)
-	}
-
-	packet = append(t.cache[:t.offset], packet...)
-
-	n, err := t.nt.Write(packet, t.offset)
-	if n < t.offset {
-		return 0, err
-	}
-	return n - t.offset, err
+func (t *TUN) Write(buffs [][]byte, offset int) (int, error) {
+	return t.nt.Write(buffs, offset)
 }
 
 func (t *TUN) Close() error {
@@ -113,6 +89,14 @@ func (t *TUN) Name() string {
 
 func (t *TUN) MTU() uint32 {
 	return t.mtu
+}
+
+func (t *TUN) BatchSize() int {
+	return t.nt.BatchSize()
+}
+
+func (t *TUN) Offset() int {
+	return t.offset
 }
 
 func (t *TUN) UseEndpoint() error {

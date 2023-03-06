@@ -1,14 +1,26 @@
 package tun
 
 import (
+	"unsafe"
+
 	"github.com/vishvananda/netlink"
 	"golang.zx2c4.com/wireguard/tun"
 )
 
 const (
-	offset     = 4 /* 4 bytes TUN_PI */
-	defaultMTU = 1500
+	virtioNetHdrLen = int(unsafe.Sizeof(virtioNetHdr{}))
+	offset          = 4 + virtioNetHdrLen /* 4 bytes TUN_PI + virtioNetHdrLen */
+	defaultMTU      = 1500
 )
+
+type virtioNetHdr struct {
+	flags      uint8
+	gsoType    uint8
+	hdrLen     uint16
+	gsoSize    uint16
+	csumStart  uint16
+	csumOffset uint16
+}
 
 func (t *TUN) close() {
 	if link, err := netlink.LinkByName(t.name); err == nil {
