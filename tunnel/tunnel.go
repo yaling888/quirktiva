@@ -27,7 +27,7 @@ import (
 )
 
 var (
-	tcpQueue     = make(chan C.ConnContext, 1024)
+	tcpQueue     = make(chan C.ConnContext, 512)
 	udpQueue     = make(chan *inbound.PacketAdapter, 1024)
 	natTable     = nat.New()
 	rules        []C.Rule

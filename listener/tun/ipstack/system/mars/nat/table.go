@@ -2,7 +2,6 @@ package nat
 
 import (
 	"net/netip"
-	"sync"
 
 	"github.com/Dreamacro/clash/common/generics/list"
 )
@@ -28,13 +27,9 @@ type table struct {
 	tuples    map[tuple]*list.Element[*binding]
 	ports     [portLength]*list.Element[*binding]
 	available *list.List[*binding]
-	mux       sync.RWMutex
 }
 
 func (t *table) tupleOf(port uint16) tuple {
-	t.mux.RLock()
-	defer t.mux.RUnlock()
-
 	offset := port - portBegin
 	if offset > portLength {
 		return zeroTuple
@@ -48,9 +43,6 @@ func (t *table) tupleOf(port uint16) tuple {
 }
 
 func (t *table) portOf(tuple tuple) uint16 {
-	t.mux.RLock()
-	defer t.mux.RUnlock()
-
 	elm := t.tuples[tuple]
 	if elm == nil {
 		return 0
@@ -62,9 +54,6 @@ func (t *table) portOf(tuple tuple) uint16 {
 }
 
 func (t *table) newConn(tuple tuple) uint16 {
-	t.mux.Lock()
-	defer t.mux.Unlock()
-
 	elm := t.available.Back()
 	b := elm.Value
 

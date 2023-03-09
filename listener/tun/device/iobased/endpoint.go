@@ -20,7 +20,7 @@ import (
 const (
 	// Queue length for outbound packet, arriving for read. Overflow
 	// causes packet drops.
-	defaultOutQueueLen = 1 << 9
+	defaultOutQueueLen = 1 << 10
 )
 
 // Endpoint implements the interface of stack.LinkEndpoint from io.ReadWriter.
@@ -111,12 +111,8 @@ func (e *Endpoint) dispatchLoop(cancel context.CancelFunc) {
 	for {
 		count, readErr = device.Read(buffs, sizes, offset)
 		for i := 0; i < count; i++ {
-			if sizes[i] < 1 {
+			if sizes[i] < 1 || !e.IsAttached() {
 				continue
-			}
-
-			if !e.IsAttached() {
-				continue /* unattached, drop packet */
 			}
 
 			data := buffs[i][offset : offset+sizes[i]]
@@ -152,30 +148,40 @@ func (e *Endpoint) dispatchLoop(cancel context.CancelFunc) {
 // outboundLoop reads outbound packets from channel, and then it calls
 // writePacket to send those packets back to lower layer.
 func (e *Endpoint) outboundLoop(ctx context.Context) {
+	buffs := make([][]byte, 0, 1)
 	for {
 		pkt := e.ReadContext(ctx)
 		if pkt.IsNil() {
 			break
 		}
-		e.writePacket(pkt)
+		e.writePacket(buffs, pkt)
 	}
 }
 
 // writePacket writes outbound packets to the io.Writer.
-func (e *Endpoint) writePacket(pkt stack.PacketBufferPtr) tcpip.Error {
-	pktBuff := pkt.ToBuffer()
+func (e *Endpoint) writePacket(buffs [][]byte, pkt stack.PacketBufferPtr) tcpip.Error {
+	var (
+		pktView *bufferv2.View
+		offset  = e.offset
+	)
 
 	defer func() {
-		pktBuff.Release()
+		pktView.Release()
 		pkt.DecRef()
+		buffs = buffs[:0]
 	}()
 
-	offset := e.offset
 	if offset > 0 {
-		_ = pktBuff.Prepend(bufferv2.NewViewSize(offset))
+		v := pkt.ToView()
+		pktView = bufferv2.NewViewSize(offset + pkt.Size())
+		_, _ = pktView.WriteAt(v.AsSlice(), offset)
+		v.Release()
+	} else {
+		pktView = pkt.ToView()
 	}
 
-	if _, err := e.rw.Write([][]byte{pktBuff.Flatten()}, offset); err != nil {
+	buffs = append(buffs, pktView.AsSlice())
+	if _, err := e.rw.Write(buffs, offset); err != nil {
 		return &tcpip.ErrInvalidEndpointState{}
 	}
 	return nil

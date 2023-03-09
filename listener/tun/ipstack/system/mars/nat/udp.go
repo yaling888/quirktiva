@@ -21,7 +21,7 @@ type autoDrainingCallQueue struct {
 
 func newAutoDrainingCallQueue(u *UDP) *autoDrainingCallQueue {
 	q := &autoDrainingCallQueue{
-		c: make(chan *call, 1024),
+		c: make(chan *call, 512),
 	}
 	runtime.SetFinalizer(q, u.flushCallQueue)
 	return q
@@ -51,7 +51,7 @@ func (u *UDP) ReadFrom(buf []byte) (n int, src netip.AddrPort, dest netip.AddrPo
 	select {
 	case <-u.closed:
 		err = net.ErrClosed
-
+		return
 	case elem := <-udpReadQueue.c:
 		if elem == nil {
 			err = errors.New("element is nil")
@@ -68,8 +68,8 @@ func (u *UDP) ReadFrom(buf []byte) (n int, src netip.AddrPort, dest netip.AddrPo
 
 		src = elem.source
 		dest = elem.destination
+		return
 	}
-	return
 }
 
 func (u *UDP) WriteTo(buf []byte, local netip.AddrPort, remote netip.AddrPort) (int, error) {

@@ -1,6 +1,9 @@
 package inbound
 
 import (
+	"net/netip"
+	"strconv"
+
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/transport/socks5"
 )
@@ -25,6 +28,22 @@ func NewPacket(target socks5.Addr, packet C.UDPPacket, source C.Type) *PacketAda
 		metadata.SrcIP = ip
 		metadata.SrcPort = port
 	}
+
+	return &PacketAdapter{
+		UDPPacket: packet,
+		metadata:  metadata,
+	}
+}
+
+// NewPacketBy is PacketAdapter generator
+func NewPacketBy(packet C.UDPPacket, src, dst netip.AddrPort, tp C.Type) *PacketAdapter {
+	metadata := &C.Metadata{}
+	metadata.NetWork = C.UDP
+	metadata.Type = tp
+	metadata.SrcIP = src.Addr()
+	metadata.SrcPort = strconv.FormatUint(uint64(src.Port()), 10)
+	metadata.DstIP = dst.Addr()
+	metadata.DstPort = strconv.FormatUint(uint64(dst.Port()), 10)
 
 	return &PacketAdapter{
 		UDPPacket: packet,

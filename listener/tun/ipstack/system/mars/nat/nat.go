@@ -320,7 +320,7 @@ type autoDrainingWriteBackQueue struct {
 
 func newAutoDrainingWriteBackQueue() *autoDrainingWriteBackQueue {
 	q := &autoDrainingWriteBackQueue{
-		c: make(chan *[]*bufferv2.View, 1024),
+		c: make(chan *[]*bufferv2.View, 512),
 	}
 	runtime.SetFinalizer(q, flushWriteBackQueue)
 	return q

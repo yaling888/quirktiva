@@ -2,56 +2,109 @@ package gvisor
 
 import (
 	"net"
+	"net/netip"
 
-	"github.com/phuslu/log"
+	"gvisor.dev/gvisor/pkg/bufferv2"
+	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
+	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
-	"gvisor.dev/gvisor/pkg/waiter"
 
-	"github.com/Dreamacro/clash/common/pool"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/adapter"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/option"
 )
 
+type packet struct {
+	stack *stack.Stack
+	nicID tcpip.NICID
+	lAddr netip.AddrPort
+	data  *bufferv2.View
+}
+
+func (pkt *packet) Data() []byte {
+	if pkt.data == nil {
+		return nil
+	}
+	return pkt.data.AsSlice()
+}
+
+func (pkt *packet) WriteBack(b []byte, addr net.Addr) (n int, err error) {
+	conn, err := dialUDP(pkt.stack, pkt.nicID, addr.(*net.UDPAddr).AddrPort(), pkt.lAddr)
+	if err != nil {
+		return
+	}
+
+	n, err = conn.Write(b)
+	_ = conn.Close()
+	return
+}
+
+func (pkt *packet) LocalAddr() net.Addr {
+	return net.UDPAddrFromAddrPort(pkt.lAddr)
+}
+
+func (pkt *packet) Drop() {
+	pkt.data.Release()
+	pkt.data = nil
+}
+
+type forwarder struct {
+	handler func(*stack.Stack, stack.TransportEndpointID, stack.PacketBufferPtr)
+
+	stack *stack.Stack
+}
+
+func newForwarder(
+	s *stack.Stack,
+	handler func(*stack.Stack, stack.TransportEndpointID, stack.PacketBufferPtr),
+) *forwarder {
+	return &forwarder{
+		stack:   s,
+		handler: handler,
+	}
+}
+
+func (f *forwarder) HandlePacket(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
+	f.handler(f.stack, id, pkt.IncRef())
+	return true
+}
+
 func withUDPHandler(handle adapter.UDPHandleFunc) option.Option {
 	return func(s *stack.Stack) error {
-		udpForwarder := udp.NewForwarder(s, func(r *udp.ForwarderRequest) {
-			var wq waiter.Queue
-			ep, err := r.CreateEndpoint(&wq)
-			if err != nil {
-				log.Debug().Err(toError(err)).Msg("[gVisor] forward udp request failed")
-				return
-			}
-
-			handle(gonet.NewUDPConn(s, &wq, ep))
-		})
+		udpForwarder := newForwarder(
+			s,
+			func(
+				st *stack.Stack, id stack.TransportEndpointID, pkt stack.PacketBufferPtr,
+			) {
+				handle(st, id, pkt)
+			})
 		s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
 		return nil
 	}
 }
 
-type packet struct {
-	pc      net.PacketConn
-	rAddr   net.Addr
-	payload []byte
-	offset  int
-}
+func dialUDP(s *stack.Stack, id tcpip.NICID, lAddr, rAddr netip.AddrPort) (*gonet.UDPConn, error) {
+	if !lAddr.IsValid() || !rAddr.IsValid() {
+		return nil, net.InvalidAddrError("invalid address")
+	}
 
-func (c *packet) Data() []byte {
-	return c.payload[:c.offset]
-}
+	src := &tcpip.FullAddress{
+		NIC:  id,
+		Addr: tcpip.Address(lAddr.Addr().AsSlice()),
+		Port: lAddr.Port(),
+	}
 
-// WriteBack write UDP packet with source(ip, port) = `addr`
-func (c *packet) WriteBack(b []byte, _ net.Addr) (n int, err error) {
-	return c.pc.WriteTo(b, c.rAddr)
-}
+	dst := &tcpip.FullAddress{
+		NIC:  id,
+		Addr: tcpip.Address(rAddr.Addr().AsSlice()),
+		Port: rAddr.Port(),
+	}
 
-// LocalAddr returns the source IP/Port of UDP Packet
-func (c *packet) LocalAddr() net.Addr {
-	return c.rAddr
-}
+	networkProtocolNumber := header.IPv4ProtocolNumber
+	if rAddr.Addr().Is6() {
+		networkProtocolNumber = header.IPv6ProtocolNumber
+	}
 
-func (c *packet) Drop() {
-	_ = pool.Put(c.payload)
+	return gonet.DialUDP(s, src, dst, networkProtocolNumber)
 }

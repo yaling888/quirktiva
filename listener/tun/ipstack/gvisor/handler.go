@@ -7,13 +7,13 @@ import (
 	"time"
 
 	"github.com/phuslu/log"
+	"gvisor.dev/gvisor/pkg/tcpip/stack"
 
 	"github.com/Dreamacro/clash/adapter/inbound"
 	"github.com/Dreamacro/clash/common/pool"
 	C "github.com/Dreamacro/clash/constant"
 	D "github.com/Dreamacro/clash/listener/tun/ipstack/commons"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/gvisor/adapter"
-	"github.com/Dreamacro/clash/transport/socks5"
 )
 
 var _ adapter.Handler = (*gvHandler)(nil)
@@ -28,23 +28,26 @@ type gvHandler struct {
 }
 
 func (gh *gvHandler) HandleTCP(tunConn net.Conn) {
-	var rAddrPort netip.AddrPort
+	var (
+		lAddrPort netip.AddrPort
+		rAddrPort netip.AddrPort
+	)
+	if ap, ok := tunConn.RemoteAddr().(*net.TCPAddr); ok {
+		lAddrPort = ap.AddrPort()
+	}
 	if ap, ok := tunConn.LocalAddr().(*net.TCPAddr); ok {
 		rAddrPort = ap.AddrPort()
 	}
 
-	if !rAddrPort.IsValid() {
-		log.Warn().
-			Msg("[gVisor] tcp endpoint not connected")
+	if !lAddrPort.IsValid() || !rAddrPort.IsValid() {
+		log.Debug().Msg("[gVisor] tcp endpoint not connected")
 		_ = tunConn.Close()
 		return
 	}
 
 	if D.ShouldHijackDns(gh.dnsHijack, rAddrPort, "tcp") {
 		go func(dnsConn net.Conn, addr string) {
-			log.Debug().
-				Str("addr", addr).
-				Msg("[TUN] hijack tcp dns")
+			log.Debug().Str("addr", addr).Msg("[TUN] hijack tcp dns")
 
 			defer func(c net.Conn) {
 				_ = c.Close()
@@ -91,73 +94,77 @@ func (gh *gvHandler) HandleTCP(tunConn net.Conn) {
 		return
 	}
 
-	gh.tcpIn <- inbound.NewSocket(socks5.AddrFromStdAddrPort(rAddrPort), tunConn, C.TUN)
+	gh.tcpIn <- inbound.NewSocketBy(tunConn, lAddrPort, rAddrPort, C.TUN)
 }
 
-func (gh *gvHandler) HandleUDP(tunConn net.PacketConn) {
-	var rAddrPort netip.AddrPort
-	if ap, ok := tunConn.LocalAddr().(*net.UDPAddr); ok {
-		rAddrPort = ap.AddrPort()
-	}
+func (gh *gvHandler) HandleUDP(stack *stack.Stack, id stack.TransportEndpointID, pkt stack.PacketBufferPtr) {
+	defer pkt.DecRef()
 
-	if !rAddrPort.IsValid() {
-		log.Warn().
-			Msg("[gVisor] udp endpoint not connected")
-		_ = tunConn.Close()
+	rAddr, _ := netip.AddrFromSlice(([]byte)(id.LocalAddress))
+	if !rAddr.IsValid() {
+		log.Debug().Msg("[gVisor] udp endpoint not connected")
 		return
 	}
+	rAddrPort := netip.AddrPortFrom(rAddr, id.LocalPort)
 
 	if rAddrPort.Addr() == gh.gateway || rAddrPort.Addr() == gh.broadcast {
-		_ = tunConn.Close()
 		return
 	}
 
-	target := socks5.AddrFromStdAddrPort(rAddrPort)
+	lAddr, _ := netip.AddrFromSlice(([]byte)(id.RemoteAddress))
+	if !lAddr.IsValid() {
+		log.Debug().Msg("[gVisor] udp endpoint not connected")
+		return
+	}
+	lAddrPort := netip.AddrPortFrom(lAddr, id.RemotePort)
 
-	go func() {
-		for {
-			buf := pool.Get(pool.UDPBufferSize)
+	data := pkt.ToView()
+	headerSize := pkt.HeaderSize()
+	if data.Size() <= headerSize {
+		return
+	}
 
-			n, addr, err := tunConn.ReadFrom(buf)
+	data.TrimFront(headerSize)
+
+	nicID := pkt.NICID
+
+	if D.ShouldHijackDns(gh.dnsHijack, rAddrPort, "udp") {
+		go func() {
+			log.Debug().Str("addr", rAddrPort.String()).Msg("[TUN] hijack udp dns")
+
+			defer data.Release()
+
+			msg, err := D.RelayDnsPacket(data.AsSlice())
 			if err != nil {
-				_ = pool.Put(buf)
-				break
+				return
 			}
 
-			if D.ShouldHijackDns(gh.dnsHijack, rAddrPort, "udp") {
-				go func(dnsUdp net.PacketConn, b []byte, length int, rAddr net.Addr, rAddrStr string) {
-					defer func(udp net.PacketConn, bb []byte) {
-						_ = udp.Close()
-						_ = pool.Put(bb)
-					}(dnsUdp, b)
-
-					msg, err1 := D.RelayDnsPacket(b[:length])
-					if err1 != nil {
-						return
-					}
-
-					_, _ = dnsUdp.WriteTo(msg, rAddr)
-
-					log.Debug().
-						Str("addr", rAddrStr).
-						Msg("[TUN] hijack udp dns")
-				}(tunConn, buf, n, addr, rAddrPort.String())
-
-				continue
+			conn, err := dialUDP(stack, nicID, rAddrPort, lAddrPort)
+			if err != nil {
+				return
 			}
 
-			gvPacket := &packet{
-				pc:      tunConn,
-				rAddr:   addr,
-				payload: buf,
-				offset:  n,
-			}
+			_, _ = conn.Write(msg)
+			_ = conn.Close()
+			return
+		}()
+		return
+	}
 
-			select {
-			case gh.udpIn <- inbound.NewPacket(target, gvPacket, C.TUN):
-			default:
-				gvPacket.Drop()
-			}
-		}
-	}()
+	udpPkt := &packet{
+		stack: stack,
+		nicID: nicID,
+		lAddr: lAddrPort,
+		data:  data,
+	}
+
+	select {
+	case gh.udpIn <- inbound.NewPacketBy(udpPkt, lAddrPort, rAddrPort, C.TUN):
+	default:
+		log.Debug().
+			NetIPAddrPort("lAddrPort", lAddrPort).
+			NetIPAddrPort("rAddrPort", rAddrPort).
+			Msg("[gVisor] drop udp packet, because inbound queue is full")
+		udpPkt.Drop()
+	}
 }

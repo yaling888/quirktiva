@@ -54,10 +54,6 @@ func withTCPHandler(handle adapter.TCPHandleFunc) option.Option {
 
 			defer func() {
 				if err != nil {
-					if ep != nil {
-						ep.Close()
-					}
-
 					log.Debug().Err(toError(err)).Msg("[gVisor] forward tcp request failed")
 				}
 			}()
@@ -71,15 +67,7 @@ func withTCPHandler(handle adapter.TCPHandleFunc) option.Option {
 			}
 			defer r.Complete(false)
 
-			_, err = ep.GetRemoteAddress()
-			if err != nil {
-				return
-			}
-
 			err = setSocketOptions(s, ep)
-			if err != nil {
-				return
-			}
 
 			handle(gonet.NewTCPConn(&wq, ep))
 		})
