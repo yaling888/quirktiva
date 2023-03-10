@@ -116,6 +116,12 @@ func (pp *proxySetProvider) setProxies(proxies []C.Proxy) {
 			return name
 		})
 		statistic.DefaultManager.KickOut(names...)
+		go pp.healthCheck.check()
+	} else if pp.healthCheck.auto() {
+		go func(hc *HealthCheck) {
+			time.Sleep(30 * time.Second)
+			hc.check()
+		}(pp.healthCheck)
 	}
 }
 
@@ -221,6 +227,10 @@ func NewCompatibleProvider(name string, proxies []C.Proxy, hc *HealthCheck) (*Co
 
 	if hc.auto() {
 		go hc.process()
+		go func(hh *HealthCheck) {
+			time.Sleep(30 * time.Second)
+			hh.check()
+		}(hc)
 	}
 
 	pd := &compatibleProvider{
@@ -285,6 +295,12 @@ func (pf *proxyFilterProvider) Update() error {
 
 	if len(proxies) != 0 && pf.healthCheck.auto() {
 		go pf.healthCheck.process()
+		if !pf.psd.healthCheck.auto() {
+			go func(hc *HealthCheck) {
+				time.Sleep(30 * time.Second)
+				hc.check()
+			}(pf.healthCheck)
+		}
 	}
 	return nil
 }
