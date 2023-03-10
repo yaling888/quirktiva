@@ -94,15 +94,17 @@ func (w *WireGuard) ListenPacketContext(ctx context.Context, metadata *C.Metadat
 		return nil, fmt.Errorf("apply wireguard proxy %s config failure, cause: %w", w.threadId, w.upErr)
 	}
 
-	// lookup host by remote server
-	rAddrs, err := w.netStack.LookupContextHost(ctx, metadata.Host)
-	if err != nil {
-		return nil, err
+	if !metadata.Resolved() {
+		// lookup host by remote server
+		rAddrs, err := w.netStack.LookupContextHost(ctx, metadata.Host)
+		if err != nil {
+			return nil, err
+		}
+		metadata.DstIP = rAddrs[0]
 	}
-	metadata.TempDstIP = rAddrs[0]
 
 	var lAddr netip.Addr
-	if metadata.TempDstIP.Is6() {
+	if metadata.DstIP.Is6() {
 		lAddr = w.localIPv6
 	} else {
 		lAddr = w.localIP

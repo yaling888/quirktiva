@@ -1,7 +1,9 @@
 package script
 
 import (
+	"context"
 	"fmt"
+	"math/rand"
 	"net/netip"
 	"path/filepath"
 	"strconv"
@@ -68,7 +70,11 @@ func resolveIP(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple
 	mtd := obj.(*C.Metadata)
 	if mtd.Resolved() {
 		ip = mtd.DstIP.String()
-	} else if addr, err := resolver.ResolveIP(s); err == nil {
+	} else if rAddrs, err := resolver.LookupIP(context.Background(), s); err == nil {
+		addr := rAddrs[0]
+		if l := len(rAddrs); l > 1 && mtd.NetWork != C.UDP {
+			addr = rAddrs[rand.Intn(l)]
+		}
 		ip = addr.String()
 		mtd.DstIP = addr
 	}

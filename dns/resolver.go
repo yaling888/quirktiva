@@ -136,8 +136,16 @@ func (r *Resolver) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg, e
 		return nil, errors.New("should have one question at least")
 	}
 
-	q := m.Question[0]
-	cacheM, expireTime, hit := r.lruCache.GetWithExpire(q.String())
+	var (
+		q   = m.Question[0]
+		key = q.String()
+	)
+
+	if p, ok := resolver.GetProxy(ctx); ok {
+		key += p
+	}
+
+	cacheM, expireTime, hit := r.lruCache.GetWithExpire(key)
 	if hit {
 		now := time.Now()
 		msg = cacheM.Copy()
@@ -173,7 +181,12 @@ func (r *Resolver) exchangeWithoutCache(ctx context.Context, m *D.Msg) (msg *D.M
 				return
 			}
 
-			putMsgToCache(r.lruCache, q.String(), msg1)
+			key := q.String()
+			if p, ok := resolver.GetProxy(ctx); ok {
+				key += p
+			}
+
+			putMsgToCache(r.lruCache, key, msg1)
 		}()
 
 		isIPReq := isIPRequest(q)
@@ -434,6 +447,20 @@ func NewProxyServerHostResolver(old *Resolver) *Resolver {
 		lruCache: old.lruCache,
 		hosts:    old.hosts,
 		policy:   old.policy,
+	}
+	return r
+}
+
+func NewRemoteResolver(ipv6 bool) *Resolver {
+	r := &Resolver{
+		ipv6: ipv6,
+		main: transform([]NameServer{
+			{
+				Net:  "tcp",
+				Addr: "8.8.8.8:53",
+			},
+		}, nil),
+		lruCache: cache.New[string, *D.Msg](cache.WithSize[string, *D.Msg](1024), cache.WithStale[string, *D.Msg](true)),
 	}
 	return r
 }

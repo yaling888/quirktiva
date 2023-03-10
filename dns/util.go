@@ -13,7 +13,6 @@ import (
 	D "github.com/miekg/dns"
 	"github.com/phuslu/log"
 
-	"github.com/Dreamacro/clash/adapter"
 	"github.com/Dreamacro/clash/common/cache"
 	"github.com/Dreamacro/clash/common/errors2"
 	"github.com/Dreamacro/clash/common/picker"
@@ -197,7 +196,7 @@ func (wpc *wrapPacketConn) RemoteAddr() net.Addr {
 }
 
 func dialContextWithProxyAdapter(ctx context.Context, adapterName string, network string, dstIP netip.Addr, port string, opts ...dialer.Option) (net.Conn, error) {
-	proxy, ok := tunnel.Proxies()[adapterName]
+	proxy, ok := tunnel.FindProxyByName(adapterName)
 	if !ok {
 		return nil, errProxyNotFound
 	}
@@ -214,7 +213,7 @@ func dialContextWithProxyAdapter(ctx context.Context, adapterName string, networ
 		DstPort: port,
 	}
 
-	rawAdapter := fetchRawProxyAdapter(proxy.(*adapter.Proxy).ProxyAdapter, metadata)
+	rawAdapter, _ := tunnel.FetchRawProxyAdapter(proxy, metadata, nil)
 
 	if networkType == C.UDP {
 		if !rawAdapter.SupportUDP() {
@@ -233,14 +232,6 @@ func dialContextWithProxyAdapter(ctx context.Context, adapterName string, networ
 	}
 
 	return rawAdapter.DialContext(ctx, metadata, opts...)
-}
-
-func fetchRawProxyAdapter(proxyAdapter C.ProxyAdapter, metadata *C.Metadata) C.ProxyAdapter {
-	if p := proxyAdapter.Unwrap(metadata); p != nil {
-		return fetchRawProxyAdapter(p.(*adapter.Proxy).ProxyAdapter, metadata)
-	}
-
-	return proxyAdapter
 }
 
 func batchExchange(ctx context.Context, clients []dnsClient, m *D.Msg) (msg *D.Msg, err error) {

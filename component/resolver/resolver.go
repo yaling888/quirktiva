@@ -22,9 +22,16 @@ var (
 	// ProxyServerHostResolver resolve ip to proxies server host
 	ProxyServerHostResolver Resolver
 
+	// RemoteResolver remote resolve DNS by a proxy
+	RemoteResolver Resolver
+
 	// DisableIPv6 means don't resolve ipv6 host
 	// default value is true
 	DisableIPv6 = true
+
+	// RemoteDnsResolve reports remote resolve DNS
+	// default value is true
+	RemoteDnsResolve = true
 
 	// DefaultHosts aim to resolve hosts
 	DefaultHosts = trie.New[netip.Addr]()
@@ -39,7 +46,10 @@ var (
 	ErrIPv6Disabled = errors.New("ipv6 disabled")
 )
 
-const proxyServerIPKey = ipContextKey("key-lookup-proxy-server-ip")
+const (
+	proxyServerIPKey = ipContextKey("key-lookup-proxy-server-ip")
+	proxyKey         = ipContextKey("key-lookup-by-proxy")
+)
 
 const (
 	typeNone uint16 = 0
@@ -121,6 +131,22 @@ func ResolveIPv6ProxyServerHost(host string) (netip.Addr, error) {
 	return resolveProxyServerHostByType(host, typeAAAA)
 }
 
+// ResolveIPByProxy with a host and proxy, return ip
+func ResolveIPByProxy(host, proxy string, first bool) (netip.Addr, error) {
+	ctx := context.WithValue(context.Background(), proxyKey, proxy)
+	ips, err := LookupIPByResolver(ctx, host, RemoteResolver)
+	l := len(ips)
+	if err != nil {
+		return netip.Addr{}, err
+	} else if l == 0 {
+		return netip.Addr{}, fmt.Errorf("%w: %s", ErrIPNotFound, host)
+	}
+	if first || l == 1 {
+		return ips[0], nil
+	}
+	return ips[rand.Intn(l)], nil
+}
+
 func RemoveCache(host string) {
 	if ProxyServerHostResolver != nil {
 		ProxyServerHostResolver.RemoveCache(host)
@@ -132,6 +158,11 @@ func RemoveCache(host string) {
 
 func IsProxyServerIP(ctx context.Context) bool {
 	return ctx.Value(proxyServerIPKey) != nil
+}
+
+func GetProxy(ctx context.Context) (string, bool) {
+	v, ok := ctx.Value(proxyKey).(string)
+	return v, ok
 }
 
 func resolveIPByType(host string, _type uint16) (netip.Addr, error) {

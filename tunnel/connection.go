@@ -28,12 +28,16 @@ func handleUDPToRemote(packet C.UDPPacket, pc C.PacketConn, metadata *C.Metadata
 	return nil
 }
 
-func handleUDPToLocal(packet C.UDPPacket, pc net.PacketConn, key string, oAddr, fAddr netip.Addr) {
+func handleUDPToLocal(packet C.UDPPacket, pc net.PacketConn, key, rKey string, oAddr, fAddr netip.Addr) {
 	buf := pool.Get(pool.UDPBufferSize)
 	defer func() {
 		_ = pc.Close()
 		natTable.Delete(key)
 		_ = pool.Put(buf)
+
+		if rKey != "" {
+			addrTable.Delete(rKey)
+		}
 	}()
 
 	for {

@@ -84,7 +84,7 @@ func ApplyConfig(cfg *config.Config, force bool) {
 	updateHosts(cfg.Hosts)
 	updateMitm(cfg.Mitm)
 	updateProfile(cfg)
-	updateDNS(cfg.DNS, &cfg.General.Tun)
+	updateDNS(cfg.DNS, &cfg.General.Tun, force)
 	updateGeneral(cfg.General, force)
 	updateExperimental(cfg)
 	updateTunnels(cfg.Tunnels)
@@ -131,7 +131,7 @@ func updateExperimental(c *config.Config) {
 	tunnel.UDPFallbackPolicy.Store(udpPolicy)
 }
 
-func updateDNS(c *config.DNS, t *config.Tun) {
+func updateDNS(c *config.DNS, t *config.Tun, force bool) {
 	cfg := dns.Config{
 		Main:         c.NameServer,
 		Fallback:     c.Fallback,
@@ -165,6 +165,11 @@ func updateDNS(c *config.DNS, t *config.Tun) {
 
 	if pr.HasProxyServer() {
 		resolver.ProxyServerHostResolver = pr
+	}
+
+	resolver.RemoteDnsResolve = c.RemoteDnsResolve
+	if resolver.RemoteResolver == nil || force {
+		resolver.RemoteResolver = dns.NewRemoteResolver(cfg.IPv6)
 	}
 
 	if t.Enable {

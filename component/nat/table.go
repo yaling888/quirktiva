@@ -2,36 +2,35 @@ package nat
 
 import (
 	"sync"
-
-	C "github.com/Dreamacro/clash/constant"
 )
 
-type Table struct {
+type Table[K comparable, V any] struct {
 	mapping sync.Map
 }
 
-func (t *Table) Set(key string, pc C.PacketConn) {
-	t.mapping.Store(key, pc)
+func (t *Table[K, V]) Set(key K, value V) {
+	t.mapping.Store(key, value)
 }
 
-func (t *Table) Get(key string) C.PacketConn {
+func (t *Table[K, V]) Get(key K) V {
 	item, exist := t.mapping.Load(key)
 	if !exist {
-		return nil
+		var v V
+		return v
 	}
-	return item.(C.PacketConn)
+	return item.(V)
 }
 
-func (t *Table) GetOrCreateLock(key string) (*sync.Cond, bool) {
+func (t *Table[K, V]) GetOrCreateLock(key K) (*sync.Cond, bool) {
 	item, loaded := t.mapping.LoadOrStore(key, sync.NewCond(&sync.Mutex{}))
 	return item.(*sync.Cond), loaded
 }
 
-func (t *Table) Delete(key string) {
+func (t *Table[K, V]) Delete(key K) {
 	t.mapping.Delete(key)
 }
 
 // New return *Cache
-func New() *Table {
-	return &Table{}
+func New[K comparable, V any]() *Table[K, V] {
+	return &Table[K, V]{}
 }

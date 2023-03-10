@@ -76,6 +76,7 @@ type Controller struct {
 type DNS struct {
 	Enable                bool             `yaml:"enable"`
 	IPv6                  bool             `yaml:"ipv6"`
+	RemoteDnsResolve      bool             `yaml:"remote-dns-resolve"`
 	NameServer            []dns.NameServer `yaml:"nameserver"`
 	Fallback              []dns.NameServer `yaml:"fallback"`
 	FallbackFilter        FallbackFilter   `yaml:"fallback-filter"`
@@ -161,6 +162,7 @@ type Config struct {
 type RawDNS struct {
 	Enable                bool              `yaml:"enable"`
 	IPv6                  bool              `yaml:"ipv6"`
+	RemoteDnsResolve      bool              `yaml:"remote-dns-resolve"`
 	UseHosts              bool              `yaml:"use-hosts"`
 	NameServer            []string          `yaml:"nameserver"`
 	Fallback              []string          `yaml:"fallback"`
@@ -331,10 +333,11 @@ func UnmarshalRawConfig(buf []byte) (*RawConfig, error) {
 			AutoRedir:     []string{},
 		},
 		DNS: RawDNS{
-			Enable:       false,
-			UseHosts:     true,
-			EnhancedMode: C.DNSMapping,
-			FakeIPRange:  "198.18.0.1/16",
+			Enable:           false,
+			UseHosts:         true,
+			RemoteDnsResolve: true,
+			EnhancedMode:     C.DNSMapping,
+			FakeIPRange:      "198.18.0.1/16",
 			FallbackFilter: RawFallbackFilter{
 				GeoIP:     true,
 				GeoIPCode: "CN",
@@ -850,10 +853,11 @@ func parseDNS(rawCfg *RawConfig, hosts *trie.DomainTrie[netip.Addr]) (*DNS, erro
 	}
 
 	dnsCfg := &DNS{
-		Enable:       cfg.Enable,
-		Listen:       cfg.Listen,
-		IPv6:         cfg.IPv6,
-		EnhancedMode: cfg.EnhancedMode,
+		Enable:           cfg.Enable,
+		Listen:           cfg.Listen,
+		IPv6:             cfg.IPv6,
+		EnhancedMode:     cfg.EnhancedMode,
+		RemoteDnsResolve: cfg.RemoteDnsResolve,
 		FallbackFilter: FallbackFilter{
 			IPCIDR:  []*netip.Prefix{},
 			GeoSite: []*router.DomainMatcher{},
@@ -901,21 +905,9 @@ func parseDNS(rawCfg *RawConfig, hosts *trie.DomainTrie[netip.Addr]) (*DNS, erro
 			"*.local",
 			"*.localhost",
 			"*.test",
-			"+.stun.*.*",
-			"+.stun.*.*.*",
-			"+.stun.*.*.*.*",
-			"dns.*",
-			"dns.*.*",
 			"+.msftconnecttest.com",
-			"+.msftncsi.com",
 			"localhost.ptlogin2.qq.com",
 			"localhost.sec.qq.com",
-			"xbox.*.*.microsoft.com",
-			"*.*.xboxlive.com",
-			"xbox.*.microsoft.com",
-			"xnotify.xboxlive.com",
-			"+.l.google.com",
-			"voice.telephony.goog",
 		}
 
 		host := trie.New[bool]()

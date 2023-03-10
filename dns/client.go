@@ -54,16 +54,25 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 	}
 
 	var (
-		options []dialer.Option
-		conn    net.Conn
+		options      []dialer.Option
+		conn         net.Conn
+		proxyAdapter string
 	)
+
+	if p, ok := resolver.GetProxy(ctx); ok {
+		proxyAdapter = p
+	} else {
+		proxyAdapter = c.proxyAdapter
+	}
+
 	if c.iface != "" {
 		options = append(options, dialer.WithInterface(c.iface))
 	}
-	if c.proxyAdapter != "" {
-		conn, err = dialContextWithProxyAdapter(ctx, c.proxyAdapter, network, netip.MustParseAddr(c.ip), c.port, options...)
+
+	if proxyAdapter != "" {
+		conn, err = dialContextWithProxyAdapter(ctx, proxyAdapter, network, netip.MustParseAddr(c.ip), c.port, options...)
 		if err == errProxyNotFound {
-			options = append(options[:0], dialer.WithInterface(c.proxyAdapter), dialer.WithRoutingMark(0))
+			options = append(options[:0], dialer.WithInterface(proxyAdapter), dialer.WithRoutingMark(0))
 			conn, err = dialer.DialContext(ctx, network, net.JoinHostPort(c.ip, c.port), options...)
 		}
 	} else {
@@ -109,7 +118,7 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 		} else if c.isDHCP {
 			clientNet = "dhcp"
 		}
-		logDnsResponse(m.Question[0], ret.msg, clientNet, net.JoinHostPort(c.host, c.port), c.proxyAdapter)
+		logDnsResponse(m.Question[0], ret.msg, clientNet, net.JoinHostPort(c.host, c.port), proxyAdapter)
 		return ret.msg, ret.err
 	}
 }

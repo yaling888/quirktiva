@@ -125,6 +125,11 @@ func (c *conn) AppendToChains(a C.ProxyAdapter) {
 	c.chain = append(c.chain, a.Name())
 }
 
+// SetChains implements C.Connection
+func (c *conn) SetChains(chains []string) {
+	c.chain = chains
+}
+
 func (c *conn) MarshalObject(e *log.Entry) {
 	e.Str("proxy", c.Chains().String())
 }
@@ -146,6 +151,11 @@ func (c *packetConn) Chains() C.Chain {
 // AppendToChains implements C.Connection
 func (c *packetConn) AppendToChains(a C.ProxyAdapter) {
 	c.chain = append(c.chain, a.Name())
+}
+
+// SetChains implements C.Connection
+func (c *packetConn) SetChains(chains []string) {
+	c.chain = chains
 }
 
 func (c *packetConn) MarshalObject(e *log.Entry) {
