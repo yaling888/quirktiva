@@ -1,6 +1,9 @@
 package provider
 
 import (
+	"net"
+
+	"github.com/Dreamacro/clash/component/resolver"
 	"github.com/Dreamacro/clash/constant"
 )
 
@@ -107,14 +110,34 @@ type RuleProvider interface {
 
 func Cleanup(proxies map[string]constant.Proxy, providers map[string]ProxyProvider) {
 	for _, p := range proxies {
-		go p.(constant.ProxyAdapter).Cleanup()
+		go func(m constant.ProxyAdapter) {
+			m.Cleanup()
+			if m.Addr() == "" {
+				return
+			}
+			host, _, _ := net.SplitHostPort(m.Addr())
+			if host == "" {
+				return
+			}
+			resolver.RemoveCache(host)
+		}(p)
 	}
 	for _, pd := range providers {
 		go func(pp ProxyProvider) {
 			pp.Finalize()
 			if pp.VehicleType() != Compatible {
 				for _, p := range pp.Proxies() {
-					p.(constant.ProxyAdapter).Cleanup()
+					go func(m constant.ProxyAdapter) {
+						m.Cleanup()
+						if m.Addr() == "" {
+							return
+						}
+						host, _, _ := net.SplitHostPort(m.Addr())
+						if host == "" {
+							return
+						}
+						resolver.RemoveCache(host)
+					}(p)
 				}
 			}
 		}(pd)

@@ -25,6 +25,7 @@ import (
 	"github.com/Dreamacro/clash/component/geodata"
 	"github.com/Dreamacro/clash/component/geodata/router"
 	_ "github.com/Dreamacro/clash/component/geodata/standard"
+	"github.com/Dreamacro/clash/component/resolver"
 	S "github.com/Dreamacro/clash/component/script"
 	"github.com/Dreamacro/clash/component/trie"
 	C "github.com/Dreamacro/clash/constant"
@@ -948,6 +949,8 @@ func parseDNS(rawCfg *RawConfig, hosts *trie.DomainTrie[netip.Addr]) (*DNS, erro
 				_ = host.Insert(policy, true)
 			}
 		}
+
+		resolver.StoreFakePoolState()
 
 		pool, err := fakeip.New(fakeip.Options{
 			IPNet:       &ipnet,

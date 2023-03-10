@@ -25,21 +25,30 @@ import (
 var errProxyNotFound = errors.New("proxy adapter not found")
 
 func putMsgToCache(c *cache.LruCache[string, *D.Msg], key string, msg *D.Msg) {
+	putMsgToCacheWithExpire(c, key, msg, 0)
+}
+
+func putMsgToCacheWithExpire(c *cache.LruCache[string, *D.Msg], key string, msg *D.Msg, ttl uint32) {
+	if len(msg.Question) == 0 {
+		log.Debug().Str("msg", msg.String()).Msg("[DNS] question msg empty")
+		return
+	}
 	if q := msg.Question[0]; q.Qtype == D.TypeTXT && strings.HasPrefix(q.Name, "_acme-challenge") {
 		return
 	}
 
-	var ttl uint32
-	switch {
-	case len(msg.Answer) != 0:
-		ttl = msg.Answer[0].Header().Ttl
-	case len(msg.Ns) != 0:
-		ttl = msg.Ns[0].Header().Ttl
-	case len(msg.Extra) != 0:
-		ttl = msg.Extra[0].Header().Ttl
-	default:
-		log.Debug().Str("msg", msg.String()).Msg("[DNS] response msg empty")
-		return
+	if ttl == 0 {
+		switch {
+		case len(msg.Answer) != 0:
+			ttl = msg.Answer[0].Header().Ttl
+		case len(msg.Ns) != 0:
+			ttl = msg.Ns[0].Header().Ttl
+		case len(msg.Extra) != 0:
+			ttl = msg.Extra[0].Header().Ttl
+		default:
+			log.Debug().Str("msg", msg.String()).Msg("[DNS] response msg empty")
+			return
+		}
 	}
 
 	c.SetWithExpire(key, msg.Copy(), time.Now().Add(time.Second*time.Duration(ttl)))
@@ -51,21 +60,21 @@ func setMsgTTL(msg *D.Msg, ttl uint32) {
 
 func setMsgTTLWithForce(msg *D.Msg, ttl uint32, force bool) {
 	for _, answer := range msg.Answer {
-		if !force && answer.Header().Ttl >= ttl {
+		if !force && answer.Header().Ttl <= ttl {
 			continue
 		}
 		answer.Header().Ttl = ttl
 	}
 
 	for _, ns := range msg.Ns {
-		if !force && ns.Header().Ttl >= ttl {
+		if !force && ns.Header().Ttl <= ttl {
 			continue
 		}
 		ns.Header().Ttl = ttl
 	}
 
 	for _, extra := range msg.Extra {
-		if !force && extra.Header().Ttl >= ttl {
+		if !force && extra.Header().Ttl <= ttl {
 			continue
 		}
 		extra.Header().Ttl = ttl

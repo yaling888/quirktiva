@@ -57,6 +57,7 @@ type Resolver interface {
 	ResolveIPv4(host string) (ip netip.Addr, err error)
 	ResolveIPv6(host string) (ip netip.Addr, err error)
 	ExchangeContext(ctx context.Context, m *dns.Msg) (msg *dns.Msg, err error)
+	RemoveCache(host string)
 }
 
 // LookupIP with a host, return ip list
@@ -118,6 +119,15 @@ func ResolveIPv4ProxyServerHost(host string) (netip.Addr, error) {
 // ResolveIPv6ProxyServerHost proxies server host only
 func ResolveIPv6ProxyServerHost(host string) (netip.Addr, error) {
 	return resolveProxyServerHostByType(host, typeAAAA)
+}
+
+func RemoveCache(host string) {
+	if ProxyServerHostResolver != nil {
+		ProxyServerHostResolver.RemoveCache(host)
+	}
+	if DefaultResolver != nil {
+		DefaultResolver.RemoveCache(host)
+	}
 }
 
 func IsProxyServerIP(ctx context.Context) bool {

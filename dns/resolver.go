@@ -147,7 +147,7 @@ func (r *Resolver) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg, e
 				_, _ = r.exchangeWithoutCache(ctx, m)
 			}()
 		} else {
-			setMsgTTL(msg, uint32(time.Until(expireTime).Seconds()))
+			setMsgTTLWithForce(msg, uint32(time.Until(expireTime).Seconds()), !resolver.IsProxyServerIP(ctx))
 		}
 		return
 	}
@@ -167,7 +167,10 @@ func (r *Resolver) exchangeWithoutCache(ctx context.Context, m *D.Msg) (msg *D.M
 			msg1 := result.(*D.Msg)
 
 			if resolver.IsProxyServerIP(ctx) {
-				setMsgTTLWithForce(msg1, 7200, false) // reset proxy server ip ttl to at least 2 hours
+				// reset proxy server ip ttl to at least 2 hours
+				setMsgTTLWithForce(msg1, 7200, false)
+				putMsgToCacheWithExpire(r.lruCache, q.String(), msg1, 7200)
+				return
 			}
 
 			putMsgToCache(r.lruCache, q.String(), msg1)
@@ -332,6 +335,14 @@ func (r *Resolver) asyncExchange(ctx context.Context, client []dnsClient, msg *D
 // HasProxyServer has proxy server dns client
 func (r *Resolver) HasProxyServer() bool {
 	return len(r.main) > 0
+}
+
+func (r *Resolver) RemoveCache(host string) {
+	n := D.Fqdn(host)
+	q1 := D.Question{Name: n, Qtype: D.TypeA, Qclass: D.ClassINET}
+	q2 := D.Question{Name: n, Qtype: D.TypeAAAA, Qclass: D.ClassINET}
+	r.lruCache.Delete(q1.String())
+	r.lruCache.Delete(q2.String())
 }
 
 type NameServer struct {
