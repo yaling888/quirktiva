@@ -45,22 +45,25 @@ type WireGuard struct {
 	upOnce   sync.Once
 	downOnce sync.Once
 	upErr    error
+
+	remoteDnsResolve bool
 }
 
 type WireGuardOption struct {
 	BasicOption
-	Name         string   `proxy:"name"`
-	Server       string   `proxy:"server"`
-	Port         int      `proxy:"port"`
-	IP           string   `proxy:"ip,omitempty"`
-	IPv6         string   `proxy:"ipv6,omitempty"`
-	PrivateKey   string   `proxy:"private-key"`
-	PublicKey    string   `proxy:"public-key"`
-	PresharedKey string   `proxy:"preshared-key,omitempty"`
-	DNS          []string `proxy:"dns,omitempty"`
-	MTU          int      `proxy:"mtu,omitempty"`
-	UDP          bool     `proxy:"udp,omitempty"`
-	Reserved     string   `proxy:"reserved,omitempty"`
+	Name             string   `proxy:"name"`
+	Server           string   `proxy:"server"`
+	Port             int      `proxy:"port"`
+	IP               string   `proxy:"ip,omitempty"`
+	IPv6             string   `proxy:"ipv6,omitempty"`
+	PrivateKey       string   `proxy:"private-key"`
+	PublicKey        string   `proxy:"public-key"`
+	PresharedKey     string   `proxy:"preshared-key,omitempty"`
+	DNS              []string `proxy:"dns,omitempty"`
+	MTU              int      `proxy:"mtu,omitempty"`
+	UDP              bool     `proxy:"udp,omitempty"`
+	RemoteDnsResolve bool     `proxy:"remote-dns-resolve,omitempty"`
+	Reserved         string   `proxy:"reserved,omitempty"`
 }
 
 // DialContext implements C.ProxyAdapter
@@ -77,7 +80,19 @@ func (w *WireGuard) DialContext(ctx context.Context, metadata *C.Metadata, _ ...
 		defer cancel()
 	}
 
-	c, err := w.netStack.DialContext(dialCtx, "tcp", metadata.RemoteAddress())
+	var remoteAddress string
+	if !w.remoteDnsResolve && !metadata.Resolved() {
+		rAddrs, err := resolver.LookupIP(ctx, metadata.Host)
+		if err != nil {
+			return nil, err
+		}
+		metadata.DstIP = rAddrs[rand.Intn(len(rAddrs))]
+		remoteAddress = net.JoinHostPort(metadata.DstIP.String(), metadata.DstPort)
+	} else {
+		remoteAddress = metadata.RemoteAddress()
+	}
+
+	c, err := w.netStack.DialContext(dialCtx, "tcp", remoteAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -95,12 +110,19 @@ func (w *WireGuard) ListenPacketContext(ctx context.Context, metadata *C.Metadat
 	}
 
 	if !metadata.Resolved() {
-		// lookup host by remote server
-		rAddrs, err := w.netStack.LookupContextHost(ctx, metadata.Host)
-		if err != nil {
-			return nil, err
+		if w.remoteDnsResolve {
+			rAddrs, err := w.netStack.LookupContextHost(ctx, metadata.Host)
+			if err != nil {
+				return nil, err
+			}
+			metadata.DstIP = rAddrs[0]
+		} else {
+			rAddrs, err := resolver.LookupIP(ctx, metadata.Host)
+			if err != nil {
+				return nil, err
+			}
+			metadata.DstIP = rAddrs[0]
 		}
-		metadata.DstIP = rAddrs[0]
 	}
 
 	var lAddr netip.Addr
@@ -127,6 +149,10 @@ func (w *WireGuard) Cleanup() {
 			w.wgDevice.Close()
 		}
 	})
+}
+
+func (w *WireGuard) RemoteDnsResolve() bool {
+	return w.remoteDnsResolve
 }
 
 func (w *WireGuard) up() {
@@ -294,6 +320,8 @@ func NewWireGuard(option WireGuardOption) (*WireGuard, error) {
 		uapiConf:   uapiConf,
 		threadId:   threadId,
 		mtu:        mtu,
+
+		remoteDnsResolve: option.RemoteDnsResolve,
 	}
 	return wireGuard, nil
 }

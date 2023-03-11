@@ -134,7 +134,9 @@ func ParseProxy(mapping map[string]any, forceCertVerify, udp, autoCipher, random
 		}
 		proxy, err = outbound.NewTrojan(*trojanOption)
 	case "wireguard":
-		wireguardOption := &outbound.WireGuardOption{}
+		wireguardOption := &outbound.WireGuardOption{
+			RemoteDnsResolve: true,
+		}
 		err = decoder.Decode(mapping, wireguardOption)
 		if err != nil {
 			break

@@ -18,6 +18,7 @@ import (
 
 	A "github.com/Dreamacro/clash/adapter"
 	"github.com/Dreamacro/clash/adapter/inbound"
+	"github.com/Dreamacro/clash/adapter/outbound"
 	"github.com/Dreamacro/clash/component/nat"
 	P "github.com/Dreamacro/clash/component/process"
 	"github.com/Dreamacro/clash/component/resolver"
@@ -280,11 +281,11 @@ func resolveMetadata(_ C.PlainContext, metadata *C.Metadata) (proxy C.Proxy, rul
 	return
 }
 
-func remoteResolveDNS(metadata *C.Metadata, proxy string) (ok bool, err error) {
+func remoteResolveDNS(metadata *C.Metadata, proxy string, shouldRemoteResolve bool) (ok bool, err error) {
 	if proxy == "REJECT" {
 		return
 	}
-	if resolver.RemoteDnsResolve {
+	if shouldRemoteResolve {
 		if proxy == "DIRECT" {
 			if !metadata.Resolved() {
 				var rAddr netip.Addr
@@ -393,7 +394,7 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 		rawProxy, chains := FetchRawProxyAdapter(proxy, metadata, []string{})
 		rawName := rawProxy.Name()
 
-		isRemote, hdlErr := remoteResolveDNS(metadata, rawName)
+		isRemote, hdlErr := remoteResolveDNS(metadata, rawName, shouldRemoteResolveIP(rawProxy))
 		if hdlErr != nil {
 			if isRemote {
 				log.Warn().Err(hdlErr).
@@ -556,6 +557,13 @@ func handleTCPConn(connCtx C.ConnContext) {
 
 func shouldResolveIP(rule C.Rule, metadata *C.Metadata) bool {
 	return rule.ShouldResolveIP() && metadata.Host != "" && !metadata.DstIP.IsValid()
+}
+
+func shouldRemoteResolveIP(proxy C.Proxy) bool {
+	if proxy.Type() == C.WireGuard {
+		return proxy.(*A.Proxy).ProxyAdapter.(*outbound.WireGuard).RemoteDnsResolve()
+	}
+	return resolver.RemoteDnsResolve
 }
 
 func match(metadata *C.Metadata) (C.Proxy, C.Rule, error) {

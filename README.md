@@ -399,6 +399,7 @@ proxies:
     private-key: eCtXsJZ27+4PbhDkHnB923tkUn2Gj59wZw5wFA75MnU=
     public-key: Cr8hWlKvtDt7nrvf+f0brNQQzabAqrjfBvas9pmowjo=
     # preshared-key: base64
+    # remote-dns-resolve: true # remote resolve DNS with `dns` field, default is true
     # dns: [1.1.1.1, 8.8.8.8]
     # mtu: 1420
     udp: true
