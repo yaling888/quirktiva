@@ -1141,6 +1141,17 @@ func verifyScriptMatcher(config *Config, matchers map[string]C.Matcher) (err err
 		DstPort: "443",
 	}
 
+	metadata1 := &C.Metadata{
+		Type:    C.TUN,
+		NetWork: C.UDP,
+		Host:    "8.8.8.8",
+		SrcIP:   netip.MustParseAddr("192.168.1.123"),
+		SrcPort: "6789",
+		DstPort: "2023",
+	}
+
+	cases := []*C.Metadata{metadata, metadata1}
+
 	C.BackupScriptState()
 
 	C.GetScriptProxyProviders = func() map[string][]C.Proxy {
@@ -1155,14 +1166,17 @@ func verifyScriptMatcher(config *Config, matchers map[string]C.Matcher) (err err
 	defer C.RestoreScriptState()
 
 	for k, v := range matchers {
-		if k == "main" {
-			_, err = v.Eval(metadata)
-		} else {
-			_, err = v.Match(metadata)
-		}
-		if err != nil {
-			err = fmt.Errorf("verify script code failed: %w", err)
-			return
+		isMain := k == "main"
+		for i := range cases {
+			if isMain {
+				_, err = v.Eval(cases[i])
+			} else {
+				_, err = v.Match(cases[i])
+			}
+			if err != nil {
+				err = fmt.Errorf("verify script code failed: %w", err)
+				return
+			}
 		}
 	}
 
