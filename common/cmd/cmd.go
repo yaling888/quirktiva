@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -17,6 +18,7 @@ func ExecCmd(cmdStr string) (string, error) {
 	}
 
 	out, err := cmd.CombinedOutput()
+	out = bytes.TrimSpace(out)
 	if err != nil {
 		return "", fmt.Errorf("%v, %s", err, string(out))
 	}

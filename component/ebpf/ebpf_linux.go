@@ -93,7 +93,7 @@ func NewRedirEBpfProgram(ifaceNames []string, redirPort uint16, defaultRouteInte
 
 	systemSetting(ifaceNames...)
 
-	return &TcEBpfProgram{pros: pros, rawNICs: ifaceNames, rawInterface: defaultRouteInterfaceName}, nil
+	return NewAutoRedirProgram(pros, ifaceNames, defaultRouteInterfaceName), nil
 }
 
 func systemSetting(ifaceNames ...string) {

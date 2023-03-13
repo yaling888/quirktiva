@@ -100,23 +100,23 @@ func (gh *gvHandler) HandleTCP(tunConn net.Conn) {
 func (gh *gvHandler) HandleUDP(stack *stack.Stack, id stack.TransportEndpointID, pkt stack.PacketBufferPtr) {
 	defer pkt.DecRef()
 
-	rAddr, _ := netip.AddrFromSlice(([]byte)(id.LocalAddress))
-	if !rAddr.IsValid() {
+	rAddr, ok := netip.AddrFromSlice([]byte(id.LocalAddress))
+	if !ok {
 		log.Debug().Msg("[gVisor] udp endpoint not connected")
 		return
 	}
-	rAddrPort := netip.AddrPortFrom(rAddr, id.LocalPort)
+	rAddrPort := netip.AddrPortFrom(rAddr.Unmap(), id.LocalPort)
 
 	if rAddrPort.Addr() == gh.gateway || rAddrPort.Addr() == gh.broadcast {
 		return
 	}
 
-	lAddr, _ := netip.AddrFromSlice(([]byte)(id.RemoteAddress))
-	if !lAddr.IsValid() {
+	lAddr, ok := netip.AddrFromSlice([]byte(id.RemoteAddress))
+	if !ok {
 		log.Debug().Msg("[gVisor] udp endpoint not connected")
 		return
 	}
-	lAddrPort := netip.AddrPortFrom(lAddr, id.RemotePort)
+	lAddrPort := netip.AddrPortFrom(lAddr.Unmap(), id.RemotePort)
 
 	data := pkt.ToView()
 	headerSize := pkt.HeaderSize()

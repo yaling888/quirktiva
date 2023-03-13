@@ -11,6 +11,7 @@ import (
 
 	"github.com/Dreamacro/clash/adapter/inbound"
 	"github.com/Dreamacro/clash/common/cmd"
+	"github.com/Dreamacro/clash/component/resolver"
 	"github.com/Dreamacro/clash/config"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/listener/tun/device"
@@ -94,6 +95,10 @@ func New(tunConf *config.Tun, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.
 	err = commons.ConfigInterfaceAddress(tunDevice, tunAddress, mtu, autoRoute)
 	if err != nil {
 		return nil, fmt.Errorf("setting interface address and routing failed: %w", err)
+	}
+
+	if autoRoute {
+		resolver.DisableIPv6 = true
 	}
 
 	if tunConf.AutoDetectInterface {

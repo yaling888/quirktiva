@@ -18,7 +18,12 @@ func (c *packet) Data() []byte {
 
 // WriteBack opens a new socket binding `addr` to write UDP packet back
 func (c *packet) WriteBack(b []byte, addr net.Addr) (n int, err error) {
-	tc, err := dialUDP("udp", addr.(*net.UDPAddr).AddrPort(), c.lAddr)
+	rAddr := addr.(*net.UDPAddr).AddrPort()
+	if c.lAddr.Addr().Is4() && rAddr.Addr().Is4In6() {
+		rAddr = netip.AddrPortFrom(rAddr.Addr().Unmap(), rAddr.Port())
+	}
+
+	tc, err := dialUDP("udp", rAddr, c.lAddr)
 	if err != nil {
 		n = 0
 		return

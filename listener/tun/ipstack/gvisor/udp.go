@@ -30,7 +30,14 @@ func (pkt *packet) Data() []byte {
 }
 
 func (pkt *packet) WriteBack(b []byte, addr net.Addr) (n int, err error) {
-	conn, err := dialUDP(pkt.stack, pkt.nicID, addr.(*net.UDPAddr).AddrPort(), pkt.lAddr)
+	a := addr.(*net.UDPAddr)
+	na, _ := netip.AddrFromSlice(a.IP)
+	na = na.WithZone(a.Zone)
+	if pkt.lAddr.Addr().Is4() {
+		na = na.Unmap()
+	}
+
+	conn, err := dialUDP(pkt.stack, pkt.nicID, netip.AddrPortFrom(na, uint16(a.Port)), pkt.lAddr)
 	if err != nil {
 		return
 	}
@@ -102,7 +109,7 @@ func dialUDP(s *stack.Stack, id tcpip.NICID, lAddr, rAddr netip.AddrPort) (*gone
 	}
 
 	networkProtocolNumber := header.IPv4ProtocolNumber
-	if rAddr.Addr().Is6() {
+	if lAddr.Addr().Is6() || rAddr.Addr().Is6() {
 		networkProtocolNumber = header.IPv6ProtocolNumber
 	}
 
