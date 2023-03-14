@@ -65,6 +65,7 @@ dns:
   enable: true
   use-hosts: true
   ipv6: false
+#  remote-dns-resolve: true # default value is true
   enhanced-mode: fake-ip
   fake-ip-range: 198.18.0.1/16
   listen: 0.0.0.0:53
@@ -80,7 +81,7 @@ dns:
     - https://120.53.53.53/dns-query
     - tls://223.6.6.6:853
   fallback:
-    - tcp://8.8.8.8:53#DNS-Proxy
+#    - tcp://8.8.8.8:53#DNS-Proxy # if set `remote-dns-resolve` to false, then enable it.
   fake-ip-filter:
     - '*.lan'
 #    - +.example.com
@@ -330,7 +331,7 @@ script:
 
     def main(ctx, metadata):
       network = metadata["network"]
-      dst_port = metadata["dst_port"]
+      dst_port = int(metadata["dst_port"])
       if network == 'udp' and dst_port == 443:
         return "REJECT"
 
