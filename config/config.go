@@ -87,6 +87,7 @@ type DNS struct {
 	Hosts                 *trie.DomainTrie[netip.Addr]
 	NameServerPolicy      map[string]dns.NameServer
 	ProxyServerNameserver []dns.NameServer
+	SearchDomains         []string
 }
 
 // FallbackFilter config
@@ -174,6 +175,7 @@ type RawDNS struct {
 	DefaultNameserver     []string          `yaml:"default-nameserver"`
 	NameServerPolicy      map[string]string `yaml:"nameserver-policy"`
 	ProxyServerNameserver []string          `yaml:"proxy-server-nameserver"`
+	SearchDomains         []string          `yaml:"search-domains"`
 }
 
 type RawFallbackFilter struct {
@@ -973,6 +975,18 @@ func parseDNS(rawCfg *RawConfig, hosts *trie.DomainTrie[netip.Addr]) (*DNS, erro
 
 	if cfg.UseHosts {
 		dnsCfg.Hosts = hosts
+	}
+
+	if len(cfg.SearchDomains) != 0 {
+		for _, domain := range cfg.SearchDomains {
+			if strings.HasPrefix(domain, ".") || strings.HasSuffix(domain, ".") {
+				return nil, errors.New("search domains should not start or end with '.'")
+			}
+			if strings.Contains(domain, ":") {
+				return nil, errors.New("search domains are for ipv4 only and should not contain ports")
+			}
+		}
+		dnsCfg.SearchDomains = cfg.SearchDomains
 	}
 
 	return dnsCfg, nil

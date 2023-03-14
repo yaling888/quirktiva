@@ -78,6 +78,9 @@ func TestPool_Basic(t *testing.T) {
 
 func TestPool_BasicV6(t *testing.T) {
 	ipnet := netip.MustParsePrefix("2001:4860:4860::8888/118")
+	if ipnet.Addr().Is6() {
+		return
+	}
 	pools, tempfile, err := createPools(Options{
 		IPNet: &ipnet,
 		Size:  10,

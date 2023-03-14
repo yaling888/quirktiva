@@ -77,17 +77,17 @@ func LookupIP(ctx context.Context, host string) ([]netip.Addr, error) {
 
 // LookupIPv4 with a host, return ipv4 list
 func LookupIPv4(ctx context.Context, host string) ([]netip.Addr, error) {
-	return lookupIPByResolverAndType(ctx, host, DefaultResolver, typeA)
+	return lookupIPByResolverAndType(ctx, host, DefaultResolver, typeA, false)
 }
 
 // LookupIPv6 with a host, return ipv6 list
 func LookupIPv6(ctx context.Context, host string) ([]netip.Addr, error) {
-	return lookupIPByResolverAndType(ctx, host, DefaultResolver, typeAAAA)
+	return lookupIPByResolverAndType(ctx, host, DefaultResolver, typeAAAA, false)
 }
 
 // LookupIPByResolver same as ResolveIP, but with a resolver
 func LookupIPByResolver(ctx context.Context, host string, r Resolver) ([]netip.Addr, error) {
-	return lookupIPByResolverAndType(ctx, host, r, typeNone)
+	return lookupIPByResolverAndType(ctx, host, r, typeNone, false)
 }
 
 // LookupFirstIP with a host, return first ip
@@ -197,9 +197,9 @@ func resolveProxyServerHostByType(host string, _type uint16) (netip.Addr, error)
 	)
 
 	if ProxyServerHostResolver != nil {
-		ips, err = lookupIPByResolverAndType(ctx, host, ProxyServerHostResolver, _type)
+		ips, err = lookupIPByResolverAndType(ctx, host, ProxyServerHostResolver, _type, true)
 	} else {
-		ips, err = lookupIPByResolverAndType(ctx, host, DefaultResolver, _type)
+		ips, err = lookupIPByResolverAndType(ctx, host, DefaultResolver, _type, true)
 	}
 
 	if err != nil {
@@ -211,8 +211,8 @@ func resolveProxyServerHostByType(host string, _type uint16) (netip.Addr, error)
 	return ips[rand.Intn(len(ips))], nil
 }
 
-func lookupIPByResolverAndType(ctx context.Context, host string, r Resolver, t uint16) ([]netip.Addr, error) {
-	if t == typeAAAA && DisableIPv6 {
+func lookupIPByResolverAndType(ctx context.Context, host string, r Resolver, t uint16, isProxyHost bool) ([]netip.Addr, error) {
+	if t == typeAAAA && DisableIPv6 && !isProxyHost {
 		return nil, ErrIPv6Disabled
 	}
 
@@ -232,7 +232,7 @@ func lookupIPByResolverAndType(ctx context.Context, host string, r Resolver, t u
 		} else if t == typeAAAA {
 			return r.LookupIPv6(ctx, host)
 		}
-		if DisableIPv6 {
+		if DisableIPv6 && !isProxyHost {
 			return r.LookupIPv4(ctx, host)
 		}
 		return r.LookupIP(ctx, host)

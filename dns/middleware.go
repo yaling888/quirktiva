@@ -9,7 +9,6 @@ import (
 	"github.com/phuslu/log"
 
 	"github.com/Dreamacro/clash/common/cache"
-	"github.com/Dreamacro/clash/common/nnip"
 	"github.com/Dreamacro/clash/component/fakeip"
 	"github.com/Dreamacro/clash/component/trie"
 	C "github.com/Dreamacro/clash/constant"
@@ -92,13 +91,13 @@ func withMapping(mapping *cache.LruCache[netip.Addr, string]) middleware {
 
 				switch a := ans.(type) {
 				case *D.A:
-					ip = nnip.IpToAddr(a.A)
+					ip, _ = netip.AddrFromSlice(a.A)
 					ttl = a.Hdr.Ttl
 					if !ip.IsGlobalUnicast() {
 						continue
 					}
 				case *D.AAAA:
-					ip = nnip.IpToAddr(a.AAAA)
+					ip, _ = netip.AddrFromSlice(a.AAAA)
 					ttl = a.Hdr.Ttl
 					if !ip.IsGlobalUnicast() {
 						continue

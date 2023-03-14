@@ -146,9 +146,10 @@ func updateDNS(c *config.DNS, t *config.Tun, force bool) {
 			Domain:    c.FallbackFilter.Domain,
 			GeoSite:   c.FallbackFilter.GeoSite,
 		},
-		Default:     c.DefaultNameserver,
-		Policy:      c.NameServerPolicy,
-		ProxyServer: c.ProxyServerNameserver,
+		Default:       c.DefaultNameserver,
+		Policy:        c.NameServerPolicy,
+		ProxyServer:   c.ProxyServerNameserver,
+		SearchDomains: c.SearchDomains,
 	}
 
 	r := dns.NewResolver(cfg)

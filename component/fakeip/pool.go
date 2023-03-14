@@ -172,7 +172,7 @@ func New(options Options) (*Pool, error) {
 		last     = nnip.UnMasked(*options.IPNet)
 	)
 
-	if !options.IPNet.IsValid() || !first.IsValid() || !first.Less(last) {
+	if !options.IPNet.IsValid() || !first.IsValid() || !first.Less(last) || first.Is6() {
 		return nil, errors.New("ipnet don't have valid ip")
 	}
 
