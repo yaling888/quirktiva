@@ -314,6 +314,7 @@ func unicastAddressChange(_ winipcfg.MibNotificationType, unicastAddress *winipc
 	dialer.DefaultInterface.Store(interfaceName)
 
 	iface.FlushCache()
+	updateWireGuardBind()
 
 	if tunStatus == C.TunPaused {
 		log.Warn().

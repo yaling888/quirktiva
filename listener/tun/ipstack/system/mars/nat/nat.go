@@ -5,19 +5,10 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"runtime"
 	"sync"
-
-	"gvisor.dev/gvisor/pkg/bufferv2"
 
 	dev "github.com/Dreamacro/clash/listener/tun/device"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/system/mars/tcpip"
-)
-
-var (
-	writeBackSlice *sync.Pool
-	writeBackQueue *autoDrainingWriteBackQueue
-	udpReadQueue   *autoDrainingCallQueue
 )
 
 func Start(device dev.Device, gateway, portal, broadcast netip.Addr) (*TCP, *UDP, error) {
@@ -33,19 +24,17 @@ func Start(device dev.Device, gateway, portal, broadcast netip.Addr) (*TCP, *UDP
 	var (
 		offset     = device.Offset()
 		batchSize  = device.BatchSize()
-		bufferSize = int(device.MTU()) + offset
+		bufferSize = 65535 + offset
 	)
-
-	if bufferSize == 0 {
-		bufferSize = 64 * 1024
-	}
 
 	tab := newTable()
 	udp := &UDP{
-		device: device,
-		closed: make(chan struct{}),
-		callElements: &sync.Pool{New: func() any {
-			return new(call)
+		device:         device,
+		closed:         make(chan struct{}),
+		incomingPacket: make(chan *udpElement, 100),
+		writeBuffs:     make([][]byte, 0, 1),
+		udpElements: &sync.Pool{New: func() any {
+			return new(udpElement)
 		}},
 	}
 
@@ -54,14 +43,6 @@ func Start(device dev.Device, gateway, portal, broadcast netip.Addr) (*TCP, *UDP
 		portal:   portal,
 		table:    tab,
 	}
-
-	writeBackQueue = newAutoDrainingWriteBackQueue()
-	udpReadQueue = newAutoDrainingCallQueue(udp)
-
-	writeBackSlice = &sync.Pool{New: func() any {
-		s := make([]*bufferv2.View, 0, batchSize)
-		return &s
-	}}
 
 	gatewayPort := uint16(listener.Addr().(*net.TCPAddr).Port)
 
@@ -73,36 +54,36 @@ func Start(device dev.Device, gateway, portal, broadcast netip.Addr) (*TCP, *UDP
 		}()
 
 		var (
-			readErr error
-			count   = 0
-			buffs   = make([][]byte, batchSize)
-			sizes   = make([]int, batchSize)
+			readErr    error
+			count      = 0
+			readBuffs  = make([][]byte, batchSize)
+			writeBuffs = make([][]byte, 0, batchSize)
+			sizes      = make([]int, batchSize)
 		)
 
-		for i := range buffs {
-			buffs[i] = make([]byte, bufferSize)
+		for i := range readBuffs {
+			readBuffs[i] = make([]byte, bufferSize)
 		}
 
 		for {
-			var elems *[]*bufferv2.View
-			count, readErr = device.Read(buffs, sizes, offset)
+			count, readErr = device.Read(readBuffs, sizes, offset)
 			for i := 0; i < count; i++ {
 				if sizes[i] < 1 {
 					continue
 				}
 
-				raw := buffs[i][offset : offset+sizes[i]]
+				raw := readBuffs[i][:offset+sizes[i]]
 
 				var (
 					ipVersion int
 					ip        tcpip.IP
 				)
 
-				ipVersion = tcpip.IPVersion(raw)
+				ipVersion = tcpip.IPVersion(raw[offset:])
 
 				switch ipVersion {
 				case tcpip.IPv4Version:
-					ipv4 := tcpip.IPv4Packet(raw)
+					ipv4 := tcpip.IPv4Packet(raw[offset:])
 					if !ipv4.Valid() {
 						continue
 					}
@@ -121,7 +102,7 @@ func Start(device dev.Device, gateway, portal, broadcast netip.Addr) (*TCP, *UDP
 
 					ip = ipv4
 				case tcpip.IPv6Version:
-					ipv6 := tcpip.IPv6Packet(raw)
+					ipv6 := tcpip.IPv6Packet(raw[offset:])
 					if !ipv6.Valid() {
 						continue
 					}
@@ -164,11 +145,7 @@ func Start(device dev.Device, gateway, portal, broadcast netip.Addr) (*TCP, *UDP
 							ip.ResetChecksum()
 							t.ResetChecksum(ip.PseudoSum())
 
-							elem := bufferv2.NewViewWithData(buffs[i][:offset+sizes[i]])
-							if elems == nil {
-								elems = getWriteBackSlice()
-							}
-							*elems = append(*elems, elem)
+							writeBuffs = append(writeBuffs, raw)
 						}
 					} else {
 						tup := tuple{
@@ -193,11 +170,7 @@ func Start(device dev.Device, gateway, portal, broadcast netip.Addr) (*TCP, *UDP
 						ip.ResetChecksum()
 						t.ResetChecksum(ip.PseudoSum())
 
-						elem := bufferv2.NewViewWithData(buffs[i][:offset+sizes[i]])
-						if elems == nil {
-							elems = getWriteBackSlice()
-						}
-						*elems = append(*elems, elem)
+						writeBuffs = append(writeBuffs, raw)
 					}
 				case tcpip.UDP:
 					u := tcpip.UDPPacket(ip.Payload())
@@ -221,11 +194,7 @@ func Start(device dev.Device, gateway, portal, broadcast netip.Addr) (*TCP, *UDP
 					ip.ResetChecksum()
 					icmp.ResetChecksum()
 
-					elem := bufferv2.NewViewWithData(buffs[i][:offset+sizes[i]])
-					if elems == nil {
-						elems = getWriteBackSlice()
-					}
-					*elems = append(*elems, elem)
+					writeBuffs = append(writeBuffs, raw)
 				case tcpip.ICMPv6:
 					icmp6 := tcpip.ICMPv6Packet(ip.Payload())
 
@@ -241,101 +210,24 @@ func Start(device dev.Device, gateway, portal, broadcast netip.Addr) (*TCP, *UDP
 					ip.ResetChecksum()
 					icmp6.ResetChecksum(ip.PseudoSum())
 
-					elem := bufferv2.NewViewWithData(buffs[i][:offset+sizes[i]])
-					if elems == nil {
-						elems = getWriteBackSlice()
-					}
-					*elems = append(*elems, elem)
+					writeBuffs = append(writeBuffs, raw)
 				}
 			}
 
 			if readErr != nil {
-				if elems != nil {
-					for _, elem := range *elems {
-						elem.Release()
-					}
-					putWriteBackSlice(elems)
-				}
 				if errors.Is(readErr, os.ErrClosed) {
 					return
 				}
+				writeBuffs = writeBuffs[:0]
 				continue
 			}
 
-			if elems != nil {
-				select {
-				case writeBackQueue.c <- elems:
-				default:
-					for _, elem := range *elems {
-						elem.Release()
-					}
-					putWriteBackSlice(elems)
-				}
-			}
-		}
-	}()
-
-	// write to tun device
-	go func() {
-		buffs := make([][]byte, 0, batchSize)
-		for {
-			select {
-			case elems := <-writeBackQueue.c:
-				for _, elem := range *elems {
-					buffs = append(buffs, elem.AsSlice())
-				}
-				if len(buffs) > 0 {
-					_, _ = device.Write(buffs, offset)
-				}
-				for _, elem := range *elems {
-					elem.Release()
-				}
-				buffs = buffs[:0]
-				putWriteBackSlice(elems)
-			case <-udp.wait():
-				flushWriteBackQueue(writeBackQueue)
-				return
+			if len(writeBuffs) > 0 {
+				_, _ = device.Write(writeBuffs, offset)
+				writeBuffs = writeBuffs[:0]
 			}
 		}
 	}()
 
 	return tcp, udp, nil
-}
-
-func getWriteBackSlice() *[]*bufferv2.View {
-	return writeBackSlice.Get().(*[]*bufferv2.View)
-}
-
-func putWriteBackSlice(s *[]*bufferv2.View) {
-	for i := range *s {
-		(*s)[i] = nil
-	}
-	*s = (*s)[:0]
-	writeBackSlice.Put(s)
-}
-
-type autoDrainingWriteBackQueue struct {
-	c chan *[]*bufferv2.View
-}
-
-func newAutoDrainingWriteBackQueue() *autoDrainingWriteBackQueue {
-	q := &autoDrainingWriteBackQueue{
-		c: make(chan *[]*bufferv2.View, 512),
-	}
-	runtime.SetFinalizer(q, flushWriteBackQueue)
-	return q
-}
-
-func flushWriteBackQueue(q *autoDrainingWriteBackQueue) {
-	for {
-		select {
-		case elems := <-q.c:
-			for _, elem := range *elems {
-				elem.Release()
-			}
-			putWriteBackSlice(elems)
-		default:
-			return
-		}
-	}
 }

@@ -7,6 +7,7 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/Dreamacro/clash/component/iface"
 )
@@ -90,4 +91,8 @@ func bindIfaceToListenConfig(ifaceName string, _ *net.ListenConfig, network, add
 	}
 
 	return addr.String(), nil
+}
+
+func WithBindToInterfaceControlFn(_ string) func(network, address string, c syscall.RawConn) (err error) {
+	return nil
 }

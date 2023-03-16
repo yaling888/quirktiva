@@ -47,3 +47,22 @@ func bindIfaceToListenConfig(ifaceName string, lc *net.ListenConfig, _, address 
 
 	return address, nil
 }
+
+func WithBindToInterfaceControlFn(interfaceName string) func(network, address string, c syscall.RawConn) (err error) {
+	return func(network, address string, c syscall.RawConn) (err error) {
+		if interfaceName == "" {
+			return nil
+		}
+
+		var innerErr error
+		err = c.Control(func(fd uintptr) {
+			innerErr = unix.BindToDevice(int(fd), interfaceName)
+		})
+
+		if innerErr != nil {
+			err = innerErr
+		}
+
+		return
+	}
+}

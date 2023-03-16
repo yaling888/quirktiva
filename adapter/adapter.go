@@ -160,6 +160,8 @@ func (p *Proxy) URLTest(ctx context.Context, url string) (delay, avgDelay uint16
 
 	resp, err = client.Do(req)
 	if err != nil {
+		avgDelay = 0
+		err = nil
 		return
 	}
 	_ = resp.Body.Close()

@@ -1,12 +1,10 @@
 package nat
 
 import (
-	"errors"
 	"io"
 	"math/rand"
 	"net"
 	"net/netip"
-	"runtime"
 	"sync"
 
 	"gvisor.dev/gvisor/pkg/bufferv2"
@@ -15,61 +13,46 @@ import (
 	"github.com/Dreamacro/clash/listener/tun/ipstack/system/mars/tcpip"
 )
 
-type autoDrainingCallQueue struct {
-	c chan *call
-}
-
-func newAutoDrainingCallQueue(u *UDP) *autoDrainingCallQueue {
-	q := &autoDrainingCallQueue{
-		c: make(chan *call, 512),
-	}
-	runtime.SetFinalizer(q, u.flushCallQueue)
-	return q
-}
-
-type call struct {
+type udpElement struct {
 	packet      *bufferv2.View
 	source      netip.AddrPort
 	destination netip.AddrPort
 }
 
-func (c *call) clearPointers() {
+func (c *udpElement) clearPointers() {
 	c.packet.Release()
 	c.packet = nil
-	c.source = netip.AddrPort{}
-	c.destination = netip.AddrPort{}
 }
 
 type UDP struct {
-	device       dev.Device
-	callElements *sync.Pool
-	closed       chan struct{}
-	closedOnce   sync.Once
+	device         dev.Device
+	udpElements    *sync.Pool
+	incomingPacket chan *udpElement
+	writeBuff      [65535]byte
+	writeBuffs     [][]byte
+	writeLock      sync.Mutex
+	closed         chan struct{}
+	closedOnce     sync.Once
 }
 
 func (u *UDP) ReadFrom(buf []byte) (n int, src netip.AddrPort, dest netip.AddrPort, err error) {
-	select {
-	case <-u.closed:
+	elem, ok := <-u.incomingPacket
+	if !ok {
 		err = net.ErrClosed
 		return
-	case elem := <-udpReadQueue.c:
-		if elem == nil {
-			err = errors.New("element is nil")
-			return
-		}
+	}
 
-		defer u.putCallElement(elem)
+	defer u.putUDPElement(elem)
 
-		n = copy(buf, elem.packet.AsSlice())
-		if n < elem.packet.Size() {
-			err = io.ErrShortBuffer
-			return
-		}
-
-		src = elem.source
-		dest = elem.destination
+	n = copy(buf, elem.packet.AsSlice())
+	if n < elem.packet.Size() {
+		err = io.ErrShortBuffer
 		return
 	}
+
+	src = elem.source
+	dest = elem.destination
+	return
 }
 
 func (u *UDP) WriteTo(buf []byte, local netip.AddrPort, remote netip.AddrPort) (int, error) {
@@ -78,6 +61,9 @@ func (u *UDP) WriteTo(buf []byte, local netip.AddrPort, remote netip.AddrPort) (
 		return 0, net.ErrClosed
 	default:
 	}
+
+	u.writeLock.Lock()
+	defer u.writeLock.Unlock()
 
 	offset := u.device.Offset()
 	bufLen := len(buf)
@@ -91,12 +77,9 @@ func (u *UDP) WriteTo(buf []byte, local netip.AddrPort, remote netip.AddrPort) (
 		return 0, net.InvalidAddrError("invalid ip version")
 	}
 
-	elem := bufferv2.NewViewSize(bufSize)
-	buff := elem.AsSlice()[offset:]
+	tcpip.SetIPv4(u.writeBuff[offset:])
 
-	tcpip.SetIPv4(buff)
-
-	ip := tcpip.IPv4Packet(buff)
+	ip := tcpip.IPv4Packet(u.writeBuff[offset:])
 	ip.SetHeaderLen(tcpip.IPv4HeaderSize)
 	ip.SetTotalLength(tcpip.IPv4HeaderSize + tcpip.UDPHeaderSize + uint16(bufLen))
 	ip.SetTypeOfService(0)
@@ -120,24 +103,17 @@ func (u *UDP) WriteTo(buf []byte, local netip.AddrPort, remote netip.AddrPort) (
 	ip.ResetChecksum()
 	udp.ResetChecksum(ip.PseudoSum())
 
-	elems := getWriteBackSlice()
-	*elems = append(*elems, elem)
+	u.writeBuffs = append(u.writeBuffs, u.writeBuff[:bufSize])
+	_, err := u.device.Write(u.writeBuffs, offset)
+	u.writeBuffs = u.writeBuffs[:0]
 
-	select {
-	case writeBackQueue.c <- elems:
-	default:
-		elem.Release()
-		putWriteBackSlice(elems)
-		return 0, io.ErrShortWrite
-	}
-
-	return n, nil
+	return n, err
 }
 
 func (u *UDP) Close() error {
 	u.closedOnce.Do(func() {
+		close(u.incomingPacket)
 		close(u.closed)
-		u.flushCallQueue(udpReadQueue)
 	})
 	return nil
 }
@@ -147,39 +123,20 @@ func (u *UDP) handleUDPPacket(ip tcpip.IP, pkt tcpip.UDPPacket) {
 		return
 	}
 
-	elem := u.getCallElement()
+	elem := u.getUDPElement()
 	elem.packet = bufferv2.NewViewWithData(pkt.Payload())
 
 	elem.source = netip.AddrPortFrom(ip.SourceIP(), pkt.SourcePort())
 	elem.destination = netip.AddrPortFrom(ip.DestinationIP(), pkt.DestinationPort())
 
-	select {
-	case udpReadQueue.c <- elem:
-	default:
-		u.putCallElement(elem)
-	}
+	u.incomingPacket <- elem
 }
 
-func (u *UDP) wait() chan struct{} {
-	return u.closed
+func (u *UDP) getUDPElement() *udpElement {
+	return u.udpElements.Get().(*udpElement)
 }
 
-func (u *UDP) getCallElement() *call {
-	return u.callElements.Get().(*call)
-}
-
-func (u *UDP) putCallElement(elem *call) {
+func (u *UDP) putUDPElement(elem *udpElement) {
 	elem.clearPointers()
-	u.callElements.Put(elem)
-}
-
-func (u *UDP) flushCallQueue(q *autoDrainingCallQueue) {
-	for {
-		select {
-		case elem := <-q.c:
-			u.putCallElement(elem)
-		default:
-			return
-		}
-	}
+	u.udpElements.Put(elem)
 }

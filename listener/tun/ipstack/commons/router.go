@@ -8,7 +8,11 @@ import (
 	"sync"
 	"time"
 
+	A "github.com/Dreamacro/clash/adapter"
+	"github.com/Dreamacro/clash/adapter/outbound"
 	C "github.com/Dreamacro/clash/constant"
+	"github.com/Dreamacro/clash/constant/provider"
+	"github.com/Dreamacro/clash/tunnel"
 )
 
 var (
@@ -38,6 +42,26 @@ func ipv4MaskString(bits int) string {
 	}
 
 	return fmt.Sprintf("%d.%d.%d.%d", m[0], m[1], m[2], m[3])
+}
+
+func updateWireGuardBind() {
+	ps := tunnel.Proxies()
+	for _, p := range ps {
+		if p.Type() == C.WireGuard {
+			p.(*A.Proxy).ProxyAdapter.(*outbound.WireGuard).UpdateBind()
+		}
+	}
+	pds := tunnel.Providers()
+	for _, pd := range pds {
+		if pd.VehicleType() == provider.Compatible {
+			continue
+		}
+		for _, p := range pd.Proxies() {
+			if p.Type() == C.WireGuard {
+				p.(*A.Proxy).ProxyAdapter.(*outbound.WireGuard).UpdateBind()
+			}
+		}
+	}
 }
 
 func SetTunChangeCallback(callback C.TUNChangeCallback) {

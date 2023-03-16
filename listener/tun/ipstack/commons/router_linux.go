@@ -185,6 +185,7 @@ func defaultRouteChangeCallback(update netlink.RouteUpdate) {
 	dialer.DefaultInterface.Store(interfaceName)
 
 	iface.FlushCache()
+	updateWireGuardBind()
 
 	if tunStatus == C.TunPaused {
 		log.Warn().

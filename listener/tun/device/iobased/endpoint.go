@@ -94,18 +94,18 @@ func (e *Endpoint) dispatchLoop(cancel context.CancelFunc) {
 	defer cancel()
 
 	var (
-		readErr   error
-		device    = e.rw
-		offset    = e.offset
-		mtu       = int(e.mtu)
-		count     = 0
-		batchSize = device.BatchSize()
-		buffs     = make([][]byte, batchSize)
-		sizes     = make([]int, batchSize)
+		readErr    error
+		device     = e.rw
+		offset     = e.offset
+		batchSize  = device.BatchSize()
+		bufferSize = 65535 + offset
+		count      = 0
+		buffs      = make([][]byte, batchSize)
+		sizes      = make([]int, batchSize)
 	)
 
 	for i := range buffs {
-		buffs[i] = make([]byte, mtu+offset)
+		buffs[i] = make([]byte, bufferSize)
 	}
 
 	for {

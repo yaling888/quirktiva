@@ -148,6 +148,7 @@ func StartDefaultInterfaceChangeMonitor() {
 			dialer.DefaultInterface.Store(interfaceName)
 
 			iface.FlushCache()
+			updateWireGuardBind()
 
 			log.Warn().
 				Str("old", old).

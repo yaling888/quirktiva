@@ -12,17 +12,24 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
+	_ "unsafe"
 
 	"github.com/phuslu/log"
+	bind "golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
 
 	"github.com/Dreamacro/clash/component/dialer"
+	"github.com/Dreamacro/clash/component/iface"
 	"github.com/Dreamacro/clash/component/resolver"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/transport/wireguard"
 )
+
+//go:linkname controlFns golang.zx2c4.com/wireguard/conn.controlFns
+var controlFns []func(network, address string, c syscall.RawConn) error
 
 const dialTimeout = 10 * time.Second
 
@@ -31,9 +38,9 @@ type WireGuard struct {
 	wgDevice  *device.Device
 	tunDevice tun.Device
 	netStack  *wireguard.Net
-	bind      *wireguard.WgBind
+	bind      bind.Bind
 
-	dialer     *wgDialer
+	endpoint   netip.AddrPort
 	localIP    netip.Addr
 	localIPv6  netip.Addr
 	dnsServers []netip.Addr
@@ -80,19 +87,25 @@ func (w *WireGuard) DialContext(ctx context.Context, metadata *C.Metadata, _ ...
 		defer cancel()
 	}
 
-	var remoteAddress string
-	if !w.remoteDnsResolve && !metadata.Resolved() {
-		rAddrs, err := resolver.LookupIP(ctx, metadata.Host)
-		if err != nil {
-			return nil, err
+	if !metadata.Resolved() {
+		if w.remoteDnsResolve {
+			rAddr, err := resolver.ResolveIPByProxy(metadata.Host, w.name, false)
+			if err != nil {
+				return nil, err
+			}
+			metadata.DstIP = rAddr
+		} else {
+			rAddrs, err := resolver.LookupIP(context.Background(), metadata.Host)
+			if err != nil {
+				return nil, err
+			}
+			metadata.DstIP = rAddrs[rand.Intn(len(rAddrs))]
 		}
-		metadata.DstIP = rAddrs[rand.Intn(len(rAddrs))]
-		remoteAddress = net.JoinHostPort(metadata.DstIP.String(), metadata.DstPort)
-	} else {
-		remoteAddress = metadata.RemoteAddress()
 	}
 
-	c, err := w.netStack.DialContext(dialCtx, "tcp", remoteAddress)
+	port, _ := strconv.ParseUint(metadata.DstPort, 10, 16)
+
+	c, err := w.netStack.DialContextTCPAddrPort(dialCtx, netip.AddrPortFrom(metadata.DstIP, uint16(port)))
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +116,7 @@ func (w *WireGuard) DialContext(ctx context.Context, metadata *C.Metadata, _ ...
 }
 
 // ListenPacketContext implements C.ProxyAdapter
-func (w *WireGuard) ListenPacketContext(ctx context.Context, metadata *C.Metadata, _ ...dialer.Option) (C.PacketConn, error) {
+func (w *WireGuard) ListenPacketContext(_ context.Context, metadata *C.Metadata, _ ...dialer.Option) (C.PacketConn, error) {
 	w.up()
 	if w.upErr != nil {
 		return nil, fmt.Errorf("apply wireguard proxy %s config failure, cause: %w", w.threadId, w.upErr)
@@ -111,13 +124,13 @@ func (w *WireGuard) ListenPacketContext(ctx context.Context, metadata *C.Metadat
 
 	if !metadata.Resolved() {
 		if w.remoteDnsResolve {
-			rAddrs, err := w.netStack.LookupContextHost(ctx, metadata.Host)
+			rAddr, err := resolver.ResolveIPByProxy(metadata.Host, w.name, true)
 			if err != nil {
 				return nil, err
 			}
-			metadata.DstIP = rAddrs[0]
+			metadata.DstIP = rAddr
 		} else {
-			rAddrs, err := resolver.LookupIP(ctx, metadata.Host)
+			rAddrs, err := resolver.LookupIP(context.Background(), metadata.Host)
 			if err != nil {
 				return nil, err
 			}
@@ -155,6 +168,35 @@ func (w *WireGuard) RemoteDnsResolve() bool {
 	return w.remoteDnsResolve
 }
 
+func (w *WireGuard) UpdateBind() {
+	if s, ok := w.bind.(*wireguard.StdNetBind); ok {
+		s.UpdateControlFns(getBindControlFns(w.Base.name))
+	}
+
+	_ = w.wgDevice.BindUpdate()
+	_ = w.bindSocketToInterface()
+}
+
+// bindSocketToInterface used by WinRingBind
+func (w *WireGuard) bindSocketToInterface() error {
+	if b, ok := w.bind.(bind.BindSocketToInterface); ok {
+		interfaceName := getInterfaceName(w.Base.iface)
+		if interfaceName == "" {
+			return nil
+		}
+		obj, err := iface.ResolveInterface(interfaceName)
+		if err != nil {
+			return err
+		}
+		if w.endpoint.Addr().Is4() {
+			return b.BindSocketToInterface4(uint32(obj.Index), false)
+		} else {
+			return b.BindSocketToInterface6(uint32(obj.Index), false)
+		}
+	}
+	return nil
+}
+
 func (w *WireGuard) up() {
 	w.upOnce.Do(func() {
 		w.upErr = w.init()
@@ -178,9 +220,8 @@ lookup:
 
 	p, _ := strconv.ParseUint(port, 10, 16)
 	endpoint := netip.AddrPortFrom(endpointIP, uint16(p))
+	w.endpoint = endpoint
 	w.uapiConf = append(w.uapiConf, fmt.Sprintf("endpoint=%s", endpoint))
-
-	wgBind := wireguard.NewWgBind(context.Background(), w.dialer, endpoint, w.reserved)
 
 	localIPs := make([]netip.Addr, 0, 2)
 	if w.localIP.IsValid() {
@@ -194,6 +235,8 @@ lookup:
 	if err != nil {
 		return err
 	}
+
+	wgBind := wireguard.NewDefaultBind(getBindControlFns(w.Base.iface), w.Base.iface, w.reserved)
 
 	logger := &device.Logger{
 		Verbosef: func(format string, args ...any) {
@@ -212,6 +255,8 @@ lookup:
 	if err != nil {
 		return err
 	}
+
+	_ = w.bindSocketToInterface()
 
 	w.bind = wgBind
 	w.tunDevice = tunDevice
@@ -312,7 +357,6 @@ func NewWireGuard(option WireGuardOption) (*WireGuard, error) {
 	}
 	wireGuard := &WireGuard{
 		Base:       base,
-		dialer:     &wgDialer{options: base.DialOptions()},
 		localIP:    localIP,
 		localIPv6:  localIPv6,
 		dnsServers: dnsServers,
@@ -326,12 +370,24 @@ func NewWireGuard(option WireGuardOption) (*WireGuard, error) {
 	return wireGuard, nil
 }
 
-type wgDialer struct {
-	options []dialer.Option
+// getBindControlFns used by StdNetBind
+func getBindControlFns(interfaceName string) []func(network, address string, c syscall.RawConn) error {
+	var bindFns []func(network, address string, c syscall.RawConn) error
+
+	for _, fn := range controlFns {
+		bindFns = append(bindFns, fn)
+	}
+
+	bindFns = append(bindFns, dialer.WithBindToInterfaceControlFn(getInterfaceName(interfaceName)))
+
+	return bindFns
 }
 
-func (d *wgDialer) DialContext(ctx context.Context, network string, address netip.AddrPort) (net.Conn, error) {
-	return dialer.DialContext(ctx, network, address.String(), d.options...)
+func getInterfaceName(interfaceName string) string {
+	if interfaceName == "" {
+		interfaceName = dialer.DefaultInterface.Load()
+	}
+	return interfaceName
 }
 
 type wgConn struct {

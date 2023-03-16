@@ -87,3 +87,36 @@ func bindIfaceToListenConfig(ifaceName string, lc *net.ListenConfig, _, address 
 	lc.Control = bindControl(ifaceObj.Index, lc.Control)
 	return address, nil
 }
+
+func WithBindToInterfaceControlFn(interfaceName string) func(network, address string, c syscall.RawConn) (err error) {
+	return func(network, address string, c syscall.RawConn) (err error) {
+		if interfaceName == "" {
+			return nil
+		}
+
+		var (
+			innerErr error
+			ifaceObj *iface.Interface
+		)
+
+		ifaceObj, err = iface.ResolveInterface(interfaceName)
+		if err != nil {
+			return
+		}
+
+		err = c.Control(func(fd uintptr) {
+			switch network {
+			case "udp4":
+				innerErr = bindSocketToInterface4(windows.Handle(fd), uint32(ifaceObj.Index))
+			case "udp6":
+				innerErr = bindSocketToInterface6(windows.Handle(fd), uint32(ifaceObj.Index))
+			}
+		})
+
+		if innerErr != nil {
+			err = innerErr
+		}
+
+		return
+	}
+}
