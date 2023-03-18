@@ -6,8 +6,9 @@ require (
 	github.com/Dreamacro/clash v0.0.0
 	github.com/docker/docker v20.10.23+incompatible
 	github.com/docker/go-connections v0.4.0
-	github.com/miekg/dns v1.1.51
+	github.com/miekg/dns v1.1.52
 	github.com/stretchr/testify v1.8.2
+	go.uber.org/automaxprocs v1.5.2
 	golang.org/x/net v0.8.0
 )
 
@@ -38,7 +39,7 @@ require (
 	github.com/samber/lo v1.37.0 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/u-root/uio v0.0.0-20230220225925-ffce2a382923 // indirect
-	github.com/vishvananda/netlink v1.2.1-beta.2.0.20230206183746-70ca0345eede // indirect
+	github.com/vishvananda/netlink v1.2.1-beta.2.0.20230316163032-ced5aaba43e3 // indirect
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74 // indirect
 	github.com/xtls/go v0.0.0-20220914232946-0441cf4cf837 // indirect
 	go.etcd.io/bbolt v1.3.7 // indirect
@@ -53,10 +54,9 @@ require (
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.6.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
-	golang.zx2c4.com/wireguard v0.0.0-20230310151918-7d327ed35aef // indirect
+	golang.zx2c4.com/wireguard v0.0.0-20230317141804-1417a47c8fa8 // indirect
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b // indirect
-	google.golang.org/protobuf v1.29.0 // indirect
-	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
+	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	gvisor.dev/gvisor v0.0.0-20230309201744-a711e9e7276c // indirect
+	gvisor.dev/gvisor v0.0.0-20230318000052-cb83cbc04adb // indirect
 )
