@@ -5,7 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Setup Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           check-latest: true
           go-version: '1.20'
@@ -38,7 +38,7 @@ jobs:
         env:
           NAME: clash-plus-pro
           BINDIR: bin
-        run: make -j releases
+        run: make -j $(go run ./test/main.go) releases
 
       #- name: Prepare upload
       #  run: |
