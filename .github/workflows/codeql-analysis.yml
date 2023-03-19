@@ -15,14 +15,14 @@ jobs:
         language: ['go']
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
           check-latest: true
           go-version: '1.20'
-
-      - name: Checkout repository
-        uses: actions/checkout@v3
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v2
@@ -36,7 +36,7 @@ jobs:
         env:
           NAME: clash-plus-pro
           BINDIR: bin
-        run: make linux-amd64
+        run: make docker
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v2
