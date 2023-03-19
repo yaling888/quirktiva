@@ -15,6 +15,12 @@ jobs:
         language: ['go']
 
     steps:
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          check-latest: true
+          go-version: '1.20'
+
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -23,8 +29,14 @@ jobs:
         with:
           languages: ${{ matrix.language }}
 
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v2
+      #- name: Autobuild
+      #  uses: github/codeql-action/autobuild@v2
+
+      - name: Build
+        env:
+          NAME: clash-plus-pro
+          BINDIR: bin
+        run: make linux-amd64
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v2
