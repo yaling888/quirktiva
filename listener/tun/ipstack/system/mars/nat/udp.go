@@ -36,23 +36,23 @@ type UDP struct {
 }
 
 func (u *UDP) ReadFrom(buf []byte) (n int, src netip.AddrPort, dest netip.AddrPort, err error) {
-	elem, ok := <-u.incomingPacket
-	if !ok {
+	select {
+	case <-u.closed:
 		err = net.ErrClosed
 		return
-	}
+	case elem := <-u.incomingPacket:
+		defer u.putUDPElement(elem)
 
-	defer u.putUDPElement(elem)
+		n = copy(buf, elem.packet.AsSlice())
+		if n < elem.packet.Size() {
+			err = io.ErrShortBuffer
+			return
+		}
 
-	n = copy(buf, elem.packet.AsSlice())
-	if n < elem.packet.Size() {
-		err = io.ErrShortBuffer
+		src = elem.source
+		dest = elem.destination
 		return
 	}
-
-	src = elem.source
-	dest = elem.destination
-	return
 }
 
 func (u *UDP) WriteTo(buf []byte, local netip.AddrPort, remote netip.AddrPort) (int, error) {
@@ -112,8 +112,8 @@ func (u *UDP) WriteTo(buf []byte, local netip.AddrPort, remote netip.AddrPort) (
 
 func (u *UDP) Close() error {
 	u.closedOnce.Do(func() {
-		close(u.incomingPacket)
 		close(u.closed)
+		u.flushPacketQueue()
 	})
 	return nil
 }
@@ -139,4 +139,15 @@ func (u *UDP) getUDPElement() *udpElement {
 func (u *UDP) putUDPElement(elem *udpElement) {
 	elem.clearPointers()
 	u.udpElements.Put(elem)
+}
+
+func (u *UDP) flushPacketQueue() {
+	for {
+		select {
+		case elem := <-u.incomingPacket:
+			u.putUDPElement(elem)
+		default:
+			return
+		}
+	}
 }

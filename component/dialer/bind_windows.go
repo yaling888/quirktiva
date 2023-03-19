@@ -110,6 +110,10 @@ func WithBindToInterfaceControlFn(interfaceName string) func(network, address st
 				innerErr = bindSocketToInterface4(windows.Handle(fd), uint32(ifaceObj.Index))
 			case "udp6":
 				innerErr = bindSocketToInterface6(windows.Handle(fd), uint32(ifaceObj.Index))
+				if innerErr != nil {
+					innerErr = syscall.EAFNOSUPPORT
+					return
+				}
 			}
 		})
 

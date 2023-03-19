@@ -40,7 +40,6 @@ type WireGuard struct {
 	netStack  *wireguard.Net
 	bind      bind.Bind
 
-	endpoint   netip.AddrPort
 	localIP    netip.Addr
 	localIPv6  netip.Addr
 	dnsServers []netip.Addr
@@ -188,11 +187,8 @@ func (w *WireGuard) bindSocketToInterface() error {
 		if err != nil {
 			return err
 		}
-		if w.endpoint.Addr().Is4() {
-			return b.BindSocketToInterface4(uint32(obj.Index), false)
-		} else {
-			return b.BindSocketToInterface6(uint32(obj.Index), false)
-		}
+		_ = b.BindSocketToInterface4(uint32(obj.Index), false)
+		_ = b.BindSocketToInterface6(uint32(obj.Index), false)
 	}
 	return nil
 }
@@ -220,7 +216,6 @@ lookup:
 
 	p, _ := strconv.ParseUint(port, 10, 16)
 	endpoint := netip.AddrPortFrom(endpointIP, uint16(p))
-	w.endpoint = endpoint
 	w.uapiConf = append(w.uapiConf, fmt.Sprintf("endpoint=%s", endpoint))
 
 	localIPs := make([]netip.Addr, 0, 2)
@@ -237,6 +232,7 @@ lookup:
 	}
 
 	wgBind := wireguard.NewDefaultBind(getBindControlFns(w.Base.iface), w.Base.iface, w.reserved)
+	w.bind = wgBind
 
 	logger := &device.Logger{
 		Verbosef: func(format string, args ...any) {
@@ -258,7 +254,6 @@ lookup:
 
 	_ = w.bindSocketToInterface()
 
-	w.bind = wgBind
 	w.tunDevice = tunDevice
 	w.netStack = netStack
 	w.wgDevice = wgDevice
