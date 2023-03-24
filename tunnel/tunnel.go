@@ -608,10 +608,10 @@ func match(metadata *C.Metadata) (C.Proxy, C.Rule, error) {
 
 			srcPort, err := strconv.ParseUint(metadata.SrcPort, 10, 16)
 			if err == nil {
-				path, err := P.FindProcessName(metadata.NetWork.String(), metadata.SrcIP, int(srcPort))
-				if err != nil {
+				path, err2 := P.FindProcessName(metadata.NetWork.String(), metadata.SrcIP, int(srcPort))
+				if err2 != nil {
 					log.Debug().
-						Err(err).
+						Err(err2).
 						Str("addr", metadata.String()).
 						Msg("[Matcher] find process failed")
 				} else {
@@ -627,15 +627,8 @@ func match(metadata *C.Metadata) (C.Proxy, C.Rule, error) {
 		}
 
 		if rule.Match(metadata) {
-			adapter, ok := proxies[rule.Adapter()]
+			adapter, ok := FindProxyByName(rule.Adapter())
 			if !ok {
-				continue
-			}
-
-			if metadata.NetWork == C.UDP && !adapter.SupportUDP() && UDPFallbackMatch.Load() {
-				log.Debug().
-					Str("proxy", adapter.Name()).
-					Msg("[Matcher] UDP is not supported, skip match")
 				continue
 			}
 
@@ -654,12 +647,27 @@ func match(metadata *C.Metadata) (C.Proxy, C.Rule, error) {
 				}
 			}
 
+			if metadata.NetWork == C.UDP && !adapter.SupportUDP() {
+				if !UDPFallbackMatch.Load() {
+					policy := UDPFallbackPolicy.Load()
+					if policy != "" {
+						if adapter2, ok2 := FindProxyByName(policy); ok2 {
+							return adapter2, rule, nil
+						}
+						log.Warn().
+							Str("policy", policy).
+							Msg("[Matcher] UDP fallback policy not found, skip use policy")
+					}
+				} else {
+					log.Debug().
+						Str("proxy", adapter.Name()).
+						Msg("[Matcher] UDP is not supported, skip match")
+					continue
+				}
+			}
+
 			return adapter, rule, nil
 		}
-	}
-
-	if adapter, ok := proxies[UDPFallbackPolicy.Load()]; ok {
-		return adapter, nil, nil
 	}
 
 	return proxies["REJECT"], nil, nil
@@ -673,20 +681,34 @@ func matchScript(metadata *C.Metadata) (C.Proxy, error) {
 		metadata.DstIP = node.Data
 	}
 
-	adapter, err := scriptMainMatcher.Eval(metadata)
+	adapterName, err := scriptMainMatcher.Eval(metadata)
 	if err != nil {
 		return nil, err
 	}
 
-	if proxy, ok := proxies[adapter]; !ok {
-		return nil, fmt.Errorf("proxy adapter [%s] not found by script", adapter)
-	} else if metadata.NetWork == C.UDP && !proxy.SupportUDP() {
-		if UDPFallbackMatch.Load() {
-			return nil, fmt.Errorf("proxy adapter [%s] UDP is not supported", adapter)
-		} else if proxy, ok = proxies[UDPFallbackPolicy.Load()]; ok {
-			return proxy, nil
+	adapter, ok := FindProxyByName(adapterName)
+	if !ok {
+		return nil, fmt.Errorf("proxy adapter [%s] not found by script", adapterName)
+	}
+
+	if metadata.NetWork == C.UDP && !adapter.SupportUDP() {
+		if !UDPFallbackMatch.Load() {
+			policy := UDPFallbackPolicy.Load()
+			if policy != "" {
+				if adapter2, ok2 := FindProxyByName(policy); ok2 {
+					return adapter2, nil
+				}
+				log.Warn().
+					Str("policy", policy).
+					Msg("[Matcher] UDP fallback policy not found, skip use policy")
+			}
+		} else {
+			log.Debug().
+				Str("proxy", adapterName).
+				Msg("[Matcher] UDP is not supported, use `REJECT` policy")
+			return proxies["REJECT"], nil
 		}
 	}
 
-	return proxies[adapter], nil
+	return adapter, nil
 }
