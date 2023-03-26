@@ -19,7 +19,9 @@ import (
 	"github.com/Dreamacro/clash/adapter/inbound"
 	"github.com/Dreamacro/clash/adapter/outbound"
 	"github.com/Dreamacro/clash/common/cert"
+	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/ebpf"
+	"github.com/Dreamacro/clash/component/iface"
 	"github.com/Dreamacro/clash/config"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/listener/autoredir"
@@ -35,6 +37,7 @@ import (
 	"github.com/Dreamacro/clash/listener/tunnel"
 	rewrites "github.com/Dreamacro/clash/rewrite"
 	T "github.com/Dreamacro/clash/tunnel"
+	"github.com/Dreamacro/clash/tunnel/statistic"
 )
 
 var (
@@ -381,6 +384,10 @@ func ReCreateTun(tunConf *config.Tun, tcpIn chan<- C.ConnContext, udpIn chan<- *
 			return
 		}
 
+		if tunConf.StopRouteListener && !tunConf.Enable {
+			commons.SetTunStatus(C.TunDisabled)
+		}
+
 		_ = tunStackListener.Close()
 		tunStackListener = nil
 	}
@@ -395,6 +402,21 @@ func ReCreateTun(tunConf *config.Tun, tcpIn chan<- C.ConnContext, udpIn chan<- *
 		tunConf: *tunConf,
 		tcpIn:   tcpIn,
 		udpIn:   udpIn,
+	}
+
+	if tunConf.AutoDetectInterface {
+		outboundInterface, err1 := commons.GetAutoDetectInterface()
+		if err1 != nil {
+			log.Info().Err(err1).Msg("[Tun] auto detect interface failed")
+		}
+		if outboundInterface != "" && outboundInterface != dialer.DefaultInterface.Load() {
+			dialer.DefaultInterface.Store(outboundInterface)
+			iface.FlushCache()
+			commons.UpdateWireGuardBind()
+			log.Info().
+				Str("name", outboundInterface).
+				Msg("[TUN] default interface has overwrite by auto detect interface")
+		}
 	}
 
 	tunStackListener, err = tun.New(tunConf, tcpIn, udpIn, callback)
@@ -515,9 +537,9 @@ func ReCreateAutoRedir(ifaceNames []string, defaultInterface string, tcpIn chan<
 	var err error
 	defer func() {
 		if err != nil {
-			if redirListener != nil {
-				_ = redirListener.Close()
-				redirListener = nil
+			if autoRedirListener != nil {
+				_ = autoRedirListener.Close()
+				autoRedirListener = nil
 			}
 			if autoRedirProgram != nil {
 				autoRedirProgram.Close()
@@ -777,6 +799,7 @@ type tunChangeCallback struct {
 func (t *tunChangeCallback) Pause() {
 	conf := t.tunConf
 	conf.Enable = false
+	conf.StopRouteListener = false
 	ReCreateTun(&conf, t.tcpIn, t.udpIn)
 	ReCreateRedirToTun([]string{})
 }
@@ -784,8 +807,10 @@ func (t *tunChangeCallback) Pause() {
 func (t *tunChangeCallback) Resume() {
 	conf := t.tunConf
 	conf.Enable = true
+	conf.StopRouteListener = false
 	ReCreateTun(&conf, t.tcpIn, t.udpIn)
 	ReCreateRedirToTun(conf.RedirectToTun)
+	statistic.DefaultManager.Cleanup()
 }
 
 func initCert() error {
@@ -809,6 +834,7 @@ func Cleanup() {
 		autoRedirProgram.Close()
 	}
 	if tunStackListener != nil {
+		commons.SetTunStatus(C.TunDisabled)
 		_ = tunStackListener.Close()
 	}
 }

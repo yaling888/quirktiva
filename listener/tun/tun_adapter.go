@@ -1,6 +1,7 @@
 package tun
 
 import (
+	"errors"
 	"fmt"
 	"net/netip"
 	"net/url"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/Dreamacro/clash/adapter/inbound"
 	"github.com/Dreamacro/clash/common/cmd"
+	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"
 	"github.com/Dreamacro/clash/config"
 	C "github.com/Dreamacro/clash/constant"
@@ -24,7 +26,12 @@ import (
 )
 
 // New TunAdapter
-func New(tunConf *config.Tun, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter, tunChangeCallback C.TUNChangeCallback) (ipstack.Stack, error) {
+func New(
+	tunConf *config.Tun,
+	tcpIn chan<- C.ConnContext,
+	udpIn chan<- *inbound.PacketAdapter,
+	tunChangeCallback C.TUNChangeCallback,
+) (ipstack.Stack, error) {
 	var (
 		tunAddress = netip.Prefix{}
 		devName    = tunConf.Device
@@ -39,10 +46,28 @@ func New(tunConf *config.Tun, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.
 	)
 
 	defer func() {
-		if err != nil && tunDevice != nil {
-			_ = tunDevice.Close()
+		if err != nil {
+			if tunStack != nil {
+				_ = tunStack.Close()
+			} else if tunDevice != nil {
+				_ = tunDevice.Close()
+			}
 		}
 	}()
+
+	defaultInterface := dialer.DefaultInterface.Load()
+	if tunConf.AutoDetectInterface {
+		commons.SetTunChangeCallback(tunChangeCallback)
+		commons.StartDefaultInterfaceChangeMonitor()
+		if defaultInterface == "" {
+			commons.SetTunStatus(C.TunPaused)
+			return nil, nil
+		}
+	} else if defaultInterface == "" {
+		return nil, errors.New(
+			"default interface not found, please assign value to `interface-name` or enable `auto-detect-interface`",
+		)
+	}
 
 	if devName == "" {
 		devName = generateDeviceName()
@@ -101,17 +126,12 @@ func New(tunConf *config.Tun, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.
 		resolver.DisableIPv6 = true
 	}
 
-	if tunConf.AutoDetectInterface {
-		commons.SetTunChangeCallback(tunChangeCallback)
-		go commons.StartDefaultInterfaceChangeMonitor()
-	}
-
 	tunConf.Device = devName
 	setAtLatest(stackType, devName)
 
 	log.Info().
 		Str("iface", devName).
-		Str("gateway", tunAddress.Masked().Addr().Next().String()).
+		NetIPAddr("gateway", tunAddress.Masked().Addr().Next()).
 		Uint32("mtu", tunDevice.MTU()).
 		Int("batchSize", tunDevice.BatchSize()).
 		Bool("autoRoute", autoRoute).

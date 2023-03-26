@@ -20,7 +20,6 @@ import (
 	"github.com/Dreamacro/clash/adapter/outboundgroup"
 	"github.com/Dreamacro/clash/adapter/provider"
 	"github.com/Dreamacro/clash/component/auth"
-	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/fakeip"
 	"github.com/Dreamacro/clash/component/geodata"
 	"github.com/Dreamacro/clash/component/geodata/router"
@@ -31,7 +30,6 @@ import (
 	C "github.com/Dreamacro/clash/constant"
 	providerTypes "github.com/Dreamacro/clash/constant/provider"
 	"github.com/Dreamacro/clash/dns"
-	"github.com/Dreamacro/clash/listener/tun/ipstack/commons"
 	L "github.com/Dreamacro/clash/log"
 	rewrites "github.com/Dreamacro/clash/rewrite"
 	R "github.com/Dreamacro/clash/rule"
@@ -116,6 +114,7 @@ type Tun struct {
 	AutoDetectInterface bool          `yaml:"auto-detect-interface" json:"auto-detect-interface"`
 	TunAddressPrefix    *netip.Prefix `yaml:"-" json:"-"`
 	RedirectToTun       []string      `yaml:"-" json:"-"`
+	StopRouteListener   bool          `yaml:"-" json:"-"`
 }
 
 // Script config
@@ -373,12 +372,20 @@ func UnmarshalRawConfig(buf []byte) (*RawConfig, error) {
 }
 
 func ParseRawConfig(rawCfg *RawConfig) (config *Config, err error) {
+	oldLevel := L.Level()
 	defer func() {
 		if err != nil {
 			providerTypes.Cleanup(config.Proxies, config.Providers)
+			L.SetLevel(oldLevel)
 		}
 		geodata.CleanGeoSiteCache()
 	}()
+
+	if rawCfg.LogLevel == L.DEBUG {
+		L.SetLevel(L.DEBUG)
+	} else {
+		L.SetLevel(L.INFO)
+	}
 
 	config = &Config{}
 
@@ -470,21 +477,6 @@ func parseGeneral(cfg *RawConfig) (*General, error) {
 		if _, err := os.Stat(externalUI); os.IsNotExist(err) {
 			return nil, fmt.Errorf("external-ui: %s not exist", externalUI)
 		}
-	}
-
-	if cfg.Tun.Enable && cfg.Tun.AutoDetectInterface {
-		outboundInterface, err := commons.GetAutoDetectInterface()
-		if err != nil && cfg.Interface == "" {
-			return nil, fmt.Errorf("get auto detect interface fail: %w", err)
-		}
-
-		if outboundInterface != "" {
-			cfg.Interface = outboundInterface
-		}
-	}
-
-	if dialer.DefaultInterface.Load() == "" {
-		dialer.DefaultInterface.Store(cfg.Interface)
 	}
 
 	cfg.Tun.RedirectToTun = cfg.EBpf.RedirectToTun
@@ -790,7 +782,6 @@ func parseNameServer(servers []string) ([]dns.NameServer, error) {
 				Net:          dnsNetType,
 				Addr:         addr,
 				ProxyAdapter: u.Fragment,
-				Interface:    dialer.DefaultInterface.Load(),
 			},
 		)
 	}

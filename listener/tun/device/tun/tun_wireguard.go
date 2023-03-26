@@ -2,8 +2,6 @@ package tun
 
 import (
 	"fmt"
-	"os"
-	"runtime"
 
 	"golang.zx2c4.com/wireguard/tun"
 
@@ -38,13 +36,7 @@ func Open(name string, mtu uint32) (_ device.Device, err error) {
 		forcedMTU = int(t.mtu)
 	}
 
-	nt, err := newDevice(t.name, forcedMTU) // forcedMTU do not work on wintun, need to be setting by other way
-
-	// retry if abnormal exit at last time on Windows
-	if err != nil && runtime.GOOS == "windows" && os.IsExist(err) {
-		nt, err = newDevice(t.name, forcedMTU)
-	}
-
+	nt, err := newDevice(t.name, forcedMTU)
 	if err != nil {
 		return nil, fmt.Errorf("create tun: %w", err)
 	}
@@ -88,7 +80,11 @@ func (t *TUN) Name() string {
 }
 
 func (t *TUN) MTU() uint32 {
-	return t.mtu
+	mtu, err := t.nt.MTU()
+	if err != nil {
+		return t.mtu
+	}
+	return uint32(mtu)
 }
 
 func (t *TUN) BatchSize() int {

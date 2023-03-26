@@ -32,7 +32,15 @@ func (t *TUN) LUID() uint64 {
 func (t *TUN) close() {}
 
 func newDevice(name string, mtu int) (nt T.Device, err error) {
-	return CreateTUN(name, mtu)
+	tryTimes := 0
+retry:
+	nt, err = CreateTUN(name, mtu)
+	if err != nil && os.IsExist(err) && tryTimes < 5 {
+		tryTimes++
+		time.Sleep(time.Second * 2)
+		goto retry
+	}
+	return
 }
 
 const (
@@ -69,7 +77,7 @@ var (
 )
 
 //go:linkname procyield runtime.procyield
-func procyield(cycles uint32)
+func procyield(_ uint32)
 
 //go:linkname nanotime runtime.nanotime
 func nanotime() int64

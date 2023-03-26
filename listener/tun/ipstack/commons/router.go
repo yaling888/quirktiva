@@ -2,26 +2,28 @@ package commons
 
 import (
 	"errors"
-	"fmt"
-	"net"
 	"net/netip"
 	"sync"
 	"time"
 
+	"github.com/phuslu/log"
+
 	A "github.com/Dreamacro/clash/adapter"
 	"github.com/Dreamacro/clash/adapter/outbound"
+	"github.com/Dreamacro/clash/component/dialer"
+	"github.com/Dreamacro/clash/component/iface"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/constant/provider"
 	"github.com/Dreamacro/clash/tunnel"
 )
 
 var (
-	defaultRoutes = []string{"1.0.0.0/8", "2.0.0.0/7", "4.0.0.0/6", "8.0.0.0/5", "16.0.0.0/4", "32.0.0.0/3", "64.0.0.0/2", "128.0.0.0/1"}
+	defaultRoutes = []string{
+		"1.0.0.0/8", "2.0.0.0/7", "4.0.0.0/6", "8.0.0.0/5",
+		"16.0.0.0/4", "32.0.0.0/3", "64.0.0.0/2", "128.0.0.0/1",
+	}
 
-	monitorDuration = 10 * time.Second
-	monitorStarted  = false
-	monitorStop     = make(chan struct{}, 2)
-	monitorMux      sync.Mutex
+	monitorMux sync.Mutex
 
 	tunStatus            = C.TunDisabled
 	tunChangeCallback    C.TUNChangeCallback
@@ -35,16 +37,34 @@ type DefaultInterface struct {
 	Gateway netip.Addr
 }
 
-func ipv4MaskString(bits int) string {
-	m := net.CIDRMask(bits, 32)
-	if len(m) != 4 {
-		panic("ipv4Mask: len must be 4 bytes")
+func GetAutoDetectInterface() (string, error) {
+	var (
+		retryOnFailure = true
+		tryTimes       = 0
+	)
+startOver:
+	if tryTimes > 0 {
+		log.Info().
+			Int("times", tryTimes).
+			Msg("[TUN] retrying lookup default interface after failure, maybe system just booted")
+		time.Sleep(time.Second)
+		retryOnFailure = retryOnFailure && tryTimes < 25
+	}
+	tryTimes++
+
+	ifaceM, err := defaultRouteInterface()
+	if err != nil {
+		if err == errInterfaceNotFound && retryOnFailure {
+			goto startOver
+		} else {
+			return "", err
+		}
 	}
 
-	return fmt.Sprintf("%d.%d.%d.%d", m[0], m[1], m[2], m[3])
+	return ifaceM.Name, nil
 }
 
-func updateWireGuardBind() {
+func UpdateWireGuardBind() {
 	ps := tunnel.Proxies()
 	for _, p := range ps {
 		if p.Type() == C.WireGuard {
@@ -66,4 +86,51 @@ func updateWireGuardBind() {
 
 func SetTunChangeCallback(callback C.TUNChangeCallback) {
 	tunChangeCallback = callback
+}
+
+func SetTunStatus(status C.TUNState) {
+	tunStatus = status
+}
+
+func onChangeDefaultRoute() {
+	routeInterface, err := defaultRouteInterface()
+	if err != nil {
+		if err == errInterfaceNotFound && tunStatus == C.TunEnabled {
+			log.Info().Msg("[Route] lost default interface, pause tun adapter")
+
+			tunStatus = C.TunPaused
+			tunChangeCallback.Pause()
+		}
+		return
+	}
+
+	interfaceName := routeInterface.Name
+	oldInterfaceName := dialer.DefaultInterface.Load()
+	if interfaceName == oldInterfaceName && tunStatus == C.TunEnabled {
+		return
+	}
+
+	dialer.DefaultInterface.Store(interfaceName)
+
+	iface.FlushCache()
+	UpdateWireGuardBind()
+
+	if tunStatus == C.TunPaused {
+		log.Info().
+			Str("iface", interfaceName).
+			NetIPAddr("ip", routeInterface.IP).
+			NetIPAddr("gw", routeInterface.Gateway).
+			Msg("[Route] found default interface, resume tun adapter")
+
+		tunStatus = C.TunEnabled
+		tunChangeCallback.Resume()
+		return
+	}
+
+	log.Info().
+		Str("oldIface", oldInterfaceName).
+		Str("newIface", interfaceName).
+		NetIPAddr("ip", routeInterface.IP).
+		NetIPAddr("gw", routeInterface.Gateway).
+		Msg("[Route] default interface changed")
 }

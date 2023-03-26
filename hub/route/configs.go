@@ -9,13 +9,11 @@ import (
 	"github.com/go-chi/render"
 	"github.com/phuslu/log"
 
-	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"
 	"github.com/Dreamacro/clash/config"
 	"github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/hub/executor"
 	P "github.com/Dreamacro/clash/listener"
-	"github.com/Dreamacro/clash/listener/tun/ipstack/commons"
 	L "github.com/Dreamacro/clash/log"
 	"github.com/Dreamacro/clash/tunnel"
 )
@@ -109,6 +107,7 @@ func patchConfigs(w http.ResponseWriter, r *http.Request) {
 	if general.Tun != nil {
 		tunSchema := general.Tun
 		tunConf := P.GetTunConf()
+		tunConf.StopRouteListener = true
 
 		if tunSchema.Enable != nil {
 			tunConf.Enable = *tunSchema.Enable
@@ -127,13 +126,6 @@ func patchConfigs(w http.ResponseWriter, r *http.Request) {
 		}
 		if tunSchema.AutoDetectInterface != nil {
 			tunConf.AutoDetectInterface = *tunSchema.AutoDetectInterface
-		}
-
-		if dialer.DefaultInterface.Load() == "" && tunConf.Enable {
-			outboundInterface, _ := commons.GetAutoDetectInterface()
-			if outboundInterface != "" {
-				dialer.DefaultInterface.Store(outboundInterface)
-			}
 		}
 
 		P.ReCreateTun(&tunConf, tcpIn, udpIn)

@@ -71,12 +71,6 @@ func ApplyConfig(cfg *config.Config, force bool) {
 	mux.Lock()
 	defer mux.Unlock()
 
-	if cfg.General.LogLevel == L.DEBUG {
-		L.SetLevel(L.DEBUG)
-	} else {
-		L.SetLevel(L.INFO)
-	}
-
 	updateUsers(cfg.Users)
 	updateProxies(cfg.Proxies, cfg.Providers)
 	updateRules(cfg.Rules)
@@ -222,9 +216,12 @@ func updateGeneral(general *config.General, force bool) {
 	tunnel.SetMode(general.Mode)
 	resolver.DisableIPv6 = !general.IPv6
 
-	dialer.DefaultInterface.Store(general.Interface)
-	if dialer.DefaultInterface.Load() != "" {
-		log.Info().Str("name", general.Interface).Msg("[Config] interface")
+	defaultInterface := general.Interface
+	if defaultInterface != "" || (defaultInterface == "" && !general.Tun.Enable) {
+		dialer.DefaultInterface.Store(defaultInterface)
+		if defaultInterface != "" {
+			log.Info().Str("name", defaultInterface).Msg("[Config] default interface")
+		}
 	}
 
 	if general.RoutingMark > 0 || (general.RoutingMark == 0 && general.TProxyPort == 0) {
@@ -254,10 +251,12 @@ func updateGeneral(general *config.General, force bool) {
 	tcpIn := tunnel.TCPIn()
 	udpIn := tunnel.UDPIn()
 
+	general.Tun.StopRouteListener = true
+
 	listener.ReCreateHTTP(general.Port, tcpIn)
 	listener.ReCreateSocks(general.SocksPort, tcpIn, udpIn)
 	listener.ReCreateRedir(general.RedirPort, tcpIn, udpIn)
-	listener.ReCreateAutoRedir(general.EBpf.AutoRedir, general.Interface, tcpIn, udpIn)
+	listener.ReCreateAutoRedir(general.EBpf.AutoRedir, defaultInterface, tcpIn, udpIn)
 	listener.ReCreateTProxy(general.TProxyPort, tcpIn, udpIn)
 	listener.ReCreateMixed(general.MixedPort, tcpIn, udpIn)
 	listener.ReCreateMitm(general.MitmPort, tcpIn)

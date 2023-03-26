@@ -168,6 +168,9 @@ func (w *WireGuard) RemoteDnsResolve() bool {
 }
 
 func (w *WireGuard) UpdateBind() {
+	if w.bind == nil || w.wgDevice == nil {
+		return
+	}
 	if s, ok := w.bind.(*wireguard.StdNetBind); ok {
 		s.UpdateControlFns(getBindControlFns(w.Base.name))
 	}

@@ -5,15 +5,12 @@ import (
 	"net"
 	"net/netip"
 	"sync"
-	"time"
 
 	"github.com/phuslu/log"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 
 	"github.com/Dreamacro/clash/common/nnip"
-	"github.com/Dreamacro/clash/component/dialer"
-	"github.com/Dreamacro/clash/component/iface"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/listener/tun/device"
 )
@@ -23,30 +20,6 @@ var (
 	routeCancel    context.CancelFunc
 	routeChangeMux sync.Mutex
 )
-
-func GetAutoDetectInterface() (string, error) {
-	var (
-		retryOnFailure = true
-		tryTimes       = 0
-	)
-startOver:
-	if tryTimes > 0 {
-		log.Info().Msg("[TUN] Start tun retrying lookup default interface after failure because system just booted")
-		time.Sleep(time.Second)
-		retryOnFailure = retryOnFailure && tryTimes < 15
-	}
-	tryTimes++
-
-	ifaceM, err := defaultRouteInterface()
-	if err != nil {
-		if err == errInterfaceNotFound && retryOnFailure {
-			goto startOver
-		} else {
-			return "", err
-		}
-	}
-	return ifaceM.Name, nil
-}
 
 func ConfigInterfaceAddress(dev device.Device, addr netip.Prefix, _ int, autoRoute bool) error {
 	var (
@@ -82,10 +55,64 @@ func ConfigInterfaceAddress(dev device.Device, addr netip.Prefix, _ int, autoRou
 
 	if autoRoute {
 		err = configInterfaceRouting(devInterface.Attrs().Index, addr)
-	} else {
-		_, err = GetAutoDetectInterface()
 	}
 	return err
+}
+
+func StartDefaultInterfaceChangeMonitor() {
+	monitorMux.Lock()
+	if routeCancel != nil {
+		monitorMux.Unlock()
+		return
+	}
+
+	routeCtx, routeCancel = context.WithCancel(context.Background())
+	monitorMux.Unlock()
+
+	routeChan := make(chan netlink.RouteUpdate)
+	closeChan := make(chan struct{})
+
+	if err := netlink.RouteSubscribe(routeChan, closeChan); err != nil {
+		routeCancel()
+		routeCancel = nil
+		routeCtx = nil
+		log.Error().Err(err).Msg("[Route] subscribe to route event notifications failed")
+		return
+	}
+
+	tunStatus = C.TunEnabled
+
+	log.Info().Msg("[Route] subscribe to route event notifications")
+
+	go func() {
+		for {
+			select {
+			case update := <-routeChan:
+				defaultRouteChangeCallback(update)
+			case <-routeCtx.Done():
+				close(closeChan)
+				for range routeChan {
+				}
+				return
+			}
+		}
+	}()
+}
+
+func StopDefaultInterfaceChangeMonitor() {
+	monitorMux.Lock()
+	defer monitorMux.Unlock()
+
+	if routeCancel == nil || tunStatus == C.TunPaused {
+		return
+	}
+
+	routeCancel()
+	routeCancel = nil
+	routeCtx = nil
+
+	tunChangeCallback = nil
+	tunStatus = C.TunDisabled
 }
 
 func configInterfaceRouting(interfaceIndex int, addr netip.Prefix) error {
@@ -117,9 +144,9 @@ func defaultRouteInterface() (*DefaultInterface, error) {
 
 	for _, route := range routes {
 		if route.LinkIndex != 0 && route.Gw != nil {
-			link, err := netlink.LinkByIndex(route.LinkIndex)
-			if err != nil {
-				return nil, err
+			link, err1 := netlink.LinkByIndex(route.LinkIndex)
+			if err1 != nil {
+				return nil, err1
 			}
 
 			if link.Type() != "device" && link.Type() != "bridge" && link.Type() != "veth" {
@@ -128,9 +155,9 @@ func defaultRouteInterface() (*DefaultInterface, error) {
 
 			ip := route.Src
 			if ip == nil {
-				addrs, err := netlink.AddrList(link, unix.AF_INET)
-				if err != nil {
-					return nil, err
+				addrs, err2 := netlink.AddrList(link, unix.AF_INET)
+				if err2 != nil {
+					return nil, err2
 				}
 				if len(addrs) == 0 {
 					continue
@@ -159,102 +186,5 @@ func defaultRouteChangeCallback(update netlink.RouteUpdate) {
 		return
 	}
 
-	routeInterface, err := defaultRouteInterface()
-	if err != nil {
-		if err == errInterfaceNotFound && tunStatus == C.TunEnabled {
-			log.Warn().Msg("[TUN] lost default interface, pause tun adapter")
-
-			tunStatus = C.TunPaused
-			tunChangeCallback.Pause()
-		}
-		return
-	}
-
-	ifaceM, err := netlink.LinkByIndex(route.LinkIndex)
-	if err != nil {
-		log.Warn().Err(err).Msg("[TUN] default interface monitor failed")
-		return
-	}
-
-	interfaceName := routeInterface.Name
-
-	if ifaceM.Attrs().Name != interfaceName {
-		return
-	}
-
-	dialer.DefaultInterface.Store(interfaceName)
-
-	iface.FlushCache()
-	updateWireGuardBind()
-
-	if tunStatus == C.TunPaused {
-		log.Warn().
-			Str("iface", interfaceName).
-			Str("ip", routeInterface.IP.String()).
-			Msg("[TUN] default interface found, resume tun adapter")
-
-		tunStatus = C.TunEnabled
-		tunChangeCallback.Resume()
-		return
-	}
-
-	log.Warn().
-		Str("iface", interfaceName).
-		Str("ip", routeInterface.IP.String()).
-		Msg("[TUN] default interface changed by monitor")
-}
-
-func StartDefaultInterfaceChangeMonitor() {
-	monitorMux.Lock()
-	if routeCancel != nil {
-		monitorMux.Unlock()
-		return
-	}
-
-	routeCtx, routeCancel = context.WithCancel(context.Background())
-	monitorMux.Unlock()
-
-	routeChan := make(chan netlink.RouteUpdate)
-	closeChan := make(chan struct{})
-
-	if err := netlink.RouteSubscribe(routeChan, closeChan); err != nil {
-		routeCancel()
-		routeCancel = nil
-		routeCtx = nil
-
-		log.Error().Err(err).Msg("[TUN] subscribe route change notifications failed")
-		return
-	}
-
-	tunStatus = C.TunEnabled
-
-	log.Info().Msg("[TUN] subscribe route change notifications")
-
-	for {
-		select {
-		case update := <-routeChan:
-			defaultRouteChangeCallback(update)
-		case <-routeCtx.Done():
-			close(closeChan)
-			for range routeChan {
-			}
-			return
-		}
-	}
-}
-
-func StopDefaultInterfaceChangeMonitor() {
-	monitorMux.Lock()
-	defer monitorMux.Unlock()
-
-	if routeCancel == nil || tunStatus == C.TunPaused {
-		return
-	}
-
-	routeCancel()
-	routeCancel = nil
-	routeCtx = nil
-
-	tunChangeCallback = nil
-	tunStatus = C.TunDisabled
+	onChangeDefaultRoute()
 }
