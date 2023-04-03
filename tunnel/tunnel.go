@@ -312,7 +312,10 @@ func remoteResolveDNS(metadata *C.Metadata, proxy C.Proxy, shouldRemoteResolve b
 			}
 			metadata.DstIP = rAddrs[rand.Intn(len(rAddrs))]
 		}
-	} else if isUDP && !metadata.Resolved() {
+	} else if isUDP {
+		if metadata.Resolved() {
+			return
+		}
 		var rAddrs []netip.Addr
 		rAddrs, err = resolver.LookupIP(context.Background(), metadata.Host)
 		if err != nil {
