@@ -3,17 +3,21 @@ package adapter
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/netip"
 	"net/url"
+	"os"
+	"sync"
 	"time"
 
 	"go.uber.org/atomic"
 
 	"github.com/Dreamacro/clash/common/queue"
 	"github.com/Dreamacro/clash/component/dialer"
+	"github.com/Dreamacro/clash/component/resolver"
 	C "github.com/Dreamacro/clash/constant"
 )
 
@@ -21,11 +25,21 @@ type Proxy struct {
 	C.ProxyAdapter
 	history *queue.Queue[C.DelayHistory]
 	alive   *atomic.Bool
+	hasV6   *atomic.Bool
+	v6Mux   sync.Mutex
 }
 
 // Alive implements C.Proxy
 func (p *Proxy) Alive() bool {
 	return p.alive.Load()
+}
+
+// HasV6 implements C.Proxy
+func (p *Proxy) HasV6() bool {
+	if p.hasV6 == nil {
+		return false
+	}
+	return p.hasV6.Load()
 }
 
 // Dial implements C.Proxy
@@ -100,11 +114,15 @@ func (p *Proxy) MarshalJSON() ([]byte, error) {
 // implements C.Proxy
 func (p *Proxy) URLTest(ctx context.Context, url string) (delay, avgDelay uint16, err error) {
 	defer func() {
-		p.alive.Store(err == nil)
+		alive := err == nil
+		p.alive.Store(alive)
 		record := C.DelayHistory{Time: time.Now()}
-		if err == nil {
+		if alive {
 			record.Delay = delay
 			record.AvgDelay = avgDelay
+			if p.hasV6 == nil && !p.ProxyAdapter.DisableDnsResolve() {
+				go p.v6Test(url)
+			}
 		}
 		p.history.Put(record)
 		if p.history.Len() > 10 {
@@ -170,8 +188,89 @@ func (p *Proxy) URLTest(ctx context.Context, url string) (delay, avgDelay uint16
 	return
 }
 
+func (p *Proxy) v6Test(url string) {
+	p.v6Mux.Lock()
+	if p.hasV6 != nil {
+		return
+	}
+
+	var (
+		resolved bool
+		err      error
+	)
+
+	defer func() {
+		if resolved {
+			p.hasV6 = atomic.NewBool(err == nil)
+		}
+		p.v6Mux.Unlock()
+	}()
+
+	addr, err := urlToMetadata(url)
+	if err != nil {
+		return
+	}
+
+	ips, err := resolver.LookupIPv6ByProxy(context.Background(), addr.Host, p.Name())
+	if err != nil {
+		if os.IsTimeout(err) || errors.Is(err, resolver.ErrIPNotFound) || errors.Is(err, resolver.ErrIPVersion) {
+			resolved = true
+		}
+		return
+	}
+	addr.DstIP = ips[0]
+	resolved = true
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	instance, err := p.DialContext(ctx, &addr)
+	if err != nil {
+		return
+	}
+	defer func() {
+		_ = instance.Close()
+	}()
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return
+	}
+	req = req.WithContext(ctx)
+
+	transport := &http.Transport{
+		DialContext: func(context.Context, string, string) (net.Conn, error) {
+			return instance, nil
+		},
+		// from http.DefaultTransport
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+
+	client := http.Client{
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	defer client.CloseIdleConnections()
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return
+	}
+	_ = resp.Body.Close()
+
+	return
+}
+
 func NewProxy(adapter C.ProxyAdapter) *Proxy {
-	return &Proxy{adapter, queue.New[C.DelayHistory](10), atomic.NewBool(true)}
+	return &Proxy{
+		ProxyAdapter: adapter,
+		history:      queue.New[C.DelayHistory](10),
+		alive:        atomic.NewBool(true),
+	}
 }
 
 func urlToMetadata(rawURL string) (addr C.Metadata, err error) {

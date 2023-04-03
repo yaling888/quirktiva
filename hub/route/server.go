@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/gorilla/websocket"
 	"github.com/phuslu/log"
+	"go.uber.org/atomic"
 
 	"github.com/Dreamacro/clash/common/observable"
 	C "github.com/Dreamacro/clash/constant"
@@ -26,7 +27,7 @@ var (
 
 	uiPath = ""
 
-	bootTime = time.Now()
+	bootTime = atomic.NewTime(time.Now())
 
 	upgrader = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
@@ -288,5 +289,9 @@ func version(w http.ResponseWriter, r *http.Request) {
 }
 
 func uptime(w http.ResponseWriter, r *http.Request) {
-	render.JSON(w, r, render.M{"uptime": time.Since(bootTime).String()})
+	bt := bootTime.Load()
+	render.JSON(w, r, render.M{
+		"uptime":   time.Since(bt).String(),
+		"bootTime": bt.Format("2006-01-02 15:04:05 Mon -0700"),
+	})
 }

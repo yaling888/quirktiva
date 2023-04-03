@@ -17,6 +17,7 @@ import (
 	_ "unsafe"
 
 	"github.com/phuslu/log"
+	"github.com/samber/lo"
 	bind "golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
@@ -47,6 +48,7 @@ type WireGuard struct {
 	uapiConf   []string
 	threadId   string
 	mtu        int
+	hasV6      bool
 
 	upOnce   sync.Once
 	downOnce sync.Once
@@ -86,20 +88,8 @@ func (w *WireGuard) DialContext(ctx context.Context, metadata *C.Metadata, _ ...
 		defer cancel()
 	}
 
-	if !metadata.Resolved() {
-		if w.remoteDnsResolve {
-			rAddr, err := resolver.ResolveIPByProxy(metadata.Host, w.name, false)
-			if err != nil {
-				return nil, err
-			}
-			metadata.DstIP = rAddr
-		} else {
-			rAddrs, err := resolver.LookupIP(context.Background(), metadata.Host)
-			if err != nil {
-				return nil, err
-			}
-			metadata.DstIP = rAddrs[rand.Intn(len(rAddrs))]
-		}
+	if err := w.resolveDNS(metadata, false); err != nil {
+		return nil, fmt.Errorf("resolve DNS failed: %w", err)
 	}
 
 	port, _ := strconv.ParseUint(metadata.DstPort, 10, 16)
@@ -121,20 +111,8 @@ func (w *WireGuard) ListenPacketContext(_ context.Context, metadata *C.Metadata,
 		return nil, fmt.Errorf("apply wireguard proxy %s config failure, cause: %w", w.threadId, w.upErr)
 	}
 
-	if !metadata.Resolved() {
-		if w.remoteDnsResolve {
-			rAddr, err := resolver.ResolveIPByProxy(metadata.Host, w.name, true)
-			if err != nil {
-				return nil, err
-			}
-			metadata.DstIP = rAddr
-		} else {
-			rAddrs, err := resolver.LookupIP(context.Background(), metadata.Host)
-			if err != nil {
-				return nil, err
-			}
-			metadata.DstIP = rAddrs[0]
-		}
+	if err := w.resolveDNS(metadata, true); err != nil {
+		return nil, fmt.Errorf("resolve DNS failed: %w", err)
 	}
 
 	var lAddr netip.Addr
@@ -163,8 +141,9 @@ func (w *WireGuard) Cleanup() {
 	})
 }
 
-func (w *WireGuard) RemoteDnsResolve() bool {
-	return w.remoteDnsResolve
+// DisableDnsResolve implements C.DisableDnsResolve
+func (w *WireGuard) DisableDnsResolve() bool {
+	return true // let WireGuard resolve it
 }
 
 func (w *WireGuard) UpdateBind() {
@@ -192,6 +171,58 @@ func (w *WireGuard) bindSocketToInterface() error {
 		}
 		_ = b.BindSocketToInterface4(uint32(obj.Index), false)
 		_ = b.BindSocketToInterface6(uint32(obj.Index), false)
+	}
+	return nil
+}
+
+func (w *WireGuard) resolveDNS(metadata *C.Metadata, udp bool) error {
+	if metadata.Host == "" {
+		return nil
+	}
+	if w.remoteDnsResolve {
+		var (
+			rAddrs []netip.Addr
+			err    error
+		)
+		if w.hasV6 {
+			rAddrs, err = resolver.LookupIPByProxy(context.Background(), metadata.Host, w.name)
+		} else {
+			rAddrs, err = resolver.LookupIPv4ByProxy(context.Background(), metadata.Host, w.name)
+		}
+		if err != nil {
+			return err
+		}
+		if udp {
+			metadata.DstIP = rAddrs[0]
+		} else {
+			if w.hasV6 {
+				v6 := lo.Filter(rAddrs, func(addr netip.Addr, _ int) bool {
+					return addr.Is6()
+				})
+				if len(v6) > 0 {
+					rAddrs = v6
+				}
+			}
+			metadata.DstIP = rAddrs[rand.Intn(len(rAddrs))]
+		}
+	} else if !metadata.Resolved() {
+		var (
+			rAddrs []netip.Addr
+			err    error
+		)
+		if w.hasV6 {
+			rAddrs, err = resolver.LookupIP(context.Background(), metadata.Host)
+		} else {
+			rAddrs, err = resolver.LookupIPv4(context.Background(), metadata.Host)
+		}
+		if err != nil {
+			return err
+		}
+		if udp {
+			metadata.DstIP = rAddrs[0]
+		} else {
+			metadata.DstIP = rAddrs[rand.Intn(len(rAddrs))]
+		}
 	}
 	return nil
 }
@@ -226,6 +257,7 @@ lookup:
 		localIPs = append(localIPs, w.localIP)
 	}
 	if w.localIPv6.IsValid() {
+		w.hasV6 = true
 		localIPs = append(localIPs, w.localIPv6)
 	}
 

@@ -115,29 +115,17 @@ func (m *Metadata) SourceAddress() string {
 
 func (m *Metadata) AddrType() int {
 	switch true {
-	case m.Host != "" || !m.Resolved():
-		return socks5.AtypDomainName
 	case m.DstIP.Is4():
 		return socks5.AtypIPv4
-	default:
+	case m.DstIP.Is6():
 		return socks5.AtypIPv6
+	default:
+		return socks5.AtypDomainName
 	}
 }
 
 func (m *Metadata) Resolved() bool {
 	return m.DstIP.IsValid()
-}
-
-// Pure is used to solve unexpected behavior
-// when dialing proxy connection in DNSMapping mode.
-func (m *Metadata) Pure(isMitmOutbound bool) *Metadata {
-	if !isMitmOutbound && m.DNSMode == DNSMapping && m.DstIP.IsValid() {
-		copyM := *m
-		copyM.Host = ""
-		return &copyM
-	}
-
-	return m
 }
 
 func (m *Metadata) UDPAddr() *net.UDPAddr {

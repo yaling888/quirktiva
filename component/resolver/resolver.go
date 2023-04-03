@@ -3,7 +3,6 @@ package resolver
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/rand"
 	"net"
 	"net/netip"
@@ -19,17 +18,11 @@ var (
 	// DefaultResolver aim to resolve ip
 	DefaultResolver Resolver
 
-	// ProxyServerHostResolver resolve ip to proxies server host
-	ProxyServerHostResolver Resolver
-
-	// RemoteResolver remote resolve DNS by a proxy
-	RemoteResolver Resolver
-
 	// DisableIPv6 means don't resolve ipv6 host
 	// default value is true
 	DisableIPv6 = true
 
-	// RemoteDnsResolve reports remote resolve DNS
+	// RemoteDnsResolve reports whether TCP/UDP handler should be remote resolve DNS
 	// default value is true
 	RemoteDnsResolve = true
 
@@ -47,8 +40,8 @@ var (
 )
 
 const (
-	proxyServerIPKey = ipContextKey("key-lookup-proxy-server-ip")
-	proxyKey         = ipContextKey("key-lookup-by-proxy")
+	proxyServerHostKey = ipContextKey("key-lookup-proxy-server-ip")
+	proxyKey           = ipContextKey("key-lookup-by-proxy")
 )
 
 const (
@@ -90,15 +83,19 @@ func LookupIPByResolver(ctx context.Context, host string, r Resolver) ([]netip.A
 	return lookupIPByResolverAndType(ctx, host, r, typeNone, false)
 }
 
-// LookupFirstIP with a host, return first ip
-func LookupFirstIP(ctx context.Context, host string) (netip.Addr, error) {
-	ips, err := LookupIP(ctx, host)
-	if err != nil {
-		return netip.Addr{}, err
-	} else if len(ips) == 0 {
-		return netip.Addr{}, fmt.Errorf("%w: %s", ErrIPNotFound, host)
-	}
-	return ips[0], nil
+// LookupIPByProxy with a host and proxy, reports force combined ipv6 list whether the DisableIPv6 value is true
+func LookupIPByProxy(ctx context.Context, host, proxy string) ([]netip.Addr, error) {
+	return lookupIPByProxyAndType(ctx, host, proxy, typeNone, true)
+}
+
+// LookupIPv4ByProxy with a host and proxy, reports ipv4 list
+func LookupIPv4ByProxy(ctx context.Context, host, proxy string) ([]netip.Addr, error) {
+	return lookupIPByProxyAndType(ctx, host, proxy, typeA, false)
+}
+
+// LookupIPv6ByProxy with a host and proxy, reports ipv6 list whether the DisableIPv6 value is true
+func LookupIPv6ByProxy(ctx context.Context, host, proxy string) ([]netip.Addr, error) {
+	return lookupIPByProxyAndType(ctx, host, proxy, typeAAAA, true)
 }
 
 // ResolveIP with a host, return ip
@@ -131,35 +128,24 @@ func ResolveIPv6ProxyServerHost(host string) (netip.Addr, error) {
 	return resolveProxyServerHostByType(host, typeAAAA)
 }
 
-// ResolveIPByProxy with a host and proxy, return ip
-func ResolveIPByProxy(host, proxy string, first bool) (netip.Addr, error) {
-	ctx := context.WithValue(context.Background(), proxyKey, proxy)
-	ips, err := LookupIPByResolver(ctx, host, RemoteResolver)
-	l := len(ips)
-	if err != nil {
-		return netip.Addr{}, err
-	} else if l == 0 {
-		return netip.Addr{}, fmt.Errorf("%w: %s", ErrIPNotFound, host)
-	}
-	if first || l == 1 {
-		return ips[0], nil
-	}
-	return ips[rand.Intn(l)], nil
-}
-
+// RemoveCache remove cache by host
 func RemoveCache(host string) {
-	if ProxyServerHostResolver != nil {
-		ProxyServerHostResolver.RemoveCache(host)
-	}
 	if DefaultResolver != nil {
 		DefaultResolver.RemoveCache(host)
 	}
 }
 
-func IsProxyServerIP(ctx context.Context) bool {
-	return ctx.Value(proxyServerIPKey) != nil
+// IsProxyServer reports whether the DefaultResolver should be exchanged by proxyServer DNS client
+func IsProxyServer(ctx context.Context) bool {
+	return ctx.Value(proxyServerHostKey) != nil
 }
 
+// IsRemote reports whether the DefaultResolver should be exchanged by remote DNS client
+func IsRemote(ctx context.Context) bool {
+	return ctx.Value(proxyKey) != nil
+}
+
+// GetProxy reports the proxy name used by the DNS client and whether there is a proxy
 func GetProxy(ctx context.Context) (string, bool) {
 	v, ok := ctx.Value(proxyKey).(string)
 	return v, ok
@@ -182,8 +168,6 @@ func resolveIPByType(host string, _type uint16) (netip.Addr, error) {
 
 	if err != nil {
 		return netip.Addr{}, err
-	} else if len(ips) == 0 {
-		return netip.Addr{}, fmt.Errorf("%w: %s", ErrIPNotFound, host)
 	}
 
 	return ips[rand.Intn(len(ips))], nil
@@ -193,26 +177,24 @@ func resolveProxyServerHostByType(host string, _type uint16) (netip.Addr, error)
 	var (
 		ips []netip.Addr
 		err error
-		ctx = context.WithValue(context.Background(), proxyServerIPKey, struct{}{})
+		ctx = context.WithValue(context.Background(), proxyServerHostKey, struct{}{})
 	)
 
-	if ProxyServerHostResolver != nil {
-		ips, err = lookupIPByResolverAndType(ctx, host, ProxyServerHostResolver, _type, true)
-	} else {
-		ips, err = lookupIPByResolverAndType(ctx, host, DefaultResolver, _type, true)
-	}
-
+	ips, err = lookupIPByResolverAndType(ctx, host, DefaultResolver, _type, true)
 	if err != nil {
 		return netip.Addr{}, err
-	} else if len(ips) == 0 {
-		return netip.Addr{}, fmt.Errorf("%w: %s", ErrIPNotFound, host)
 	}
 
 	return ips[rand.Intn(len(ips))], nil
 }
 
-func lookupIPByResolverAndType(ctx context.Context, host string, r Resolver, t uint16, isProxyHost bool) ([]netip.Addr, error) {
-	if t == typeAAAA && DisableIPv6 && !isProxyHost {
+func lookupIPByProxyAndType(ctx context.Context, host, proxy string, t uint16, both bool) ([]netip.Addr, error) {
+	ctx = context.WithValue(ctx, proxyKey, proxy)
+	return lookupIPByResolverAndType(ctx, host, DefaultResolver, t, both)
+}
+
+func lookupIPByResolverAndType(ctx context.Context, host string, r Resolver, t uint16, both bool) ([]netip.Addr, error) {
+	if t == typeAAAA && DisableIPv6 && !both {
 		return nil, ErrIPv6Disabled
 	}
 
@@ -232,7 +214,7 @@ func lookupIPByResolverAndType(ctx context.Context, host string, r Resolver, t u
 		} else if t == typeAAAA {
 			return r.LookupIPv6(ctx, host)
 		}
-		if DisableIPv6 && !isProxyHost {
+		if DisableIPv6 && !both {
 			return r.LookupIPv4(ctx, host)
 		}
 		return r.LookupIP(ctx, host)

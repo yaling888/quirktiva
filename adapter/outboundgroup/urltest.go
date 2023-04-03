@@ -24,6 +24,7 @@ type URLTest struct {
 	*outbound.Base
 	tolerance  uint16
 	disableUDP bool
+	disableDNS bool
 	fastNode   C.Proxy
 	single     *singledo.Single[[]C.Proxy]
 	fastSingle *singledo.Single[C.Proxy]
@@ -112,6 +113,11 @@ func (u *URLTest) SupportUDP() bool {
 	return u.fast(false).SupportUDP()
 }
 
+// DisableDnsResolve implements C.DisableDnsResolve
+func (u *URLTest) DisableDnsResolve() bool {
+	return u.disableDNS
+}
+
 // MarshalJSON implements C.ProxyAdapter
 func (u *URLTest) MarshalJSON() ([]byte, error) {
 	var all []string
@@ -126,7 +132,7 @@ func (u *URLTest) MarshalJSON() ([]byte, error) {
 }
 
 func parseURLTestOption(config map[string]any) []urlTestOption {
-	opts := []urlTestOption{}
+	var opts []urlTestOption
 
 	// tolerance
 	if tolerance, ok := config["tolerance"].(int); ok {
@@ -148,10 +154,11 @@ func NewURLTest(option *GroupCommonOption, providers []provider.ProxyProvider, o
 		fastSingle: singledo.NewSingle[C.Proxy](time.Second * 10),
 		providers:  providers,
 		disableUDP: option.DisableUDP,
+		disableDNS: option.DisableDNS,
 	}
 
-	for _, option := range options {
-		option(urlTest)
+	for _, opt := range options {
+		opt(urlTest)
 	}
 
 	return urlTest

@@ -43,6 +43,9 @@ force-cert-verify: true # force verify TLS Certificate, prevent machine-in-the-m
 
 profile:
   tracing: false # prevent logs leak, default value is true
+
+experimental:
+  udp-fallback-policy: 'a proxy that supports UDP' # or `direct` or `reject`, default value is `reject`.
 ```
 
 ### MITM configuration
@@ -88,7 +91,7 @@ Use `curl -X POST controllerip:port/cache/fakeip/flush` to flush persistence fak
    enable: true
    use-hosts: true
    ipv6: false
-   # remote-dns-resolve: true # remote resolve DNS on handle UDP session, default value is true
+   remote-dns-resolve: true # remote resolve DNS on handle TCP connect and UDP session, default value is true
    enhanced-mode: fake-ip
    fake-ip-range: 198.18.0.1/16
    listen: 127.0.0.1:6868
@@ -101,6 +104,9 @@ Use `curl -X POST controllerip:port/cache/fakeip/flush` to flush persistence fak
    fallback:
      - 'tls://8.8.4.4:853#proxy or interface'
      - 'https://1.0.0.1/dns-query#Proxy'  # append the proxy adapter name to the end of DNS URL with '#' prefix.
+   remote-nameserver: # remote resolve DNS
+     - 'tls://1.1.1.1:853'
+     - 'tls://8.8.8.8:853'
    fallback-filter:
      geoip: false
      geosite:
@@ -422,13 +428,14 @@ proxy-groups:
       - ss1
       - ss2
       - ss3
-        
+
   - name: "filtering-proxy-providers"
     type: url-test
     url: "http://www.gstatic.com/generate_204"
     interval: 300
     tolerance: 200
     # lazy: true
+    # disable-dns: true # disable remote resolve DNS for this group
     filter: "XXX" # a regular expression
     use:
       - provider1

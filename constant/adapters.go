@@ -86,6 +86,7 @@ type ProxyAdapter interface {
 	Type() AdapterType
 	Addr() string
 	SupportUDP() bool
+	DisableDnsResolve() bool
 	MarshalJSON() ([]byte, error)
 
 	// StreamConn wraps a protocol around net.Conn with Metadata.
@@ -124,6 +125,7 @@ type DelayHistory struct {
 type Proxy interface {
 	ProxyAdapter
 	Alive() bool
+	HasV6() bool
 	DelayHistory() []DelayHistory
 	LastDelay() uint16
 	URLTest(ctx context.Context, url string) (uint16, uint16, error)

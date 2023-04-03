@@ -15,6 +15,7 @@ import (
 type Selector struct {
 	*outbound.Base
 	disableUDP bool
+	disableDNS bool
 	single     *singledo.Single[C.Proxy]
 	selected   string
 	providers  []provider.ProxyProvider
@@ -45,6 +46,11 @@ func (s *Selector) SupportUDP() bool {
 	}
 
 	return s.selectedProxy(false).SupportUDP()
+}
+
+// DisableDnsResolve implements C.DisableDnsResolve
+func (s *Selector) DisableDnsResolve() bool {
+	return s.disableDNS
 }
 
 // MarshalJSON implements C.ProxyAdapter
@@ -78,7 +84,7 @@ func (s *Selector) Set(name string) error {
 }
 
 // Unwrap implements C.ProxyAdapter
-func (s *Selector) Unwrap(metadata *C.Metadata) C.Proxy {
+func (s *Selector) Unwrap(_ *C.Metadata) C.Proxy {
 	return s.selectedProxy(true)
 }
 
@@ -114,5 +120,6 @@ func NewSelector(option *GroupCommonOption, providers []provider.ProxyProvider) 
 		providers:  providers,
 		selected:   selected,
 		disableUDP: option.DisableUDP,
+		disableDNS: option.DisableDNS,
 	}
 }

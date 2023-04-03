@@ -153,11 +153,11 @@ func (v *Vless) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 func (v *Vless) StreamPacketConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 	// vmess use stream-oriented udp with a special address, so we need a net.UDPAddr
 	if !metadata.Resolved() {
-		ip, err := resolver.LookupFirstIP(context.Background(), metadata.Host)
+		rAddrs, err := resolver.LookupIP(context.Background(), metadata.Host)
 		if err != nil {
 			return nil, fmt.Errorf("can't resolve ip, %w", err)
 		}
-		metadata.DstIP = ip
+		metadata.DstIP = rAddrs[0]
 	}
 
 	var err error
@@ -250,11 +250,11 @@ func (v *Vless) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 	if v.transport != nil && len(opts) == 0 {
 		// vless use stream-oriented udp with a special address, so we need a net.UDPAddr
 		if !metadata.Resolved() {
-			ip, err := resolver.LookupFirstIP(ctx, metadata.Host)
+			rAddrs, err := resolver.LookupIP(context.Background(), metadata.Host)
 			if err != nil {
 				return nil, fmt.Errorf("can't resolve ip, %w", err)
 			}
-			metadata.DstIP = ip
+			metadata.DstIP = rAddrs[0]
 		}
 
 		c, err = gun.StreamGunWithTransport(v.transport, v.gunConfig)

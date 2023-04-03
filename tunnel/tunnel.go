@@ -18,7 +18,6 @@ import (
 
 	A "github.com/Dreamacro/clash/adapter"
 	"github.com/Dreamacro/clash/adapter/inbound"
-	"github.com/Dreamacro/clash/adapter/outbound"
 	"github.com/Dreamacro/clash/component/nat"
 	P "github.com/Dreamacro/clash/component/process"
 	"github.com/Dreamacro/clash/component/resolver"
@@ -281,36 +280,47 @@ func resolveMetadata(_ C.PlainContext, metadata *C.Metadata) (proxy C.Proxy, rul
 	return
 }
 
-func remoteResolveDNS(metadata *C.Metadata, proxy string, shouldRemoteResolve bool) (ok bool, err error) {
-	if proxy == "REJECT" {
+func remoteResolveDNS(metadata *C.Metadata, proxy C.Proxy, shouldRemoteResolve bool) (ok bool, err error) {
+	if metadata.Host == "" || metadata.DNSMode == C.DNSMapping {
 		return
 	}
+	isUDP := metadata.NetWork == C.UDP
 	if shouldRemoteResolve {
-		if proxy == "DIRECT" {
-			if !metadata.Resolved() {
-				var rAddr netip.Addr
-				rAddr, err = resolver.LookupFirstIP(context.Background(), metadata.Host)
-				if err != nil {
-					return
-				}
-				metadata.DstIP = rAddr
-			}
+		ok = true
+		var (
+			hasV6  = proxy.HasV6()
+			rAddrs []netip.Addr
+		)
+		if hasV6 {
+			rAddrs, err = resolver.LookupIPByProxy(context.Background(), metadata.Host, proxy.Name())
 		} else {
-			ok = true
-			var rAddr netip.Addr
-			rAddr, err = resolver.ResolveIPByProxy(metadata.Host, proxy, true)
-			if err != nil {
-				return
-			}
-			metadata.DstIP = rAddr
+			rAddrs, err = resolver.LookupIPv4ByProxy(context.Background(), metadata.Host, proxy.Name())
 		}
-	} else if !metadata.Resolved() {
-		var rAddr netip.Addr
-		rAddr, err = resolver.LookupFirstIP(context.Background(), metadata.Host)
 		if err != nil {
 			return
 		}
-		metadata.DstIP = rAddr
+		if isUDP {
+			metadata.DstIP = rAddrs[0]
+		} else {
+			if hasV6 {
+				v6 := lo.Filter(rAddrs, func(addr netip.Addr, _ int) bool {
+					return addr.Is6()
+				})
+				if len(v6) > 0 {
+					rAddrs = v6 // priority use ipv6
+				}
+			}
+			metadata.DstIP = rAddrs[rand.Intn(len(rAddrs))]
+		}
+	} else if isUDP && !metadata.Resolved() {
+		var rAddrs []netip.Addr
+		rAddrs, err = resolver.LookupIP(context.Background(), metadata.Host)
+		if err != nil {
+			return
+		}
+		metadata.DstIP = rAddrs[0]
+	} else {
+		metadata.DstIP = netip.Addr{}
 	}
 	return
 }
@@ -392,13 +402,12 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 		}
 
 		rawProxy, chains := FetchRawProxyAdapter(proxy, metadata, []string{})
-		rawName := rawProxy.Name()
 
-		isRemote, hdlErr := remoteResolveDNS(metadata, rawName, shouldRemoteResolveIP(rawProxy))
+		isRemote, hdlErr := remoteResolveDNS(metadata, rawProxy, shouldRemoteResolveIP(proxy, rawProxy))
 		if hdlErr != nil {
 			if isRemote {
 				log.Warn().Err(hdlErr).
-					Str("proxy", rawName).
+					Str("proxy", rawProxy.Name()).
 					Str("rAddr", metadata.RemoteAddress()).
 					Msg("[UDP] remote resolve DNS failed")
 			} else {
@@ -412,18 +421,18 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 		ctx, cancel := context.WithTimeout(context.Background(), C.DefaultUDPTimeout)
 		defer cancel()
 
-		rawPc, hdlErr := rawProxy.ListenPacketContext(ctx, metadata.Pure(false))
+		rawPc, hdlErr := rawProxy.ListenPacketContext(ctx, metadata)
 		if hdlErr != nil {
 			if rule == nil {
 				log.Warn().
 					Err(hdlErr).
-					Str("proxy", rawName).
+					Str("proxy", rawProxy.Name()).
 					Str("rAddr", metadata.RemoteAddress()).
 					Msg("[UDP] dial failed")
 			} else {
 				log.Warn().
 					Err(hdlErr).
-					Str("proxy", rawName).
+					Str("proxy", rawProxy.Name()).
 					Str("rAddr", metadata.RemoteAddress()).
 					Str("rule", rule.RuleType().String()).
 					Str("rulePayload", rule.Payload()).
@@ -492,22 +501,47 @@ func handleTCPConn(connCtx C.ConnContext) {
 		return
 	}
 
-	isMitmOutbound := proxy == mitmProxy
+	var (
+		rawProxy C.Proxy
+		chains   []string
+
+		isMitmOutbound = proxy == mitmProxy
+	)
+
+	if !isMitmOutbound && metadata.SpecialProxy == "" {
+		rawProxy, chains = FetchRawProxyAdapter(proxy, metadata, []string{})
+		isRemote, hdlErr := remoteResolveDNS(metadata, rawProxy, shouldRemoteResolveIP(proxy, rawProxy))
+		if hdlErr != nil {
+			if isRemote {
+				log.Warn().Err(hdlErr).
+					Str("proxy", rawProxy.Name()).
+					Str("rAddr", metadata.RemoteAddress()).
+					Msg("[TCP] remote resolve DNS failed")
+			} else {
+				log.Warn().Err(hdlErr).
+					Str("rAddr", metadata.RemoteAddress()).
+					Msg("[TCP] resolve DNS failed")
+			}
+			return
+		}
+	} else {
+		rawProxy = proxy
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTCPTimeout)
 	defer cancel()
-	remoteConn, err := proxy.DialContext(ctx, metadata.Pure(isMitmOutbound))
+	remoteConn, err := rawProxy.DialContext(ctx, metadata)
 	if err != nil {
 		if rule == nil {
 			log.Warn().
 				Err(err).
-				Str("proxy", proxy.Name()).
+				Str("proxy", rawProxy.Name()).
 				Str("rAddr", metadata.RemoteAddress()).
 				Msg("[TCP] dial failed")
 		} else {
 			log.Warn().
 				Err(err).
-				Str("proxy", proxy.Name()).
+				Str("proxy", rawProxy.Name()).
 				Str("rAddr", metadata.RemoteAddress()).
 				Str("rule", rule.RuleType().String()).
 				Str("rulePayload", rule.Payload()).
@@ -516,7 +550,11 @@ func handleTCPConn(connCtx C.ConnContext) {
 		return
 	}
 
-	if remoteConn.Chains().Last() != "REJECT" && !isMitmOutbound {
+	if len(chains) > 1 {
+		remoteConn.SetChains(lo.Reverse(chains))
+	}
+
+	if rawProxy.Name() != "REJECT" && !isMitmOutbound {
 		remoteConn = statistic.NewTCPTracker(remoteConn, statistic.DefaultManager, metadata, rule)
 		if sniffing {
 			remoteConn = statistic.NewSniffing(remoteConn, metadata, rule)
@@ -559,9 +597,9 @@ func shouldResolveIP(rule C.Rule, metadata *C.Metadata) bool {
 	return rule.ShouldResolveIP() && metadata.Host != "" && !metadata.DstIP.IsValid()
 }
 
-func shouldRemoteResolveIP(proxy C.Proxy) bool {
-	if proxy.Type() == C.WireGuard {
-		return proxy.(*A.Proxy).ProxyAdapter.(*outbound.WireGuard).RemoteDnsResolve()
+func shouldRemoteResolveIP(proxy, rawProxy C.Proxy) bool {
+	if proxy.DisableDnsResolve() || rawProxy.DisableDnsResolve() {
+		return false
 	}
 	return resolver.RemoteDnsResolve
 }

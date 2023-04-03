@@ -78,7 +78,7 @@ func ApplyConfig(cfg *config.Config, force bool) {
 	updateHosts(cfg.Hosts)
 	updateMitm(cfg.Mitm)
 	updateProfile(cfg)
-	updateDNS(cfg.DNS, &cfg.General.Tun, force)
+	updateDNS(cfg.DNS, &cfg.General.Tun)
 	updateGeneral(cfg.General, force)
 	updateExperimental(cfg)
 	updateTunnels(cfg.Tunnels)
@@ -88,7 +88,7 @@ func ApplyConfig(cfg *config.Config, force bool) {
 
 func GetGeneral() *config.General {
 	ports := listener.GetPorts()
-	authenticator := []string{}
+	authenticator := make([]string, 0)
 	if authM := authStore.Authenticator(); authM != nil {
 		authenticator = authM.Users()
 	}
@@ -125,7 +125,7 @@ func updateExperimental(c *config.Config) {
 	tunnel.UDPFallbackPolicy.Store(udpPolicy)
 }
 
-func updateDNS(c *config.DNS, t *config.Tun, force bool) {
+func updateDNS(c *config.DNS, t *config.Tun) {
 	cfg := dns.Config{
 		Main:         c.NameServer,
 		Fallback:     c.Fallback,
@@ -143,11 +143,11 @@ func updateDNS(c *config.DNS, t *config.Tun, force bool) {
 		Default:       c.DefaultNameserver,
 		Policy:        c.NameServerPolicy,
 		ProxyServer:   c.ProxyServerNameserver,
+		Remote:        c.RemoteNameserver,
 		SearchDomains: c.SearchDomains,
 	}
 
 	r := dns.NewResolver(cfg)
-	pr := dns.NewProxyServerHostResolver(r)
 	m := dns.NewEnhancer(cfg)
 
 	// reuse cache of old host mapper
@@ -157,19 +157,9 @@ func updateDNS(c *config.DNS, t *config.Tun, force bool) {
 
 	resolver.DefaultResolver = r
 	resolver.DefaultHostMapper = m
-
-	if pr.HasProxyServer() {
-		resolver.ProxyServerHostResolver = pr
-	}
+	resolver.DefaultLocalServer = dns.NewLocalServer(r, m)
 
 	resolver.RemoteDnsResolve = c.RemoteDnsResolve
-	if resolver.RemoteResolver == nil || force {
-		resolver.RemoteResolver = dns.NewRemoteResolver(cfg.IPv6)
-	}
-
-	if t.Enable {
-		resolver.DefaultLocalServer = dns.NewLocalServer(r, m)
-	}
 
 	if c.Enable {
 		dns.ReCreateServer(c.Listen, r, m)
@@ -178,7 +168,6 @@ func updateDNS(c *config.DNS, t *config.Tun, force bool) {
 			resolver.DefaultResolver = nil
 			resolver.DefaultHostMapper = nil
 			resolver.DefaultLocalServer = nil
-			resolver.ProxyServerHostResolver = nil
 		}
 		dns.ReCreateServer("", nil, nil)
 	}

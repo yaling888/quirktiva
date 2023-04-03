@@ -4,27 +4,35 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	"net/http"
+	urlPkg "net/url"
+	"time"
 
 	D "github.com/miekg/dns"
 
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"
+	"github.com/Dreamacro/clash/tunnel"
 )
 
 const (
 	// dotMimeType is the DoH mimetype that should be used.
 	dotMimeType = "application/dns-message"
+
+	proxyKey     = contextKey("key-doh-proxy")
+	proxyTimeout = 10 * time.Second
 )
 
+type contextKey string
+
 type dohClient struct {
-	url          string
-	proxyAdapter string
-	transport    *http.Transport
+	r         *Resolver
+	url       string
+	addr      string
+	proxy     string
+	transport *http.Transport
 }
 
 func (dc *dohClient) Exchange(m *D.Msg) (msg *D.Msg, err error) {
@@ -41,12 +49,38 @@ func (dc *dohClient) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg,
 		return nil, err
 	}
 
+	var (
+		proxy    = dc.proxy
+		hasProxy bool
+	)
+
+	if p, ok := resolver.GetProxy(ctx); ok {
+		proxy = p
+	}
+
+	if proxy != "" {
+		_, hasProxy = tunnel.FindProxyByName(proxy)
+		ctx = context.WithValue(ctx, proxyKey, proxy)
+	}
+
+	if _, ok := ctx.Deadline(); !ok {
+		var (
+			cancel  context.CancelFunc
+			timeout = resolver.DefaultDNSTimeout
+		)
+		if hasProxy {
+			timeout = proxyTimeout
+		}
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
 	req = req.WithContext(ctx)
-	msg, err = dc.doRequest(req)
+	msg, err = dc.doRequest(ctx, req, hasProxy)
 	if err == nil {
 		msg.Id = m.Id
-		logDnsResponse(m.Question[0], msg, "", dc.url, dc.proxyAdapter)
 	}
+	logDnsResponse(m.Question[0], msg, err, "", dc.url, proxy)
 	return
 }
 
@@ -67,8 +101,30 @@ func (dc *dohClient) newRequest(m *D.Msg) (*http.Request, error) {
 	return req, nil
 }
 
-func (dc *dohClient) doRequest(req *http.Request) (msg *D.Msg, err error) {
-	client1 := &http.Client{Transport: dc.transport}
+func (dc *dohClient) doRequest(ctx context.Context, req *http.Request, hasProxy bool) (msg *D.Msg, err error) {
+	var client1 *http.Client
+	if hasProxy {
+		conn, err1 := getConn(ctx, dc.r, dc.addr)
+		if err1 != nil {
+			return nil, err1
+		}
+		defer conn.Close()
+		transport := &http.Transport{
+			DialContext: func(ctx context.Context, network string, addr string) (net.Conn, error) {
+				return conn, nil
+			},
+			TLSClientConfig:     dc.transport.TLSClientConfig,
+			MaxIdleConns:        1,
+			MaxIdleConnsPerHost: 1,
+			MaxConnsPerHost:     1,
+			IdleConnTimeout:     1 * time.Second,
+		}
+		client1 = &http.Client{Transport: transport}
+		defer client1.CloseIdleConnections()
+	} else {
+		client1 = &http.Client{Transport: dc.transport}
+	}
+
 	resp, err := client1.Do(req)
 	if err != nil {
 		return nil, err
@@ -86,41 +142,44 @@ func (dc *dohClient) doRequest(req *http.Request) (msg *D.Msg, err error) {
 	return msg, err
 }
 
-func newDoHClient(url string, r *Resolver, proxyAdapter string) *dohClient {
+func newDoHClient(url string, proxy string, r *Resolver) *dohClient {
+	u, _ := urlPkg.Parse(url)
+	port := u.Port()
+	if port == "" {
+		port = "443"
+	}
 	return &dohClient{
-		url:          url,
-		proxyAdapter: proxyAdapter,
+		r:     r,
+		url:   url,
+		addr:  net.JoinHostPort(u.Hostname(), port),
+		proxy: proxy,
 		transport: &http.Transport{
 			ForceAttemptHTTP2: true,
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				host, port, err := net.SplitHostPort(addr)
-				if err != nil {
-					return nil, err
-				}
-
-				ips, err := resolver.LookupIPByResolver(ctx, host, r)
-				if err != nil {
-					return nil, err
-				} else if len(ips) == 0 {
-					return nil, fmt.Errorf("%w: %s", resolver.ErrIPNotFound, host)
-				}
-				ip := ips[rand.Intn(len(ips))]
-
-				if proxyAdapter != "" {
-					var conn net.Conn
-					conn, err = dialContextWithProxyAdapter(ctx, proxyAdapter, "tcp", ip, port)
-					if err == errProxyNotFound {
-						options := []dialer.Option{dialer.WithInterface(proxyAdapter), dialer.WithRoutingMark(0)}
-						conn, err = dialer.DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), port), options...)
-					}
-					return conn, err
-				}
-
-				return dialer.DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), port))
+				return getConn(ctx, r, addr)
 			},
 			TLSClientConfig: &tls.Config{
 				NextProtos: []string{"dns"},
 			},
 		},
 	}
+}
+
+func getConn(ctx context.Context, r *Resolver, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	ips, err := resolver.LookupIPByResolver(context.Background(), host, r)
+	if err != nil {
+		return nil, err
+	}
+	ip := ips[0]
+
+	if proxy, ok := ctx.Value(proxyKey).(string); ok {
+		return dialContextByProxyOrInterface(ctx, proxy, "tcp", ip, port)
+	}
+
+	return dialer.DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), port))
 }

@@ -22,6 +22,7 @@ type strategyFn = func(proxies []C.Proxy, metadata *C.Metadata) C.Proxy
 type LoadBalance struct {
 	*outbound.Base
 	disableUDP bool
+	disableDNS bool
 	single     *singledo.Single[[]C.Proxy]
 	providers  []provider.ProxyProvider
 	strategyFn strategyFn
@@ -43,8 +44,8 @@ func getKey(metadata *C.Metadata) string {
 			return metadata.Host
 		}
 
-		if etld, err := publicsuffix.EffectiveTLDPlusOne(metadata.Host); err == nil {
-			return etld
+		if eTLD, err := publicsuffix.EffectiveTLDPlusOne(metadata.Host); err == nil {
+			return eTLD
 		}
 	}
 
@@ -96,6 +97,11 @@ func (lb *LoadBalance) ListenPacketContext(ctx context.Context, metadata *C.Meta
 // SupportUDP implements C.ProxyAdapter
 func (lb *LoadBalance) SupportUDP() bool {
 	return !lb.disableUDP
+}
+
+// DisableDnsResolve implements C.DisableDnsResolve
+func (lb *LoadBalance) DisableDnsResolve() bool {
+	return lb.disableDNS
 }
 
 func strategyRoundRobin() strategyFn {
@@ -185,5 +191,6 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
 		providers:  providers,
 		strategyFn: strategyFn,
 		disableUDP: option.DisableUDP,
+		disableDNS: option.DisableDNS,
 	}, nil
 }

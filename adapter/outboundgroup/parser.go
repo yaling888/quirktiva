@@ -14,7 +14,7 @@ import (
 
 var (
 	errFormat            = errors.New("format error")
-	errType              = errors.New("unsupport type")
+	errType              = errors.New("unsupported type")
 	errMissProxy         = errors.New("`use` or `proxies` missing")
 	errMissHealthCheck   = errors.New("`url` or `interval` missing")
 	errDuplicateProvider = errors.New("duplicate provider name")
@@ -30,10 +30,15 @@ type GroupCommonOption struct {
 	Interval   int      `group:"interval,omitempty"`
 	Lazy       bool     `group:"lazy,omitempty"`
 	DisableUDP bool     `group:"disable-udp,omitempty"`
+	DisableDNS bool     `group:"disable-dns,omitempty"`
 	Filter     string   `group:"filter,omitempty"`
 }
 
-func ParseProxyGroup(config map[string]any, proxyMap map[string]C.Proxy, providersMap map[string]types.ProxyProvider) (C.ProxyAdapter, error) {
+func ParseProxyGroup(
+	config map[string]any,
+	proxyMap map[string]C.Proxy,
+	providersMap map[string]types.ProxyProvider,
+) (C.ProxyAdapter, error) {
 	decoder := structure.NewDecoder(structure.Option{TagName: "group", WeaklyTypedInput: true})
 
 	groupOption := &GroupCommonOption{
@@ -60,9 +65,10 @@ func ParseProxyGroup(config map[string]any, proxyMap map[string]C.Proxy, provide
 		return nil, errFormat
 	}
 
-	groupName := groupOption.Name
-
-	providers := []types.ProxyProvider{}
+	var (
+		groupName = groupOption.Name
+		providers []types.ProxyProvider
+	)
 
 	if len(groupOption.Proxies) == 0 && len(groupOption.Use) == 0 {
 		return nil, errMissProxy
@@ -138,7 +144,11 @@ func getProxies(mapping map[string]C.Proxy, list []string) ([]C.Proxy, error) {
 	return ps, nil
 }
 
-func getProviders(mapping map[string]types.ProxyProvider, groupOption *GroupCommonOption, filterRegx *regexp.Regexp) ([]types.ProxyProvider, error) {
+func getProviders(
+	mapping map[string]types.ProxyProvider,
+	groupOption *GroupCommonOption,
+	filterRegx *regexp.Regexp,
+) ([]types.ProxyProvider, error) {
 	var ps []types.ProxyProvider
 	for _, name := range groupOption.Use {
 		p, ok := mapping[name]

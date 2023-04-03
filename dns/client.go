@@ -13,17 +13,18 @@ import (
 
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"
+	"github.com/Dreamacro/clash/tunnel"
 )
 
 type client struct {
 	*D.Client
-	r            *Resolver
-	port         string
-	host         string
-	iface        string
-	proxyAdapter string
-	ip           string
-	isDHCP       bool
+	r      *Resolver
+	port   string
+	host   string
+	iface  string
+	proxy  string
+	ip     string
+	isDHCP bool
 }
 
 func (c *client) Exchange(m *D.Msg) (*D.Msg, error) {
@@ -37,7 +38,7 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 			return nil, fmt.Errorf("dns %s not a valid ip", c.host)
 		} else {
 			var ips []netip.Addr
-			ips, err = resolver.LookupIPByResolver(ctx, c.host, c.r)
+			ips, err = resolver.LookupIPByResolver(context.Background(), c.host, c.r)
 			if err != nil {
 				return nil, fmt.Errorf("use default dns resolve failed: %w", err)
 			} else if len(ips) == 0 {
@@ -54,27 +55,24 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 	}
 
 	var (
-		options      []dialer.Option
-		conn         net.Conn
-		proxyAdapter string
+		options  []dialer.Option
+		conn     net.Conn
+		proxy    = c.proxy
+		hasProxy bool
+		dClient  *D.Client
 	)
 
 	if p, ok := resolver.GetProxy(ctx); ok {
-		proxyAdapter = p
-	} else {
-		proxyAdapter = c.proxyAdapter
+		proxy = p
 	}
 
 	if c.iface != "" {
 		options = append(options, dialer.WithInterface(c.iface))
 	}
 
-	if proxyAdapter != "" {
-		conn, err = dialContextWithProxyAdapter(ctx, proxyAdapter, network, netip.MustParseAddr(c.ip), c.port, options...)
-		if err == errProxyNotFound {
-			options = append(options[:0], dialer.WithInterface(proxyAdapter), dialer.WithRoutingMark(0))
-			conn, err = dialer.DialContext(ctx, network, net.JoinHostPort(c.ip, c.port), options...)
-		}
+	if proxy != "" {
+		_, hasProxy = tunnel.FindProxyByName(proxy)
+		conn, err = dialContextByProxyOrInterface(ctx, proxy, network, netip.MustParseAddr(c.ip), c.port, options...)
 	} else {
 		conn, err = dialer.DialContext(ctx, network, net.JoinHostPort(c.ip, c.port), options...)
 	}
@@ -82,9 +80,18 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		_ = conn.Close()
-	}()
+	defer conn.Close()
+
+	if hasProxy {
+		dClient = &D.Client{
+			Net:       c.Client.Net,
+			TLSConfig: c.Client.TLSConfig,
+			UDPSize:   c.Client.UDPSize,
+			Timeout:   proxyTimeout,
+		}
+	} else {
+		dClient = c.Client
+	}
 
 	// miekg/dns ExchangeContext doesn't respond to context cancel.
 	// this is a workaround
@@ -92,21 +99,26 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 		msg *D.Msg
 		err error
 	}
+
 	ch := make(chan result, 1)
-	go func() {
-		if strings.HasSuffix(c.Client.Net, "tls") {
-			conn = tls.Client(conn, c.Client.TLSConfig)
+
+	go func(dc *D.Client, co net.Conn, mm *D.Msg, dch chan<- result) {
+		if strings.HasSuffix(dc.Net, "tls") {
+			co = tls.Client(co, dc.TLSConfig)
 		}
 
-		msg, _, err := c.Client.ExchangeWithConn(m, &D.Conn{
-			Conn:         conn,
-			UDPSize:      c.Client.UDPSize,
-			TsigSecret:   c.Client.TsigSecret,
-			TsigProvider: c.Client.TsigProvider,
-		})
+		cc := &D.Conn{
+			Conn:         co,
+			UDPSize:      dc.UDPSize,
+			TsigSecret:   dc.TsigSecret,
+			TsigProvider: dc.TsigProvider,
+		}
+		defer cc.Close()
 
-		ch <- result{msg, err}
-	}()
+		msg, _, err2 := dc.ExchangeWithConn(mm, cc)
+
+		dch <- result{msg, err2}
+	}(dClient, conn, m, ch)
 
 	select {
 	case <-ctx.Done():
@@ -118,7 +130,7 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 		} else if c.isDHCP {
 			clientNet = "dhcp"
 		}
-		logDnsResponse(m.Question[0], ret.msg, clientNet, net.JoinHostPort(c.host, c.port), proxyAdapter)
+		logDnsResponse(m.Question[0], ret.msg, ret.err, clientNet, net.JoinHostPort(c.host, c.port), proxy)
 		return ret.msg, ret.err
 	}
 }

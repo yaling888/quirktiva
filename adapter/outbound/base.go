@@ -52,6 +52,11 @@ func (b *Base) SupportUDP() bool {
 	return b.udp
 }
 
+// DisableDnsResolve implements C.DisableDnsResolve
+func (b *Base) DisableDnsResolve() bool {
+	return false
+}
+
 // MarshalJSON implements C.ProxyAdapter
 func (b *Base) MarshalJSON() ([]byte, error) {
 	return json.Marshal(map[string]string{

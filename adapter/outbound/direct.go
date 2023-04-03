@@ -42,6 +42,11 @@ func (d *Direct) ListenPacketContext(ctx context.Context, _ *C.Metadata, opts ..
 	return NewPacketConn(&directPacketConn{pc}, d), nil
 }
 
+// DisableDnsResolve implements C.DisableDnsResolve
+func (d *Direct) DisableDnsResolve() bool {
+	return true
+}
+
 type directPacketConn struct {
 	net.PacketConn
 }

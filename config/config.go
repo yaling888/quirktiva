@@ -77,6 +77,8 @@ type DNS struct {
 	RemoteDnsResolve      bool             `yaml:"remote-dns-resolve"`
 	NameServer            []dns.NameServer `yaml:"nameserver"`
 	Fallback              []dns.NameServer `yaml:"fallback"`
+	ProxyServerNameserver []dns.NameServer `yaml:"proxy-server-nameserver"`
+	RemoteNameserver      []dns.NameServer `yaml:"remote-nameserver"`
 	FallbackFilter        FallbackFilter   `yaml:"fallback-filter"`
 	Listen                string           `yaml:"listen"`
 	EnhancedMode          C.DNSMode        `yaml:"enhanced-mode"`
@@ -84,7 +86,6 @@ type DNS struct {
 	FakeIPRange           *fakeip.Pool
 	Hosts                 *trie.DomainTrie[netip.Addr]
 	NameServerPolicy      map[string]dns.NameServer
-	ProxyServerNameserver []dns.NameServer
 	SearchDomains         []string
 }
 
@@ -175,6 +176,7 @@ type RawDNS struct {
 	NameServerPolicy      map[string]string `yaml:"nameserver-policy"`
 	ProxyServerNameserver []string          `yaml:"proxy-server-nameserver"`
 	SearchDomains         []string          `yaml:"search-domains"`
+	RemoteNameserver      []string          `yaml:"remote-nameserver"`
 }
 
 type RawFallbackFilter struct {
@@ -337,7 +339,6 @@ func UnmarshalRawConfig(buf []byte) (*RawConfig, error) {
 			Enable:           false,
 			UseHosts:         true,
 			RemoteDnsResolve: true,
-			EnhancedMode:     C.DNSMapping,
 			FakeIPRange:      "198.18.0.1/16",
 			FallbackFilter: RawFallbackFilter{
 				GeoIP:     true,
@@ -352,6 +353,10 @@ func UnmarshalRawConfig(buf []byte) (*RawConfig, error) {
 			NameServer: []string{ // default if user not set
 				"https://120.53.53.53/dns-query",
 				"tls://223.5.5.5:853",
+			},
+			RemoteNameserver: []string{ // default if user not set
+				"tcp://1.1.1.1",
+				"tcp://8.8.8.8",
 			},
 		},
 		MITM: RawMitm{
@@ -553,7 +558,9 @@ func parseProxies(cfg *RawConfig) (proxies map[string]C.Proxy, providersMap map[
 	// parse and initial providers
 	for name, mapping := range providersConfig {
 		if name == provider.ReservedName {
-			return nil, nil, fmt.Errorf("can not defined a provider called `%s`", provider.ReservedName)
+			return nil, nil, fmt.Errorf(
+				"can not defined a provider called `%s`", provider.ReservedName,
+			)
 		}
 
 		pd, err := provider.ParseProxyProvider(name, mapping, forceCertVerify)
@@ -567,7 +574,9 @@ func parseProxies(cfg *RawConfig) (proxies map[string]C.Proxy, providersMap map[
 	for _, proxyProvider := range providersMap {
 		log.Info().Str("name", proxyProvider.Name()).Msg("[Config] initial proxy provider")
 		if err := proxyProvider.Initial(); err != nil {
-			return nil, nil, fmt.Errorf("initial proxy provider %s error: %w", proxyProvider.Name(), err)
+			return nil, nil, fmt.Errorf(
+				"initial proxy provider %s error: %w", proxyProvider.Name(), err,
+			)
 		}
 	}
 
@@ -677,7 +686,9 @@ func parseRules(cfg *RawConfig, proxies map[string]C.Proxy, matchers map[string]
 		if scr, ok := parsed.(*R.Script); ok {
 			m := matchers[payload]
 			if m == nil {
-				return nil, nil, fmt.Errorf("rules[%d] [%s] error: shortcut name [%s] not found", idx, line, payload)
+				return nil, nil, fmt.Errorf(
+					"rules[%d] [%s] error: shortcut name [%s] not found", idx, line, payload,
+				)
 			}
 			scr.SetMatcher(m)
 		}
@@ -779,9 +790,9 @@ func parseNameServer(servers []string) ([]dns.NameServer, error) {
 		nameservers = append(
 			nameservers,
 			dns.NameServer{
-				Net:          dnsNetType,
-				Addr:         addr,
-				ProxyAdapter: u.Fragment,
+				Net:   dnsNetType,
+				Addr:  addr,
+				Proxy: u.Fragment,
 			},
 		)
 	}
@@ -833,7 +844,10 @@ func parseFallbackGeoSite(countries []string) ([]*router.DomainMatcher, error) {
 		if recordsCount == 0 {
 			cont = "from cache"
 		}
-		log.Info().Str("country", country).Str("records", cont).Msg("[Config] initial GeoSite dns fallback filter")
+		log.Info().
+			Str("country", country).
+			Str("records", cont).
+			Msg("[Config] initial GeoSite dns fallback filter")
 	}
 	runtime.GC()
 	return sites, nil
@@ -871,6 +885,21 @@ func parseDNS(rawCfg *RawConfig, hosts *trie.DomainTrie[netip.Addr]) (*DNS, erro
 
 	if dnsCfg.ProxyServerNameserver, err = parseNameServer(cfg.ProxyServerNameserver); err != nil {
 		return nil, err
+	}
+
+	if cfg.RemoteDnsResolve && len(cfg.RemoteNameserver) == 0 {
+		return nil, errors.New(
+			"remote nameserver should have at least one nameserver when `remote-dns-resolve` is enable",
+		)
+	}
+	if dnsCfg.RemoteNameserver, err = parseNameServer(cfg.RemoteNameserver); err != nil {
+		return nil, err
+	}
+	// check remote nameserver should not include any dhcp client
+	for _, ns := range dnsCfg.RemoteNameserver {
+		if ns.Net == "dhcp" {
+			return nil, errors.New("remote nameserver should not contain any dhcp client")
+		}
 	}
 
 	if len(cfg.DefaultNameserver) == 0 {
