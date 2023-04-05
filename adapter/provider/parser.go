@@ -41,9 +41,6 @@ func ParseProxyProvider(name string, mapping map[string]any, forceCertVerify boo
 		HealthCheck: healthCheckSchema{
 			Lazy: true,
 		},
-		Header: map[string][]string{
-			"User-Agent": {"Clash/" + C.Version},
-		},
 	}
 
 	if forceCertVerify {
@@ -60,6 +57,14 @@ func ParseProxyProvider(name string, mapping map[string]any, forceCertVerify boo
 
 	if err := decoder.Decode(mapping, schema); err != nil {
 		return nil, err
+	}
+
+	if schema.Header == nil {
+		schema.Header = map[string][]string{
+			"User-Agent": {"Clash/" + C.Version},
+		}
+	} else if _, ok := schema.Header["User-Agent"]; !ok {
+		schema.Header["User-Agent"] = []string{"Clash/" + C.Version}
 	}
 
 	var hcInterval uint

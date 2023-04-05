@@ -68,8 +68,8 @@ func (ho *HTTPObfs) Write(b []byte) (int, error) {
 			ho.host = convert.RandHost()
 		}
 		randBytes := make([]byte, 16)
-		rand.Read(randBytes)
-		req, _ := http.NewRequest("GET", fmt.Sprintf("http://%s/", ho.host), bytes.NewBuffer(b[:]))
+		_, _ = rand.Read(randBytes)
+		req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s/", ho.host), bytes.NewBuffer(b[:]))
 		req.Header.Set("User-Agent", convert.RandUserAgent())
 		req.Header.Set("Upgrade", "websocket")
 		req.Header.Set("Connection", "Upgrade")

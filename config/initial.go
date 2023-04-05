@@ -115,7 +115,7 @@ func Init(dir string) error {
 
 func doGet(url string) (resp *http.Response, err error) {
 	var req *http.Request
-	req, err = http.NewRequest("GET", url, nil)
+	req, err = http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return
 	}

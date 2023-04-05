@@ -74,9 +74,7 @@ func (p *Proxy) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 func (p *Proxy) DelayHistory() []C.DelayHistory {
 	queueM := p.history.Copy()
 	histories := []C.DelayHistory{}
-	for _, item := range queueM {
-		histories = append(histories, item)
-	}
+	histories = append(histories, queueM...)
 	return histories
 }
 
@@ -120,7 +118,7 @@ func (p *Proxy) URLTest(ctx context.Context, url string) (delay, avgDelay uint16
 		if alive {
 			record.Delay = delay
 			record.AvgDelay = avgDelay
-			if p.hasV6 == nil && !p.ProxyAdapter.DisableDnsResolve() {
+			if p.hasV6 == nil && resolver.RemoteDnsResolve && !p.ProxyAdapter.DisableDnsResolve() {
 				go p.v6Test(url)
 			}
 		}
@@ -261,8 +259,6 @@ func (p *Proxy) v6Test(url string) {
 		return
 	}
 	_ = resp.Body.Close()
-
-	return
 }
 
 func NewProxy(adapter C.ProxyAdapter) *Proxy {

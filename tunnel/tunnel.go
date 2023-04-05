@@ -280,21 +280,28 @@ func resolveMetadata(_ C.PlainContext, metadata *C.Metadata) (proxy C.Proxy, rul
 	return
 }
 
-func remoteResolveDNS(metadata *C.Metadata, proxy C.Proxy, shouldRemoteResolve bool) (ok bool, err error) {
+func resolveDNS(metadata *C.Metadata, proxy, rawProxy C.Proxy) (isRemote bool, err error) {
 	if metadata.Host == "" || metadata.DNSMode == C.DNSMapping {
 		return
 	}
+
+	if proxy.DisableDnsResolve() || rawProxy.DisableDnsResolve() {
+		isRemote = false
+	} else {
+		isRemote = resolver.RemoteDnsResolve
+	}
+
 	isUDP := metadata.NetWork == C.UDP
-	if shouldRemoteResolve {
-		ok = true
+
+	if isRemote {
 		var (
-			hasV6  = proxy.HasV6()
+			hasV6  = rawProxy.HasV6()
 			rAddrs []netip.Addr
 		)
 		if hasV6 {
-			rAddrs, err = resolver.LookupIPByProxy(context.Background(), metadata.Host, proxy.Name())
+			rAddrs, err = resolver.LookupIPByProxy(context.Background(), metadata.Host, rawProxy.Name())
 		} else {
-			rAddrs, err = resolver.LookupIPv4ByProxy(context.Background(), metadata.Host, proxy.Name())
+			rAddrs, err = resolver.LookupIPv4ByProxy(context.Background(), metadata.Host, rawProxy.Name())
 		}
 		if err != nil {
 			return
@@ -313,19 +320,31 @@ func remoteResolveDNS(metadata *C.Metadata, proxy C.Proxy, shouldRemoteResolve b
 			metadata.DstIP = rAddrs[rand.Intn(len(rAddrs))]
 		}
 	} else if isUDP {
-		if metadata.Resolved() {
-			return
+		err = localResolveDNS(metadata, true)
+	} else { // tcp
+		if proxy.DisableDnsResolve() && !rawProxy.DisableDnsResolve() {
+			err = localResolveDNS(metadata, false)
+		} else {
+			metadata.DstIP = netip.Addr{}
 		}
-		var rAddrs []netip.Addr
-		rAddrs, err = resolver.LookupIP(context.Background(), metadata.Host)
-		if err != nil {
-			return
-		}
-		metadata.DstIP = rAddrs[0]
-	} else {
-		metadata.DstIP = netip.Addr{}
 	}
 	return
+}
+
+func localResolveDNS(metadata *C.Metadata, udp bool) error {
+	if metadata.Resolved() {
+		return nil
+	}
+	rAddrs, err := resolver.LookupIP(context.Background(), metadata.Host)
+	if err != nil {
+		return err
+	}
+	if udp {
+		metadata.DstIP = rAddrs[0]
+	} else {
+		metadata.DstIP = rAddrs[rand.Intn(len(rAddrs))]
+	}
+	return nil
 }
 
 func handleUDPConn(packet *inbound.PacketAdapter) {
@@ -372,6 +391,7 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 	}
 
 	if handle() {
+		packet.Drop()
 		return
 	}
 
@@ -379,6 +399,8 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 	cond, loaded := natTable.GetOrCreateLock(lockKey)
 
 	go func() {
+		defer packet.Drop()
+
 		if loaded {
 			cond.L.Lock()
 			cond.Wait()
@@ -387,35 +409,30 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 			return
 		}
 
-		var hdlErr error
-
 		defer func() {
 			natTable.Delete(lockKey)
 			cond.Broadcast()
-			if hdlErr != nil {
-				packet.Drop()
-			}
 		}()
 
 		pCtx := icontext.NewPacketConnContext(metadata)
-		proxy, rule, hdlErr := resolveMetadata(pCtx, metadata)
-		if hdlErr != nil {
-			log.Warn().Err(hdlErr).Msg("[Metadata] parse failed")
+		proxy, rule, err := resolveMetadata(pCtx, metadata)
+		if err != nil {
+			log.Warn().Err(err).Msg("[Metadata] parse failed")
 			return
 		}
 
 		rawProxy, chains := FetchRawProxyAdapter(proxy, metadata, []string{})
 
-		isRemote, hdlErr := remoteResolveDNS(metadata, rawProxy, shouldRemoteResolveIP(proxy, rawProxy))
-		if hdlErr != nil {
+		isRemote, err := resolveDNS(metadata, proxy, rawProxy)
+		if err != nil {
 			if isRemote {
-				log.Warn().Err(hdlErr).
+				log.Warn().Err(err).
 					Str("proxy", rawProxy.Name()).
-					Str("rAddr", metadata.RemoteAddress()).
+					Str("host", metadata.Host).
 					Msg("[UDP] remote resolve DNS failed")
 			} else {
-				log.Warn().Err(hdlErr).
-					Str("rAddr", metadata.RemoteAddress()).
+				log.Warn().Err(err).
+					Str("host", metadata.Host).
 					Msg("[UDP] resolve DNS failed")
 			}
 			return
@@ -424,17 +441,17 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 		ctx, cancel := context.WithTimeout(context.Background(), C.DefaultUDPTimeout)
 		defer cancel()
 
-		rawPc, hdlErr := rawProxy.ListenPacketContext(ctx, metadata)
-		if hdlErr != nil {
+		rawPc, err := rawProxy.ListenPacketContext(ctx, metadata)
+		if err != nil {
 			if rule == nil {
 				log.Warn().
-					Err(hdlErr).
+					Err(err).
 					Str("proxy", rawProxy.Name()).
 					Str("rAddr", metadata.RemoteAddress()).
 					Msg("[UDP] dial failed")
 			} else {
 				log.Warn().
-					Err(hdlErr).
+					Err(err).
 					Str("proxy", rawProxy.Name()).
 					Str("rAddr", metadata.RemoteAddress()).
 					Str("rule", rule.RuleType().String()).
@@ -513,16 +530,16 @@ func handleTCPConn(connCtx C.ConnContext) {
 
 	if !isMitmOutbound && metadata.SpecialProxy == "" {
 		rawProxy, chains = FetchRawProxyAdapter(proxy, metadata, []string{})
-		isRemote, hdlErr := remoteResolveDNS(metadata, rawProxy, shouldRemoteResolveIP(proxy, rawProxy))
-		if hdlErr != nil {
+		isRemote, err2 := resolveDNS(metadata, proxy, rawProxy)
+		if err2 != nil {
 			if isRemote {
-				log.Warn().Err(hdlErr).
+				log.Warn().Err(err2).
 					Str("proxy", rawProxy.Name()).
-					Str("rAddr", metadata.RemoteAddress()).
+					Str("host", metadata.Host).
 					Msg("[TCP] remote resolve DNS failed")
 			} else {
-				log.Warn().Err(hdlErr).
-					Str("rAddr", metadata.RemoteAddress()).
+				log.Warn().Err(err2).
+					Str("host", metadata.Host).
 					Msg("[TCP] resolve DNS failed")
 			}
 			return
@@ -598,13 +615,6 @@ func handleTCPConn(connCtx C.ConnContext) {
 
 func shouldResolveIP(rule C.Rule, metadata *C.Metadata) bool {
 	return rule.ShouldResolveIP() && metadata.Host != "" && !metadata.DstIP.IsValid()
-}
-
-func shouldRemoteResolveIP(proxy, rawProxy C.Proxy) bool {
-	if proxy.DisableDnsResolve() || rawProxy.DisableDnsResolve() {
-		return false
-	}
-	return resolver.RemoteDnsResolve
 }
 
 func match(metadata *C.Metadata) (C.Proxy, C.Rule, error) {

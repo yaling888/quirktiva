@@ -62,7 +62,8 @@ func NewMatcher(name, filename, code string) (_ *Matcher, err error) {
 	}
 
 	p, err := starlark.FileProgram(starFile, func(s string) bool {
-		return keywordAllow[s] == true
+		rs, ok := keywordAllow[s]
+		return ok && rs
 	})
 	if err != nil {
 		return nil, fmt.Errorf("program script code error: %w", err)

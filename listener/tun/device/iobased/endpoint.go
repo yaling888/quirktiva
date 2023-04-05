@@ -99,7 +99,7 @@ func (e *Endpoint) dispatchLoop(cancel context.CancelFunc) {
 		offset     = e.offset
 		batchSize  = device.BatchSize()
 		bufferSize = 65535 + offset
-		count      = 0
+		count      int
 		buffs      = make([][]byte, batchSize)
 		sizes      = make([]int, batchSize)
 	)

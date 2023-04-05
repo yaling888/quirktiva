@@ -8,6 +8,7 @@ import (
 	_ "unsafe"
 
 	logger "github.com/phuslu/log"
+	gLog "gvisor.dev/gvisor/pkg/log"
 
 	"github.com/Dreamacro/clash/common/observable"
 )
@@ -86,6 +87,15 @@ func Level() LogLevel {
 func SetLevel(newLevel LogLevel) {
 	level = newLevel
 	(logger.DefaultLogger.Writer.(*multiWriter)).consoleLevel = logger.Level(newLevel)
+
+	gLevel := gLog.Warning
+	if newLevel == DEBUG {
+		gLevel = gLog.Debug
+	} else if newLevel == INFO {
+		gLevel = gLog.Info
+	}
+	gLog.SetLevel(gLevel)
+	initGVisorLogger(newLevel != SILENT)
 }
 
 func SetTracing(t bool) {

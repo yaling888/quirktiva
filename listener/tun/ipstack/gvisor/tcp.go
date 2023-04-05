@@ -54,7 +54,7 @@ func withTCPHandler(handle adapter.TCPHandleFunc) option.Option {
 
 			defer func() {
 				if err != nil {
-					log.Debug().Err(toError(err)).Msg("[gVisor] forward tcp request failed")
+					log.Debug().Err(toError(err)).Msg("[GVisor] forward tcp request failed")
 				}
 			}()
 

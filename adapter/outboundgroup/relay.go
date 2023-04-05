@@ -78,8 +78,8 @@ func (r *Relay) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 	var (
 		firstIndex          = 0
 		nextIndex           = 1
-		lastUDPOverTCPIndex = -1
-		rawUDPRelay         = false
+		lastUDPOverTCPIndex int
+		rawUDPRelay         bool
 
 		first = proxies[firstIndex]
 		last  = proxies[length-1]

@@ -404,10 +404,7 @@ func NewWireGuard(option WireGuardOption) (*WireGuard, error) {
 func getBindControlFns(interfaceName string) []func(network, address string, c syscall.RawConn) error {
 	var bindFns []func(network, address string, c syscall.RawConn) error
 
-	for _, fn := range controlFns {
-		bindFns = append(bindFns, fn)
-	}
-
+	bindFns = append(bindFns, controlFns...)
 	bindFns = append(bindFns, dialer.WithBindToInterfaceControlFn(getInterfaceName(interfaceName)))
 
 	return bindFns

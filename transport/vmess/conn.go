@@ -57,12 +57,12 @@ func (vc *Conn) Read(b []byte) (int, error) {
 func (vc *Conn) sendRequest() error {
 	timestamp := time.Now()
 
-	mbuf := &bytes.Buffer{}
+	mBuf := &bytes.Buffer{}
 
 	if !vc.isAead {
 		h := hmac.New(md5.New, vc.id.UUID.Bytes())
-		binary.Write(h, binary.BigEndian, uint64(timestamp.Unix()))
-		mbuf.Write(h.Sum(nil))
+		_ = binary.Write(h, binary.BigEndian, uint64(timestamp.Unix()))
+		mBuf.Write(h.Sum(nil))
 	}
 
 	buf := &bytes.Buffer{}
@@ -80,7 +80,7 @@ func (vc *Conn) sendRequest() error {
 	}
 	p := pad.Uint64()
 	// P Sec Reserve Cmd
-	buf.WriteByte(byte(p<<4) | byte(vc.security))
+	buf.WriteByte(byte(p<<4) | vc.security)
 	buf.WriteByte(0)
 	if vc.dst.UDP {
 		buf.WriteByte(CommandUDP)
@@ -89,19 +89,19 @@ func (vc *Conn) sendRequest() error {
 	}
 
 	// Port AddrType Addr
-	binary.Write(buf, binary.BigEndian, uint16(vc.dst.Port))
+	_ = binary.Write(buf, binary.BigEndian, uint16(vc.dst.Port))
 	buf.WriteByte(vc.dst.AddrType)
 	buf.Write(vc.dst.Addr)
 
 	// padding
 	if p > 0 {
 		padding := make([]byte, p)
-		rand.Read(padding)
+		_, _ = rand.Read(padding)
 		buf.Write(padding)
 	}
 
 	fnv1a := fnv.New32a()
-	fnv1a.Write(buf.Bytes())
+	_, _ = fnv1a.Write(buf.Bytes())
 	buf.Write(fnv1a.Sum(nil))
 
 	if !vc.isAead {
@@ -112,8 +112,8 @@ func (vc *Conn) sendRequest() error {
 
 		stream := cipher.NewCFBEncrypter(block, hashTimestamp(timestamp))
 		stream.XORKeyStream(buf.Bytes(), buf.Bytes())
-		mbuf.Write(buf.Bytes())
-		_, err = vc.Conn.Write(mbuf.Bytes())
+		mBuf.Write(buf.Bytes())
+		_, err = vc.Conn.Write(mBuf.Bytes())
 		return err
 	}
 
@@ -202,7 +202,7 @@ func hashTimestamp(t time.Time) []byte {
 // newConn return a Conn instance
 func newConn(conn net.Conn, id *ID, dst *DstAddr, security Security, isAead bool) (*Conn, error) {
 	randBytes := make([]byte, 33)
-	rand.Read(randBytes)
+	_, _ = rand.Read(randBytes)
 	reqBodyIV := make([]byte, 16)
 	reqBodyKey := make([]byte, 16)
 	copy(reqBodyIV[:], randBytes[:16])

@@ -55,7 +55,7 @@ func Start(device dev.Device, gateway, portal, broadcast netip.Addr) (*TCP, *UDP
 
 		var (
 			readErr    error
-			count      = 0
+			count      int
 			readBuffs  = make([][]byte, batchSize)
 			writeBuffs = make([][]byte, 0, batchSize)
 			sizes      = make([]int, batchSize)

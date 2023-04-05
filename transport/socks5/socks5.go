@@ -97,7 +97,7 @@ const (
 	ErrAddressNotSupported  = Error(8)
 )
 
-// Auth errors used to return a specific "Auth failed" error
+// ErrAuth errors used to return a specific "Auth failed" error
 var ErrAuth = errors.New("auth failed")
 
 type User struct {
@@ -134,7 +134,7 @@ func ServerHandshake(rw net.Conn, authenticator auth.Authenticator) (addr Addr, 
 		// Get username
 		userLen := int(header[1])
 		if userLen <= 0 {
-			rw.Write([]byte{1, 1})
+			_, _ = rw.Write([]byte{1, 1})
 			err = ErrAuth
 			return
 		}
@@ -149,7 +149,7 @@ func ServerHandshake(rw net.Conn, authenticator auth.Authenticator) (addr Addr, 
 		}
 		passLen := int(header[0])
 		if passLen <= 0 {
-			rw.Write([]byte{1, 1})
+			_, _ = rw.Write([]byte{1, 1})
 			err = ErrAuth
 			return
 		}
@@ -159,8 +159,8 @@ func ServerHandshake(rw net.Conn, authenticator auth.Authenticator) (addr Addr, 
 		pass := string(authBuf[:passLen])
 
 		// Verify
-		if ok := authenticator.Verify(string(user), string(pass)); !ok {
-			rw.Write([]byte{1, 1})
+		if ok := authenticator.Verify(user, pass); !ok {
+			_, _ = rw.Write([]byte{1, 1})
 			err = ErrAuth
 			return
 		}

@@ -45,20 +45,8 @@ func ParseProxyGroup(
 		Lazy: true,
 	}
 
-	var (
-		filterRegx *regexp.Regexp
-		err        error
-	)
-
-	if err = decoder.Decode(config, groupOption); err != nil {
+	if err := decoder.Decode(config, groupOption); err != nil {
 		return nil, errFormat
-	}
-
-	if groupOption.Filter != "" {
-		filterRegx, err = regexp.Compile(groupOption.Filter)
-		if err != nil {
-			return nil, fmt.Errorf("invalid filter regex: %w", err)
-		}
 	}
 
 	if groupOption.Type == "" || groupOption.Name == "" {
@@ -66,32 +54,42 @@ func ParseProxyGroup(
 	}
 
 	var (
-		groupName = groupOption.Name
-		providers []types.ProxyProvider
+		groupName  = groupOption.Name
+		filterRegx *regexp.Regexp
 	)
 
-	if len(groupOption.Proxies) == 0 && len(groupOption.Use) == 0 {
-		return nil, errMissProxy
+	if groupOption.Filter != "" {
+		regx, err := regexp.Compile(groupOption.Filter)
+		if err != nil {
+			return nil, fmt.Errorf("%s: invalid filter regex: %w", groupName, err)
+		}
+		filterRegx = regx
 	}
+
+	if len(groupOption.Proxies) == 0 && len(groupOption.Use) == 0 {
+		return nil, fmt.Errorf("%s: %w", groupName, errMissProxy)
+	}
+
+	var providers []types.ProxyProvider
 
 	if len(groupOption.Proxies) != 0 {
 		ps, err := getProxies(proxyMap, groupOption.Proxies)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%s: %w", groupName, err)
 		}
 
 		if _, ok := providersMap[groupName]; ok {
-			return nil, errDuplicateProvider
+			return nil, fmt.Errorf("%s: %w", groupName, errDuplicateProvider)
 		}
 
 		hc, err := newHealthCheck(ps, groupOption)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%s: %w", groupName, err)
 		}
 
 		pd, err := provider.NewCompatibleProvider(groupName, ps, hc)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%s: %w", groupName, err)
 		}
 
 		providers = append(providers, pd)
@@ -101,7 +99,7 @@ func ParseProxyGroup(
 	if len(groupOption.Use) != 0 {
 		list, err := getProviders(providersMap, groupOption, filterRegx)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%s: %w", groupName, err)
 		}
 
 		if groupOption.Type == "fallback" {
@@ -126,7 +124,7 @@ func ParseProxyGroup(
 	case "relay":
 		group = NewRelay(groupOption, providers)
 	default:
-		return nil, fmt.Errorf("%w: %s", errType, groupOption.Type)
+		return nil, fmt.Errorf("%s %w: %s", groupName, errType, groupOption.Type)
 	}
 
 	return group, nil

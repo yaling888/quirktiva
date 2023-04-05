@@ -17,6 +17,7 @@ import (
 	"github.com/Dreamacro/clash/tunnel"
 )
 
+//nolint:unused
 var (
 	defaultRoutes = []string{
 		"1.0.0.0/8", "2.0.0.0/7", "4.0.0.0/6", "8.0.0.0/5",
@@ -92,6 +93,7 @@ func SetTunStatus(status C.TUNState) {
 	tunStatus = status
 }
 
+//nolint:unused
 func onChangeDefaultRoute() {
 	routeInterface, err := defaultRouteInterface()
 	if err != nil {

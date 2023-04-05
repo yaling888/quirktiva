@@ -13,6 +13,10 @@ const (
 	defaultMTU      = 1500
 )
 
+// virtioNetHdr is defined in the kernel in include/uapi/linux/virtio_net.h. The
+// kernel symbol is virtio_net_hdr.
+//
+//nolint:unused
 type virtioNetHdr struct {
 	flags      uint8
 	gsoType    uint8

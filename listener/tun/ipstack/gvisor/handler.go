@@ -40,7 +40,7 @@ func (gh *gvHandler) HandleTCP(tunConn net.Conn) {
 	}
 
 	if !lAddrPort.IsValid() || !rAddrPort.IsValid() {
-		log.Debug().Msg("[gVisor] tcp endpoint not connected")
+		log.Debug().Msg("[GVisor] tcp endpoint not connected")
 		_ = tunConn.Close()
 		return
 	}
@@ -102,7 +102,7 @@ func (gh *gvHandler) HandleUDP(stack *stack.Stack, id stack.TransportEndpointID,
 
 	rAddr, ok := netip.AddrFromSlice([]byte(id.LocalAddress))
 	if !ok {
-		log.Debug().Msg("[gVisor] udp endpoint not connected")
+		log.Debug().Msg("[GVisor] udp endpoint not connected")
 		return
 	}
 	rAddrPort := netip.AddrPortFrom(rAddr.Unmap(), id.LocalPort)
@@ -113,7 +113,7 @@ func (gh *gvHandler) HandleUDP(stack *stack.Stack, id stack.TransportEndpointID,
 
 	lAddr, ok := netip.AddrFromSlice([]byte(id.RemoteAddress))
 	if !ok {
-		log.Debug().Msg("[gVisor] udp endpoint not connected")
+		log.Debug().Msg("[GVisor] udp endpoint not connected")
 		return
 	}
 	lAddrPort := netip.AddrPortFrom(lAddr.Unmap(), id.RemotePort)
@@ -146,7 +146,6 @@ func (gh *gvHandler) HandleUDP(stack *stack.Stack, id stack.TransportEndpointID,
 
 			_, _ = conn.Write(msg)
 			_ = conn.Close()
-			return
 		}()
 		return
 	}
@@ -164,7 +163,7 @@ func (gh *gvHandler) HandleUDP(stack *stack.Stack, id stack.TransportEndpointID,
 		log.Debug().
 			NetIPAddrPort("lAddrPort", lAddrPort).
 			NetIPAddrPort("rAddrPort", rAddrPort).
-			Msg("[gVisor] drop udp packet, because inbound queue is full")
+			Msg("[GVisor] drop udp packet, because inbound queue is full")
 		udpPkt.Drop()
 	}
 }

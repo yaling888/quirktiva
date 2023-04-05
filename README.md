@@ -45,7 +45,7 @@ profile:
   tracing: false # prevent logs leak, default value is true
 
 experimental:
-  udp-fallback-policy: 'a proxy that supports UDP' # or `direct` or `reject`, default value is `reject`.
+  udp-fallback-policy: 'a proxy that supports UDP' # or `direct` or `reject`
 ```
 
 ### MITM configuration

@@ -68,7 +68,6 @@ type NativeTun struct {
 	closeOnce sync.Once
 	close     atomic.Bool
 	forcedMTU int
-	outSizes  []int
 }
 
 var (

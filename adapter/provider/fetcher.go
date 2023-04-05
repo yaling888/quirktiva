@@ -54,7 +54,7 @@ func (f *fetcher[V]) Initial() (V, error) {
 		modTime := stat.ModTime()
 		f.updatedAt = &modTime
 		isLocal = true
-		immediatelyUpdate = f.interval != 0 && time.Since(modTime) > f.interval<<2
+		immediatelyUpdate = f.interval != 0 && time.Since(modTime) > f.interval
 	} else {
 		buf, err = f.vehicle.Read()
 	}
