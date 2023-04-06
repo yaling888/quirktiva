@@ -31,13 +31,16 @@ func loadGeoSiteMatcher(countryCode string, not bool) (*router.DomainMatcher, in
 	return matcher, len(domains), nil
 }
 
-var ruleProviders = make(map[string]*router.DomainMatcher)
+var ruleProviders map[string]*router.DomainMatcher
 
 func CleanGeoSiteCache() {
-	ruleProviders = make(map[string]*router.DomainMatcher)
+	ruleProviders = nil
 }
 
 func LoadProviderByCode(countryCode string) (matcher *router.DomainMatcher, count int, err error) {
+	if ruleProviders == nil {
+		ruleProviders = make(map[string]*router.DomainMatcher)
+	}
 	var (
 		ok   bool
 		not  = strings.HasPrefix(countryCode, "!")

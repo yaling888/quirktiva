@@ -24,8 +24,3 @@ func newNode[T comparable](data T) *Node[T] {
 		children: map[string]*Node[T]{},
 	}
 }
-
-func getZero[T comparable]() T {
-	var result T
-	return result
-}

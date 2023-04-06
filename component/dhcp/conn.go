@@ -14,5 +14,14 @@ func ListenDHCPClient(ctx context.Context, ifaceName string) (net.PacketConn, er
 		listenAddr = "255.255.255.255:68"
 	}
 
-	return dialer.ListenPacket(ctx, "udp4", listenAddr, dialer.WithInterface(ifaceName), dialer.WithAddrReuse(true))
+	options := []dialer.Option{
+		dialer.WithInterface(ifaceName),
+		dialer.WithAddrReuse(true),
+	}
+
+	if runtime.GOOS == "windows" {
+		options = append(options, dialer.WithFallbackBind(true))
+	}
+
+	return dialer.ListenPacket(ctx, "udp4", listenAddr, options...)
 }

@@ -73,7 +73,15 @@ func ListenPacket(ctx context.Context, network, address string, options ...Optio
 
 	lc := &net.ListenConfig{}
 	if cfg.interfaceName != "" {
-		addr, err := bindIfaceToListenConfig(cfg.interfaceName, lc, network, address)
+		var (
+			addr string
+			err  error
+		)
+		if cfg.fallbackBind {
+			addr, err = fallbackBindIfaceToListenConfig(cfg.interfaceName, lc, network, address)
+		} else {
+			addr, err = bindIfaceToListenConfig(cfg.interfaceName, lc, network, address)
+		}
 		if err != nil {
 			return nil, err
 		}

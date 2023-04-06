@@ -291,7 +291,6 @@ func version(w http.ResponseWriter, r *http.Request) {
 func uptime(w http.ResponseWriter, r *http.Request) {
 	bt := bootTime.Load()
 	render.JSON(w, r, render.M{
-		"uptime":   time.Since(bt).String(),
 		"bootTime": bt.Format("2006-01-02 15:04:05 Mon -0700"),
 	})
 }

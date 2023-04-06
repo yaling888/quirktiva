@@ -368,26 +368,10 @@ func proxiesParseAndFilter(filter string, filterReg *regexp.Regexp, forceCertVer
 			return nil, errors.New("file must have a `proxies` field")
 		}
 
-		invalidServer := []string{
-			"8.8.4.4",
-			"8.8.8.8",
-			"9.9.9.9",
-			"1.0.0.1",
-			"1.1.1.1",
-			"1.2.3.4",
-			"1.3.5.7",
-			"127.0.0.1",
-		}
-
 		proxies := []C.Proxy{}
 		for idx, mapping := range schema.Proxies {
 			name, ok := mapping["name"].(string)
 			if ok && len(filter) > 0 && !filterReg.MatchString(name) {
-				continue
-			}
-
-			// skip invalid server address
-			if server, ok1 := mapping["server"].(string); ok1 && lo.Contains(invalidServer, server) {
 				continue
 			}
 
@@ -397,7 +381,7 @@ func proxiesParseAndFilter(filter string, filterReg *regexp.Regexp, forceCertVer
 
 			proxy, err := adapter.ParseProxy(mapping, forceCertVerify, udp, true, randomHost)
 			if err != nil {
-				return nil, fmt.Errorf("proxy %d error: %w", idx, err)
+				return nil, fmt.Errorf("proxy %s[index: %d] error: %w", name, idx, err)
 			}
 			proxies = append(proxies, proxy)
 		}

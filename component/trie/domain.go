@@ -3,6 +3,8 @@ package trie
 import (
 	"errors"
 	"strings"
+
+	"github.com/samber/lo"
 )
 
 const (
@@ -74,7 +76,7 @@ func (t *DomainTrie[T]) insert(parts []string, data T) {
 	for i := len(parts) - 1; i >= 0; i-- {
 		part := parts[i]
 		if !node.hasChild(part) {
-			node.addChild(part, newNode(getZero[T]()))
+			node.addChild(part, newNode(lo.Empty[T]()))
 		}
 
 		node = node.getChild(part)
@@ -96,7 +98,7 @@ func (t *DomainTrie[T]) Search(domain string) *Node[T] {
 
 	n := t.search(t.root, parts)
 
-	if n == nil || n.Data == getZero[T]() {
+	if n == nil || n.Data == lo.Empty[T]() {
 		return nil
 	}
 
@@ -109,13 +111,13 @@ func (t *DomainTrie[T]) search(node *Node[T], parts []string) *Node[T] {
 	}
 
 	if c := node.getChild(parts[len(parts)-1]); c != nil {
-		if n := t.search(c, parts[:len(parts)-1]); n != nil && n.Data != getZero[T]() {
+		if n := t.search(c, parts[:len(parts)-1]); n != nil && n.Data != lo.Empty[T]() {
 			return n
 		}
 	}
 
 	if c := node.getChild(wildcard); c != nil {
-		if n := t.search(c, parts[:len(parts)-1]); n != nil && n.Data != getZero[T]() {
+		if n := t.search(c, parts[:len(parts)-1]); n != nil && n.Data != lo.Empty[T]() {
 			return n
 		}
 	}
@@ -125,5 +127,5 @@ func (t *DomainTrie[T]) search(node *Node[T], parts []string) *Node[T] {
 
 // New returns a new, empty Trie.
 func New[T comparable]() *DomainTrie[T] {
-	return &DomainTrie[T]{root: newNode[T](getZero[T]())}
+	return &DomainTrie[T]{root: newNode[T](lo.Empty[T]())}
 }

@@ -22,19 +22,43 @@ func NewSplit(split string, err error) error {
 		return nil
 	}
 
+	if reflect.TypeOf(err) == wrapErrorsType {
+		return err
+	}
+
 	if x, ok := err.(interface{ Unwrap() []error }); ok {
+		if x == nil {
+			return err
+		}
+		u := x.Unwrap()
 		e := &joinError{
 			split: split,
+			errs:  make([]error, 0, len(u)<<2),
 		}
-		e.errs = make([]error, 0, len(x.Unwrap())<<2)
-		for _, m := range x.Unwrap() {
+		for _, m := range u {
+			if m == nil {
+				continue
+			}
 			if reflect.TypeOf(m) == wrapErrorsType {
 				e.errs = append(e.errs, m)
 				continue
 			}
 			n := NewSplit(split, m)
-			if y, ok := n.(interface{ Unwrap() []error }); ok {
-				e.errs = append(e.errs, y.Unwrap()...)
+			if n == nil {
+				continue
+			}
+			if y, ok1 := n.(interface{ Unwrap() []error }); ok1 {
+				if y == nil {
+					e.errs = append(e.errs, n)
+					continue
+				}
+				v := y.Unwrap()
+				for _, z := range v {
+					if z == nil {
+						continue
+					}
+					e.errs = append(e.errs, z)
+				}
 				continue
 			}
 			e.errs = append(e.errs, n)

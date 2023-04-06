@@ -382,8 +382,10 @@ func ParseRawConfig(rawCfg *RawConfig) (config *Config, err error) {
 		if err != nil {
 			providerTypes.Cleanup(config.Proxies, config.Providers)
 			L.SetLevel(oldLevel)
+			config = nil
 		}
 		geodata.CleanGeoSiteCache()
+		runtime.GC()
 	}()
 
 	if rawCfg.LogLevel == L.DEBUG {
@@ -849,7 +851,6 @@ func parseFallbackGeoSite(countries []string) ([]*router.DomainMatcher, error) {
 			Str("records", cont).
 			Msg("[Config] initial GeoSite dns fallback filter")
 	}
-	runtime.GC()
 	return sites, nil
 }
 

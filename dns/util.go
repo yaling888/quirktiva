@@ -31,20 +31,22 @@ func putMsgToCacheWithExpire(c *cache.LruCache[string, *D.Msg], key string, msg 
 		return
 	}
 
-	if ttl == 0 {
-		switch {
-		case len(msg.Answer) != 0:
-			ttl = msg.Answer[0].Header().Ttl
-		case len(msg.Ns) != 0:
-			ttl = msg.Ns[0].Header().Ttl
-		case len(msg.Extra) != 0:
-			ttl = msg.Extra[0].Header().Ttl
-		default:
-			log.Debug().Str("msg", msg.String()).Msg("[DNS] response msg empty")
-			return
-		}
+	if ttl > 0 {
+		goto set
 	}
 
+	switch {
+	case len(msg.Answer) != 0:
+		ttl = msg.Answer[0].Header().Ttl
+	case len(msg.Ns) != 0:
+		ttl = msg.Ns[0].Header().Ttl
+	case len(msg.Extra) != 0:
+		ttl = msg.Extra[0].Header().Ttl
+	default:
+		return
+	}
+
+set:
 	c.SetWithExpire(key, msg.Copy(), time.Now().Add(time.Second*time.Duration(ttl)))
 }
 

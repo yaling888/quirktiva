@@ -17,6 +17,7 @@ type Picker[T any] struct {
 	wg sync.WaitGroup
 
 	once   sync.Once
+	errMux sync.Mutex
 	result T
 	err    error
 }
@@ -72,7 +73,9 @@ func (p *Picker[T]) Go(f func() (T, error)) {
 				}
 			})
 		} else {
+			p.errMux.Lock()
 			p.err = errors.Join(p.err, err)
+			p.errMux.Unlock()
 		}
 	}()
 }

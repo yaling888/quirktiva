@@ -163,7 +163,11 @@ func withResolver(resolver *Resolver) handler {
 
 		msg, err := resolver.Exchange(r)
 		if err != nil {
-			log.Debug().Err(err).Str("question", q.String()).Msg("[DNS] exchange failed")
+			log.Debug().Err(err).
+				Str("name", q.Name).
+				Str("qClass", D.Class(q.Qclass).String()).
+				Str("qType", D.Type(q.Qtype).String()).
+				Msg("[DNS] exchange failed")
 			return msg, err
 		}
 		msg.SetRcode(r, msg.Rcode)
