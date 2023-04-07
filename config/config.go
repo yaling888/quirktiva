@@ -68,6 +68,7 @@ type Controller struct {
 	ExternalController string `json:"-"`
 	ExternalUI         string `json:"-"`
 	Secret             string `json:"-"`
+	PPROF              bool   `json:"-"`
 }
 
 // DNS config
@@ -266,6 +267,7 @@ type RawConfig struct {
 	ExternalController string       `yaml:"external-controller"`
 	ExternalUI         string       `yaml:"external-ui"`
 	Secret             string       `yaml:"secret"`
+	PPROF              bool         `yaml:"pprof"`
 	Interface          string       `yaml:"interface-name"`
 	RoutingMark        int          `yaml:"routing-mark"`
 	Sniffing           bool         `yaml:"sniffing"`
@@ -503,6 +505,7 @@ func parseGeneral(cfg *RawConfig) (*General, error) {
 			ExternalController: cfg.ExternalController,
 			ExternalUI:         cfg.ExternalUI,
 			Secret:             cfg.Secret,
+			PPROF:              cfg.PPROF,
 		},
 		Mode:        cfg.Mode,
 		LogLevel:    cfg.LogLevel,

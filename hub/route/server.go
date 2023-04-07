@@ -27,6 +27,8 @@ var (
 
 	uiPath = ""
 
+	enablePPORF bool
+
 	bootTime = atomic.NewTime(time.Now())
 
 	upgrader = websocket.Upgrader{
@@ -43,6 +45,10 @@ type Traffic struct {
 
 func SetUIPath(path string) {
 	uiPath = C.Path.Resolve(path)
+}
+
+func SetPPROF(pprof bool) {
+	enablePPORF = pprof
 }
 
 func Start(addr string, secret string) {
@@ -89,6 +95,10 @@ func Start(addr string, secret string) {
 				fs.ServeHTTP(w, r)
 			})
 		})
+	}
+
+	if enablePPORF {
+		r.Mount("/debug/pprof", pprofRouter())
 	}
 
 	l, err := net.Listen("tcp", addr)
