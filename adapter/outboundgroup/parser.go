@@ -53,11 +53,17 @@ func ParseProxyGroup(
 		return nil, errFormat
 	}
 
-	var (
-		groupName  = groupOption.Name
-		filterRegx *regexp.Regexp
-	)
+	groupName := groupOption.Name
 
+	if len(groupOption.Proxies) == 0 && len(groupOption.Use) == 0 {
+		return nil, fmt.Errorf("%s: %w", groupName, errMissProxy)
+	}
+
+	if _, ok := providersMap[groupName]; ok {
+		return nil, fmt.Errorf("%s: %w", groupName, errDuplicateProvider)
+	}
+
+	var filterRegx *regexp.Regexp
 	if groupOption.Filter != "" {
 		regx, err := regexp.Compile(groupOption.Filter)
 		if err != nil {
@@ -66,48 +72,45 @@ func ParseProxyGroup(
 		filterRegx = regx
 	}
 
-	if len(groupOption.Proxies) == 0 && len(groupOption.Use) == 0 {
-		return nil, fmt.Errorf("%s: %w", groupName, errMissProxy)
+	var hc *provider.HealthCheck
+
+	// select and relay don't need health check
+	if groupOption.Type == "select" || groupOption.Type == "relay" {
+		hc = provider.NewHealthCheck([]C.Proxy{}, "", 0, true)
+	} else {
+		if groupOption.URL == "" || groupOption.Interval == 0 {
+			return nil, fmt.Errorf("%s: %w", groupName, errMissHealthCheck)
+		}
+		hc = provider.NewHealthCheck([]C.Proxy{}, groupOption.URL, uint(groupOption.Interval), groupOption.Lazy)
 	}
 
-	var providers []types.ProxyProvider
+	pd, err := provider.NewCompatibleProvider(groupName, hc, filterRegx)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", groupName, err)
+	}
 
 	if len(groupOption.Proxies) != 0 {
 		ps, err := getProxies(proxyMap, groupOption.Proxies)
 		if err != nil {
+			pd.Finalize()
 			return nil, fmt.Errorf("%s: %w", groupName, err)
 		}
 
-		if _, ok := providersMap[groupName]; ok {
-			return nil, fmt.Errorf("%s: %w", groupName, errDuplicateProvider)
-		}
-
-		hc, err := newHealthCheck(ps, groupOption)
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", groupName, err)
-		}
-
-		pd, err := provider.NewCompatibleProvider(groupName, ps, hc)
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", groupName, err)
-		}
-
-		providers = append(providers, pd)
-		providersMap[groupName] = pd
+		pd.SetProxies(ps)
 	}
 
 	if len(groupOption.Use) != 0 {
-		list, err := getProviders(providersMap, groupOption, filterRegx)
+		list, err := getProviders(providersMap, groupOption.Use)
 		if err != nil {
+			pd.Finalize()
 			return nil, fmt.Errorf("%s: %w", groupName, err)
 		}
 
-		if groupOption.Type == "fallback" {
-			providers = append(list, providers...)
-		} else {
-			providers = append(providers, list...)
-		}
+		pd.SetProviders(list)
 	}
+
+	providers := []types.ProxyProvider{pd}
+	providersMap[groupName] = pd
 
 	var group C.ProxyAdapter
 	switch groupOption.Type {
@@ -120,10 +123,15 @@ func ParseProxyGroup(
 		group = NewFallback(groupOption, providers)
 	case "load-balance":
 		strategy := parseStrategy(config)
-		return NewLoadBalance(groupOption, providers, strategy)
+		group, err = NewLoadBalance(groupOption, providers, strategy)
+		if err != nil {
+			pd.Finalize()
+			return nil, fmt.Errorf("%s: %w", groupName, err)
+		}
 	case "relay":
 		group = NewRelay(groupOption, providers)
 	default:
+		pd.Finalize()
 		return nil, fmt.Errorf("%s %w: %s", groupName, errType, groupOption.Type)
 	}
 
@@ -142,47 +150,17 @@ func getProxies(mapping map[string]C.Proxy, list []string) ([]C.Proxy, error) {
 	return ps, nil
 }
 
-func getProviders(
-	mapping map[string]types.ProxyProvider,
-	groupOption *GroupCommonOption,
-	filterRegx *regexp.Regexp,
-) ([]types.ProxyProvider, error) {
+func getProviders(mapping map[string]types.ProxyProvider, list []string) ([]types.ProxyProvider, error) {
 	var ps []types.ProxyProvider
-	for _, name := range groupOption.Use {
+	for _, name := range list {
 		p, ok := mapping[name]
 		if !ok {
 			return nil, fmt.Errorf("'%s' not found", name)
 		}
-
-		var pp *provider.ProxySetProvider
-		if pp, ok = p.(*provider.ProxySetProvider); !ok {
+		if p.VehicleType() == types.Compatible {
 			return nil, fmt.Errorf("proxy group %s can't contains in `use`", name)
 		}
-
-		hc, err := newHealthCheck([]C.Proxy{}, groupOption)
-		if err != nil {
-			return nil, err
-		}
-
-		fpName := fmt.Sprintf("%s-in-%s", name, groupOption.Name)
-		fp := provider.NewProxyFilterProvider(fpName, pp, hc, filterRegx)
-		pp.RegisterProvidersInUse(fp)
-		ps = append(ps, fp)
+		ps = append(ps, p)
 	}
 	return ps, nil
-}
-
-func newHealthCheck(ps []C.Proxy, groupOption *GroupCommonOption) (*provider.HealthCheck, error) {
-	var hc *provider.HealthCheck
-
-	// select don't need health check
-	if groupOption.Type == "select" || groupOption.Type == "relay" {
-		hc = provider.NewHealthCheck(ps, "", 0, true)
-	} else {
-		if groupOption.URL == "" || groupOption.Interval == 0 {
-			return nil, errMissHealthCheck
-		}
-		hc = provider.NewHealthCheck(ps, groupOption.URL, uint(groupOption.Interval), groupOption.Lazy)
-	}
-	return hc, nil
 }

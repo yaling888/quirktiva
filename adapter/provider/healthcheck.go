@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"go.uber.org/atomic"
@@ -23,34 +22,31 @@ type HealthCheckOption struct {
 type HealthCheck struct {
 	url       string
 	proxies   []C.Proxy
+	proxiesFn func() []C.Proxy
 	interval  uint
 	lazy      bool
 	lastTouch *atomic.Int64
-	running   *atomic.Bool
+	ticker    *time.Ticker
 	done      chan struct{}
-	mux       sync.Mutex
 }
 
 func (hc *HealthCheck) process() {
-	hc.mux.Lock()
-	if hc.running.Load() {
-		hc.mux.Unlock()
+	if hc.ticker != nil {
 		return
 	}
-	hc.running.Store(true)
-	hc.mux.Unlock()
 
-	ticker := time.NewTicker(time.Duration(hc.interval) * time.Second)
+	hc.ticker = time.NewTicker(time.Duration(hc.interval) * time.Second)
 
 	for {
 		select {
-		case <-ticker.C:
+		case <-hc.ticker.C:
 			now := time.Now().Unix()
 			if !hc.lazy || now-hc.lastTouch.Load() < int64(hc.interval) {
 				hc.check()
 			}
 		case <-hc.done:
-			ticker.Stop()
+			hc.ticker.Stop()
+			hc.ticker = nil
 			return
 		}
 	}
@@ -58,6 +54,10 @@ func (hc *HealthCheck) process() {
 
 func (hc *HealthCheck) setProxy(proxies []C.Proxy) {
 	hc.proxies = proxies
+}
+
+func (hc *HealthCheck) setProxyFn(proxiesFn func() []C.Proxy) {
+	hc.proxiesFn = proxiesFn
 }
 
 func (hc *HealthCheck) auto() bool {
@@ -69,11 +69,15 @@ func (hc *HealthCheck) touch() {
 }
 
 func (hc *HealthCheck) check() {
-	proxies := hc.proxies
+	var proxies []C.Proxy
+	if hc.proxiesFn != nil {
+		proxies = hc.proxiesFn()
+	} else {
+		proxies = hc.proxies
+	}
 	if len(proxies) == 0 {
 		return
 	}
-
 	b, _ := batch.New[bool](context.Background(), batch.WithConcurrencyNum[bool](10))
 	for _, proxy := range proxies {
 		p := proxy
@@ -88,17 +92,12 @@ func (hc *HealthCheck) check() {
 }
 
 func (hc *HealthCheck) close() {
-	hc.mux.Lock()
-	defer hc.mux.Unlock()
-
-	if !hc.running.Load() {
-		return
+	if hc.ticker != nil {
+		hc.done <- struct{}{}
 	}
-	hc.running.Store(false)
-	select {
-	case hc.done <- struct{}{}:
-	default:
-	}
+	hc.interval = 0
+	hc.proxiesFn = nil
+	hc.proxies = nil
 }
 
 func NewHealthCheck(proxies []C.Proxy, url string, interval uint, lazy bool) *HealthCheck {
@@ -108,7 +107,6 @@ func NewHealthCheck(proxies []C.Proxy, url string, interval uint, lazy bool) *He
 		interval:  interval,
 		lazy:      lazy,
 		lastTouch: atomic.NewInt64(0),
-		running:   atomic.NewBool(false),
 		done:      make(chan struct{}, 1),
 	}
 }

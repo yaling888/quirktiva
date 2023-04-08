@@ -518,9 +518,9 @@ func parseGeneral(cfg *RawConfig) (*General, error) {
 	}, nil
 }
 
-func parseProxies(cfg *RawConfig) (proxies map[string]C.Proxy, providersMap map[string]providerTypes.ProxyProvider, err error) {
-	proxies = make(map[string]C.Proxy)
-	providersMap = make(map[string]providerTypes.ProxyProvider)
+func parseProxies(cfg *RawConfig) (proxiesMap map[string]C.Proxy, pdsMap map[string]providerTypes.ProxyProvider, err error) {
+	proxies := make(map[string]C.Proxy)
+	providersMap := make(map[string]providerTypes.ProxyProvider)
 	proxiesConfig := cfg.Proxy
 	groupsConfig := cfg.ProxyGroup
 	providersConfig := cfg.ProxyProvider
@@ -531,6 +531,12 @@ func parseProxies(cfg *RawConfig) (proxies map[string]C.Proxy, providersMap map[
 	proxies["DIRECT"] = adapter.NewProxy(outbound.NewDirect())
 	proxies["REJECT"] = adapter.NewProxy(outbound.NewReject())
 	proxyList = append(proxyList, "DIRECT", "REJECT")
+
+	defer func() {
+		if err != nil {
+			providerTypes.Cleanup(proxies, providersMap)
+		}
+	}()
 
 	// parse proxy
 	for idx, mapping := range proxiesConfig {
@@ -608,7 +614,9 @@ func parseProxies(cfg *RawConfig) (proxies map[string]C.Proxy, providersMap map[
 
 		log.Info().Str("name", pd.Name()).Msg("[Config] initial compatible provider")
 		if err := pd.Initial(); err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf(
+				"initial compatible provider %s error: %w", pd.Name(), err,
+			)
 		}
 	}
 
@@ -617,7 +625,8 @@ func parseProxies(cfg *RawConfig) (proxies map[string]C.Proxy, providersMap map[
 		ps = append(ps, proxies[v])
 	}
 	hc := provider.NewHealthCheck(ps, "", 0, true)
-	pd, _ := provider.NewCompatibleProvider(provider.ReservedName, ps, hc)
+	pd, _ := provider.NewCompatibleProvider(provider.ReservedName, hc, nil)
+	pd.SetProxies(ps)
 	providersMap[provider.ReservedName] = pd
 
 	global := outboundgroup.NewSelector(

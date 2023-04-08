@@ -124,22 +124,20 @@ func Cleanup(proxies map[string]constant.Proxy, providers map[string]ProxyProvid
 	}
 	for _, pd := range providers {
 		go func(pp ProxyProvider) {
-			pp.Finalize()
 			if pp.VehicleType() != Compatible {
 				for _, p := range pp.Proxies() {
-					go func(m constant.ProxyAdapter) {
-						m.Cleanup()
-						if m.Addr() == "" {
-							return
-						}
-						host, _, _ := net.SplitHostPort(m.Addr())
-						if host == "" {
-							return
-						}
-						resolver.RemoveCache(host)
-					}(p)
+					p.Cleanup()
+					if p.Addr() == "" {
+						continue
+					}
+					host, _, _ := net.SplitHostPort(p.Addr())
+					if host == "" {
+						continue
+					}
+					resolver.RemoveCache(host)
 				}
 			}
+			pp.Finalize()
 		}(pd)
 	}
 }

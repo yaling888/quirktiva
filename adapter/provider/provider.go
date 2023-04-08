@@ -8,13 +8,21 @@ import (
 	"time"
 
 	"github.com/samber/lo"
+	"go.uber.org/atomic"
 	"gopkg.in/yaml.v3"
 
 	"github.com/Dreamacro/clash/adapter"
+	"github.com/Dreamacro/clash/adapter/outbound"
 	"github.com/Dreamacro/clash/common/convert"
+	"github.com/Dreamacro/clash/common/singledo"
 	C "github.com/Dreamacro/clash/constant"
 	types "github.com/Dreamacro/clash/constant/provider"
 	"github.com/Dreamacro/clash/tunnel/statistic"
+)
+
+var (
+	group  = &singledo.Group[[]C.Proxy]{}
+	reject = adapter.NewProxy(outbound.NewReject())
 )
 
 const (
@@ -25,21 +33,16 @@ type ProxySchema struct {
 	Proxies []map[string]any `yaml:"proxies"`
 }
 
-var _ types.ProxyProvider = (*proxySetProvider)(nil)
+var _ types.ProxyProvider = (*ProxySetProvider)(nil)
 
-// ProxySetProvider for auto gc
 type ProxySetProvider struct {
-	*proxySetProvider
-}
-
-type proxySetProvider struct {
 	*fetcher[[]C.Proxy]
-	proxies        []C.Proxy
-	healthCheck    *HealthCheck
-	providersInUse []types.ProxyProvider
+	healthCheck *HealthCheck
+	proxies     []C.Proxy
+	groupNames  []string
 }
 
-func (pp *proxySetProvider) MarshalJSON() ([]byte, error) {
+func (pp *ProxySetProvider) MarshalJSON() ([]byte, error) {
 	return json.Marshal(map[string]any{
 		"name":        pp.Name(),
 		"type":        pp.Type().String(),
@@ -49,15 +52,15 @@ func (pp *proxySetProvider) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (pp *proxySetProvider) Name() string {
+func (pp *ProxySetProvider) Name() string {
 	return pp.name
 }
 
-func (pp *proxySetProvider) HealthCheck() {
+func (pp *ProxySetProvider) HealthCheck() {
 	pp.healthCheck.check()
 }
 
-func (pp *proxySetProvider) Update() error {
+func (pp *ProxySetProvider) Update() error {
 	elm, same, err := pp.fetcher.Update()
 	if err == nil && !same {
 		pp.onUpdate(elm)
@@ -65,7 +68,7 @@ func (pp *proxySetProvider) Update() error {
 	return err
 }
 
-func (pp *proxySetProvider) Initial() error {
+func (pp *ProxySetProvider) Initial() error {
 	elm, err := pp.fetcher.Initial()
 	if err != nil {
 		return err
@@ -75,40 +78,33 @@ func (pp *proxySetProvider) Initial() error {
 	return nil
 }
 
-func (pp *proxySetProvider) Type() types.ProviderType {
+func (pp *ProxySetProvider) Type() types.ProviderType {
 	return types.Proxy
 }
 
-func (pp *proxySetProvider) Proxies() []C.Proxy {
+func (pp *ProxySetProvider) Proxies() []C.Proxy {
 	return pp.proxies
 }
 
-func (pp *proxySetProvider) Touch() {
+func (pp *ProxySetProvider) Touch() {
 	pp.healthCheck.touch()
 }
 
-func (pp *proxySetProvider) RegisterProvidersInUse(providers ...types.ProxyProvider) {
-	pp.providersInUse = append(pp.providersInUse, providers...)
-}
-
-func (pp *proxySetProvider) Finalize() {
+func (pp *ProxySetProvider) Finalize() {
 	pp.healthCheck.close()
 	_ = pp.fetcher.Destroy()
-	for _, pd := range pp.providersInUse {
-		pd.Finalize()
-	}
 }
 
-func (pp *proxySetProvider) setProxies(proxies []C.Proxy) {
+func (pp *ProxySetProvider) setProxies(proxies []C.Proxy) {
 	old := pp.proxies
 	pp.proxies = proxies
 	pp.healthCheck.setProxy(proxies)
 
-	for _, use := range pp.providersInUse {
-		_ = use.Update()
+	for _, name := range pp.groupNames {
+		group.Forget(name)
 	}
 
-	if len(old) > 0 {
+	if len(old) != 0 {
 		names := lo.Map(old, func(item C.Proxy, _ int) string {
 			p := item.(C.ProxyAdapter)
 			name := p.Name()
@@ -116,13 +112,21 @@ func (pp *proxySetProvider) setProxies(proxies []C.Proxy) {
 			return name
 		})
 		statistic.DefaultManager.KickOut(names...)
-		go pp.healthCheck.check()
+		if pp.healthCheck.auto() {
+			go pp.healthCheck.check()
+		}
 	} else if pp.healthCheck.auto() {
-		go func(hc *HealthCheck) {
-			time.Sleep(30 * time.Second)
-			hc.check()
-		}(pp.healthCheck)
+		go func() {
+			time.Sleep(45 * time.Second)
+			if pp.healthCheck.auto() {
+				pp.healthCheck.check()
+			}
+		}()
 	}
+}
+
+func (pp *ProxySetProvider) addGroupName(name string) {
+	pp.groupNames = append(pp.groupNames, name)
 }
 
 func NewProxySetProvider(
@@ -145,7 +149,7 @@ func NewProxySetProvider(
 		go hc.process()
 	}
 
-	pd := &proxySetProvider{
+	pd := &ProxySetProvider{
 		proxies:     []C.Proxy{},
 		healthCheck: hc,
 	}
@@ -158,24 +162,24 @@ func NewProxySetProvider(
 		proxiesOnUpdate(pd),
 	)
 
-	wrapper := &ProxySetProvider{pd}
-	return wrapper, nil
+	return pd, nil
 }
 
-var _ types.ProxyProvider = (*compatibleProvider)(nil)
+var _ types.ProxyProvider = (*CompatibleProvider)(nil)
 
-// CompatibleProvider for auto gc
 type CompatibleProvider struct {
-	*compatibleProvider
-}
-
-type compatibleProvider struct {
 	name        string
-	healthCheck *HealthCheck
 	proxies     []C.Proxy
+	providers   []types.ProxyProvider
+	healthCheck *HealthCheck
+	filterRegx  *regexp.Regexp
+	hcWait      *atomic.Bool
+
+	hasProxy    bool
+	hasProvider bool
 }
 
-func (cp *compatibleProvider) MarshalJSON() ([]byte, error) {
+func (cp *CompatibleProvider) MarshalJSON() ([]byte, error) {
 	return json.Marshal(map[string]any{
 		"name":        cp.Name(),
 		"type":        cp.Type().String(),
@@ -184,166 +188,145 @@ func (cp *compatibleProvider) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (cp *compatibleProvider) Name() string {
+func (cp *CompatibleProvider) Name() string {
 	return cp.name
 }
 
-func (cp *compatibleProvider) HealthCheck() {
+func (cp *CompatibleProvider) HealthCheck() {
 	cp.healthCheck.check()
 }
 
-func (cp *compatibleProvider) Update() error {
+func (cp *CompatibleProvider) Update() error {
 	return nil
 }
 
-func (cp *compatibleProvider) Initial() error {
+func (cp *CompatibleProvider) Initial() error {
+	if cp.hasProxy && !cp.hasProvider {
+		if cp.healthCheck.auto() {
+			go cp.healthCheckWait()
+		}
+	} else if len(cp.Proxies()) == 0 {
+		return errors.New("provider need one proxy at least")
+	}
 	return nil
 }
 
-func (cp *compatibleProvider) VehicleType() types.VehicleType {
+func (cp *CompatibleProvider) VehicleType() types.VehicleType {
 	return types.Compatible
 }
 
-func (cp *compatibleProvider) Type() types.ProviderType {
+func (cp *CompatibleProvider) Type() types.ProviderType {
 	return types.Proxy
 }
 
-func (cp *compatibleProvider) Proxies() []C.Proxy {
-	return cp.proxies
+func (cp *CompatibleProvider) Proxies() []C.Proxy {
+	if !cp.hasProvider {
+		return cp.proxies
+	}
+
+	proxies, _, hitCache := group.Do(cp.name, func() ([]C.Proxy, error) {
+		var proxies []C.Proxy
+		if cp.filterRegx != nil {
+			proxies = lo.FlatMap(
+				cp.providers,
+				func(provider types.ProxyProvider, _ int) []C.Proxy {
+					return lo.Filter(
+						provider.Proxies(),
+						func(proxy C.Proxy, _ int) bool {
+							return cp.filterRegx.MatchString(proxy.Name())
+						})
+				})
+
+			if cp.hasProxy {
+				if len(proxies) == 0 {
+					return cp.proxies, nil
+				}
+				proxies = append(cp.proxies, proxies...)
+			} else if len(proxies) == 0 {
+				proxies = append(proxies, reject)
+			}
+		} else {
+			proxies = lo.FlatMap(
+				cp.providers,
+				func(pd types.ProxyProvider, _ int) []C.Proxy {
+					return pd.Proxies()
+				})
+
+			if cp.hasProxy {
+				proxies = append(cp.proxies, proxies...)
+			}
+		}
+
+		return proxies, nil
+	})
+
+	if !hitCache && cp.healthCheck.auto() {
+		go cp.healthCheckWait()
+	}
+
+	return proxies
 }
 
-func (cp *compatibleProvider) Touch() {
+func (cp *CompatibleProvider) Touch() {
 	cp.healthCheck.touch()
 }
 
-func (cp *compatibleProvider) Finalize() {
-	cp.healthCheck.close()
+func (cp *CompatibleProvider) SetProxies(proxies []C.Proxy) {
+	cp.proxies = proxies
+	cp.hasProxy = len(cp.proxies) != 0
 }
 
-func NewCompatibleProvider(name string, proxies []C.Proxy, hc *HealthCheck) (*CompatibleProvider, error) {
-	if len(proxies) == 0 {
-		return nil, errors.New("provider need one proxy at least")
+func (cp *CompatibleProvider) SetProviders(providers []types.ProxyProvider) {
+	for _, elem := range providers {
+		if e, ok := elem.(*ProxySetProvider); ok {
+			e.addGroupName(cp.Name())
+		}
+	}
+	cp.providers = providers
+	cp.hasProvider = len(cp.providers) != 0
+}
+
+func (cp *CompatibleProvider) Forget() {
+	group.Forget(cp.name)
+}
+
+func (cp *CompatibleProvider) Finalize() {
+	cp.healthCheck.close()
+	cp.providers = nil
+	cp.Forget()
+}
+
+func (cp *CompatibleProvider) healthCheckWait() {
+	if cp.hcWait.Load() {
+		return
+	}
+	cp.hcWait.Store(true)
+	time.Sleep(30 * time.Second)
+	if cp.healthCheck.auto() {
+		cp.healthCheck.check()
+	}
+	cp.hcWait.Store(false)
+}
+
+func NewCompatibleProvider(name string, hc *HealthCheck, filterRegx *regexp.Regexp) (*CompatibleProvider, error) {
+	pd := &CompatibleProvider{
+		name:        name,
+		healthCheck: hc,
+		filterRegx:  filterRegx,
+		hcWait:      atomic.NewBool(false),
 	}
 
 	if hc.auto() {
+		hc.setProxyFn(func() []C.Proxy {
+			return pd.Proxies()
+		})
 		go hc.process()
-		go func(hh *HealthCheck) {
-			time.Sleep(30 * time.Second)
-			hh.check()
-		}(hc)
 	}
 
-	pd := &compatibleProvider{
-		name:        name,
-		proxies:     proxies,
-		healthCheck: hc,
-	}
-
-	wrapper := &CompatibleProvider{pd}
-	return wrapper, nil
+	return pd, nil
 }
 
-var _ types.ProxyProvider = (*proxyFilterProvider)(nil)
-
-// ProxyFilterProvider for filter provider
-type ProxyFilterProvider struct {
-	*proxyFilterProvider
-}
-
-type proxyFilterProvider struct {
-	name        string
-	psd         *ProxySetProvider
-	proxies     []C.Proxy
-	filter      *regexp.Regexp
-	healthCheck *HealthCheck
-}
-
-func (pf *proxyFilterProvider) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]any{
-		"name":        pf.Name(),
-		"type":        pf.Type().String(),
-		"vehicleType": pf.VehicleType().String(),
-		"proxies":     pf.Proxies(),
-	})
-}
-
-func (pf *proxyFilterProvider) Name() string {
-	return pf.name
-}
-
-func (pf *proxyFilterProvider) HealthCheck() {
-	pf.healthCheck.check()
-}
-
-func (pf *proxyFilterProvider) Update() error {
-	pf.healthCheck.close()
-
-	proxies := []C.Proxy{}
-	if pf.filter != nil {
-		for _, proxy := range pf.psd.Proxies() {
-			if !pf.filter.MatchString(proxy.Name()) {
-				continue
-			}
-			proxies = append(proxies, proxy)
-		}
-	} else {
-		proxies = pf.psd.Proxies()
-	}
-
-	pf.proxies = proxies
-	pf.healthCheck.setProxy(proxies)
-
-	if len(proxies) != 0 && pf.healthCheck.auto() {
-		go pf.healthCheck.process()
-		if !pf.psd.healthCheck.auto() {
-			go func(hc *HealthCheck) {
-				time.Sleep(30 * time.Second)
-				hc.check()
-			}(pf.healthCheck)
-		}
-	}
-	return nil
-}
-
-func (pf *proxyFilterProvider) Initial() error {
-	return nil
-}
-
-func (pf *proxyFilterProvider) VehicleType() types.VehicleType {
-	return types.Compatible
-}
-
-func (pf *proxyFilterProvider) Type() types.ProviderType {
-	return types.Proxy
-}
-
-func (pf *proxyFilterProvider) Proxies() []C.Proxy {
-	return pf.proxies
-}
-
-func (pf *proxyFilterProvider) Touch() {
-	pf.healthCheck.touch()
-}
-
-func (pf *proxyFilterProvider) Finalize() {
-	pf.healthCheck.close()
-}
-
-func NewProxyFilterProvider(name string, psd *ProxySetProvider, hc *HealthCheck, filterRegx *regexp.Regexp) *ProxyFilterProvider {
-	pd := &proxyFilterProvider{
-		psd:         psd,
-		name:        name,
-		healthCheck: hc,
-		filter:      filterRegx,
-	}
-
-	_ = pd.Update()
-
-	wrapper := &ProxyFilterProvider{pd}
-	return wrapper
-}
-
-func proxiesOnUpdate(pd *proxySetProvider) func([]C.Proxy) {
+func proxiesOnUpdate(pd *ProxySetProvider) func([]C.Proxy) {
 	return func(elm []C.Proxy) {
 		pd.setProxies(elm)
 	}

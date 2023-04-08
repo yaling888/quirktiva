@@ -61,3 +61,43 @@ func (s *Single[T]) Reset() {
 func NewSingle[T any](wait time.Duration) *Single[T] {
 	return &Single[T]{wait: wait}
 }
+
+type Group[T any] struct {
+	mu sync.Mutex          // protects m
+	m  map[string]*call[T] // lazily initialized
+}
+
+func (g *Group[T]) Do(key string, fn func() (T, error)) (v T, err error, shared bool) {
+	g.mu.Lock()
+	if g.m == nil {
+		g.m = make(map[string]*call[T])
+	}
+	if c, ok := g.m[key]; ok {
+		g.mu.Unlock()
+		c.wg.Wait()
+
+		return c.val, c.err, true
+	}
+	c := new(call[T])
+	c.wg.Add(1)
+	g.m[key] = c
+	g.mu.Unlock()
+	c.val, c.err = fn()
+	c.wg.Done()
+
+	return c.val, c.err, false
+}
+
+func (g *Group[T]) Forget(key string) {
+	g.mu.Lock()
+	if g.m == nil {
+		g.mu.Unlock()
+		return
+	}
+	if c, ok := g.m[key]; ok {
+		var v T
+		c.val = v
+	}
+	delete(g.m, key)
+	g.mu.Unlock()
+}
