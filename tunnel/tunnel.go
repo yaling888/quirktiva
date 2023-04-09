@@ -15,6 +15,7 @@ import (
 	"github.com/phuslu/log"
 	"github.com/samber/lo"
 	"go.uber.org/atomic"
+	"golang.org/x/sync/singleflight"
 
 	A "github.com/Dreamacro/clash/adapter"
 	"github.com/Dreamacro/clash/adapter/inbound"
@@ -62,6 +63,8 @@ var (
 		}
 		return providersMap
 	}
+
+	rawProxySingle singleflight.Group
 
 	UDPFallbackMatch  = atomic.NewBool(false)
 	UDPFallbackPolicy = atomic.NewString("")
@@ -124,14 +127,38 @@ func FindProxyByName(name string) (proxy C.Proxy, found bool) {
 	return
 }
 
-func FetchRawProxyAdapter(proxy C.Proxy, metadata *C.Metadata, chains []string) (C.Proxy, []string) {
-	if chains != nil {
+type rawProxyWrap struct {
+	proxy  C.Proxy
+	chains []string
+}
+
+func FetchRawProxyAdapter(proxy C.Proxy, metadata *C.Metadata) (C.Proxy, []string) {
+	result, _, _ := rawProxySingle.Do(proxy.Name(), func() (any, error) {
+		var chains []string
 		chains = append(chains, proxy.Name())
-	}
-	if p := proxy.Unwrap(metadata); p != nil {
-		return FetchRawProxyAdapter(p, metadata, chains)
-	}
-	return proxy, chains
+		var (
+			rawProxy C.Proxy
+			subProxy = proxy.Unwrap(metadata)
+		)
+		for subProxy != nil {
+			chains = append(chains, subProxy.Name())
+			rawProxy = subProxy
+			subProxy = subProxy.Unwrap(metadata)
+		}
+		if rawProxy != nil {
+			return &rawProxyWrap{
+				proxy:  rawProxy,
+				chains: chains,
+			}, nil
+		}
+		return &rawProxyWrap{
+			proxy:  proxy,
+			chains: chains,
+		}, nil
+	})
+
+	rawProxy := result.(*rawProxyWrap)
+	return rawProxy.proxy, rawProxy.chains
 }
 
 // UpdateProxies handle update proxies
@@ -421,7 +448,7 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 			return
 		}
 
-		rawProxy, chains := FetchRawProxyAdapter(proxy, metadata, []string{})
+		rawProxy, chains := FetchRawProxyAdapter(proxy, metadata)
 
 		isRemote, err := resolveDNS(metadata, proxy, rawProxy)
 		if err != nil {
@@ -529,7 +556,7 @@ func handleTCPConn(connCtx C.ConnContext) {
 	)
 
 	if !isMitmOutbound && metadata.SpecialProxy == "" {
-		rawProxy, chains = FetchRawProxyAdapter(proxy, metadata, []string{})
+		rawProxy, chains = FetchRawProxyAdapter(proxy, metadata)
 		isRemote, err2 := resolveDNS(metadata, proxy, rawProxy)
 		if err2 != nil {
 			if isRemote {

@@ -222,7 +222,7 @@ func dialContextByProxyOrInterface(
 		DstPort: port,
 	}
 
-	rawAdapter, _ := tunnel.FetchRawProxyAdapter(proxy, metadata, nil)
+	rawAdapter, _ := tunnel.FetchRawProxyAdapter(proxy, metadata)
 
 	if networkType == C.UDP {
 		if !rawAdapter.SupportUDP() && tunnel.UDPFallbackMatch.Load() {

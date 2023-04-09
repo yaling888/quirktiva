@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"net/netip"
+	"time"
 
 	"github.com/Dreamacro/clash/adapter"
 	"github.com/Dreamacro/clash/adapter/outbound"
@@ -14,6 +14,7 @@ import (
 	"github.com/Dreamacro/clash/component/resolver"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/constant/provider"
+	"github.com/Dreamacro/clash/tunnel"
 )
 
 type Relay struct {
@@ -32,12 +33,19 @@ func (r *Relay) DialContext(ctx context.Context, metadata *C.Metadata, opts ...d
 		}
 	}
 
-	switch len(proxies) {
+	length := len(proxies)
+
+	switch length {
 	case 0:
 		return outbound.NewDirect().DialContext(ctx, metadata, r.Base.DialOptions(opts...)...)
 	case 1:
 		return proxies[0].DialContext(ctx, metadata, r.Base.DialOptions(opts...)...)
 	}
+
+	timeout := time.Duration(length) * C.DefaultTCPTimeout
+	subCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	ctx = subCtx
 
 	c, err := r.streamContext(ctx, proxies, r.Base.DialOptions(opts...)...)
 	if err != nil {
@@ -84,17 +92,21 @@ func (r *Relay) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 		first = proxies[firstIndex]
 		last  = proxies[length-1]
 
-		c           net.Conn
-		cc          net.Conn
-		err         error
-		currentMeta *C.Metadata
+		c   net.Conn
+		cc  net.Conn
+		err error
 	)
 
-	if !last.SupportUDP() {
+	if !supportPacketConn(last) {
 		return nil, fmt.Errorf(
 			"%s connect error: proxy [%s] UDP is not supported in relay chains", last.Addr(), last.Name(),
 		)
 	}
+
+	timeout := time.Duration(length) * C.DefaultTCPTimeout
+	subCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	ctx = subCtx
 
 	rawUDPRelay, lastUDPOverTCPIndex = isRawUDPRelay(proxies)
 
@@ -125,6 +137,7 @@ func (r *Relay) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 	}
 
 	if nextIndex < length {
+		var currentMeta *C.Metadata
 		for i, proxy := range proxies[nextIndex:] { // raw udp in loop
 			currentMeta, err = addrToMetadata(proxy.Addr())
 			if err != nil {
@@ -132,19 +145,15 @@ func (r *Relay) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 			}
 			currentMeta.NetWork = C.UDP
 
-			if !isRawUDP(first) && !first.SupportUDP() {
+			if !supportPacketConn(first) {
 				return nil, fmt.Errorf(
 					"%s connect error: proxy [%s] UDP is not supported in relay chains", first.Addr(), first.Name(),
 				)
 			}
 
-			if needResolveIP(currentMeta) {
-				var ip netip.Addr
-				ip, err = resolver.ResolveProxyServerHost(currentMeta.Host)
-				if err != nil {
-					return nil, fmt.Errorf("can't resolve ip: %w", err)
-				}
-				currentMeta.DstIP = ip
+			err = resolveDNS(currentMeta)
+			if err != nil {
+				return nil, fmt.Errorf("can't resolve ip: %w", err)
 			}
 
 			if cc != nil { // socks5
@@ -306,11 +315,25 @@ func isRawUDP(proxy C.ProxyAdapter) bool {
 	return false
 }
 
-func needResolveIP(metadata *C.Metadata) bool {
-	if metadata.Resolved() {
+func supportPacketConn(proxy C.Proxy) bool {
+	tp := proxy.Type()
+	if (tp == C.Shadowsocks || tp == C.ShadowsocksR) && !proxy.SupportUDP() {
 		return false
 	}
-	return metadata.NetWork == C.UDP
+	return proxy.SupportUDP() || !tunnel.UDPFallbackMatch.Load()
+}
+
+func resolveDNS(metadata *C.Metadata) error {
+	if metadata.Host == "" || metadata.Resolved() {
+		return nil
+	}
+
+	rAddrs, err := resolver.LookupIP(context.Background(), metadata.Host)
+	if err != nil {
+		return err
+	}
+	metadata.DstIP = rAddrs[0]
+	return nil
 }
 
 func NewRelay(option *GroupCommonOption, providers []provider.ProxyProvider) *Relay {
