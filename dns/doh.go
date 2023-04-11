@@ -32,6 +32,7 @@ type dohClient struct {
 	url       string
 	addr      string
 	proxy     string
+	timeout   time.Duration
 	transport *http.Transport
 }
 
@@ -64,15 +65,9 @@ func (dc *dohClient) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg,
 	}
 
 	if _, ok := ctx.Deadline(); !ok {
-		var (
-			cancel  context.CancelFunc
-			timeout = resolver.DefaultDNSTimeout
-		)
-		if hasProxy {
-			timeout = proxyTimeout
-		}
-		ctx, cancel = context.WithTimeout(ctx, timeout)
+		subCtx, cancel := context.WithTimeout(ctx, dc.timeout)
 		defer cancel()
+		ctx = subCtx
 	}
 
 	req = req.WithContext(ctx)
@@ -148,11 +143,21 @@ func newDoHClient(url string, proxy string, r *Resolver) *dohClient {
 	if port == "" {
 		port = "443"
 	}
+	addr := net.JoinHostPort(u.Hostname(), port)
+
+	var timeout time.Duration
+	if proxy != "" {
+		timeout = proxyTimeout
+	} else {
+		timeout = resolver.DefaultDNSTimeout
+	}
+
 	return &dohClient{
-		r:     r,
-		url:   url,
-		addr:  net.JoinHostPort(u.Hostname(), port),
-		proxy: proxy,
+		r:       r,
+		url:     url,
+		addr:    addr,
+		proxy:   proxy,
+		timeout: timeout,
 		transport: &http.Transport{
 			ForceAttemptHTTP2: true,
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -178,7 +183,7 @@ func getConn(ctx context.Context, r *Resolver, addr string) (net.Conn, error) {
 	ip := ips[0]
 
 	if proxy, ok := ctx.Value(proxyKey).(string); ok {
-		return dialContextByProxyOrInterface(ctx, proxy, "tcp", ip, port)
+		return dialContextByProxyOrInterface(ctx, "tcp", ip, port, proxy)
 	}
 
 	return dialer.DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), port))

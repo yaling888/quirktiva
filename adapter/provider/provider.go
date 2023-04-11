@@ -201,6 +201,7 @@ func (cp *CompatibleProvider) Update() error {
 }
 
 func (cp *CompatibleProvider) Initial() error {
+	cp.Forget()
 	if cp.hasProxy && !cp.hasProvider {
 		if cp.healthCheck.auto() {
 			go cp.healthCheckWait()
@@ -309,6 +310,10 @@ func (cp *CompatibleProvider) healthCheckWait() {
 }
 
 func NewCompatibleProvider(name string, hc *HealthCheck, filterRegx *regexp.Regexp) (*CompatibleProvider, error) {
+	if hc.auto() {
+		go hc.process()
+	}
+
 	pd := &CompatibleProvider{
 		name:        name,
 		healthCheck: hc,
@@ -316,12 +321,9 @@ func NewCompatibleProvider(name string, hc *HealthCheck, filterRegx *regexp.Rege
 		hcWait:      atomic.NewBool(false),
 	}
 
-	if hc.auto() {
-		hc.setProxyFn(func() []C.Proxy {
-			return pd.Proxies()
-		})
-		go hc.process()
-	}
+	hc.setProxyFn(func() []C.Proxy {
+		return pd.Proxies()
+	})
 
 	return pd, nil
 }

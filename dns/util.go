@@ -81,12 +81,12 @@ func isIPRequest(q D.Question) bool {
 	return q.Qclass == D.ClassINET && (q.Qtype == D.TypeA || q.Qtype == D.TypeAAAA)
 }
 
-func transform(servers []NameServer, resolver *Resolver) []dnsClient {
+func transform(servers []NameServer, r *Resolver) []dnsClient {
 	var ret []dnsClient
 	for _, s := range servers {
 		switch s.Net {
 		case "https":
-			ret = append(ret, newDoHClient(s.Addr, s.Proxy, resolver))
+			ret = append(ret, newDoHClient(s.Addr, s.Proxy, r))
 			continue
 		case "dhcp":
 			ret = append(ret, newDHCPClient(s.Addr))
@@ -98,6 +98,12 @@ func transform(servers []NameServer, resolver *Resolver) []dnsClient {
 		if _, err := netip.ParseAddr(host); err == nil {
 			ip = host
 		}
+		var timeout time.Duration
+		if s.Proxy != "" {
+			timeout = proxyTimeout
+		} else {
+			timeout = resolver.DefaultDNSTimeout
+		}
 		ret = append(ret, &client{
 			Client: &D.Client{
 				Net: s.Net,
@@ -105,12 +111,12 @@ func transform(servers []NameServer, resolver *Resolver) []dnsClient {
 					ServerName: host,
 				},
 				UDPSize: 4096,
-				Timeout: 5 * time.Second,
+				Timeout: timeout,
 			},
 			port:   port,
 			host:   host,
 			iface:  s.Interface,
-			r:      resolver,
+			r:      r,
 			proxy:  s.Proxy,
 			isDHCP: s.IsDHCP,
 			ip:     ip,
@@ -194,10 +200,10 @@ func (wpc *wrapPacketConn) RemoteAddr() net.Addr {
 
 func dialContextByProxyOrInterface(
 	ctx context.Context,
-	proxyOrInterface string,
 	network string,
 	dstIP netip.Addr,
 	port string,
+	proxyOrInterface string,
 	opts ...dialer.Option,
 ) (net.Conn, error) {
 	proxy, ok := tunnel.FindProxyByName(proxyOrInterface)
@@ -271,11 +277,10 @@ func batchExchange(ctx context.Context, clients []dnsClient, m *D.Msg) (msg *D.M
 }
 
 func genMsgCacheKey(ctx context.Context, q D.Question) string {
-	key := q.String()
-	if p, ok := resolver.GetProxy(ctx); ok {
-		key += p
+	if proxy, ok := resolver.GetProxy(ctx); ok && proxy != "" {
+		return fmt.Sprintf("%s:%s:%d:%d", proxy, q.Name, q.Qtype, q.Qclass)
 	}
-	return key
+	return fmt.Sprintf("%s:%d:%d", q.Name, q.Qtype, q.Qclass)
 }
 
 func logDnsResponse(q D.Question, msg *D.Msg, err error, network, source, proxyAdapter string) {

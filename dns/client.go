@@ -13,7 +13,6 @@ import (
 
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"
-	"github.com/Dreamacro/clash/tunnel"
 )
 
 type client struct {
@@ -55,11 +54,9 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 	}
 
 	var (
-		options  []dialer.Option
-		conn     net.Conn
-		proxy    = c.proxy
-		hasProxy bool
-		dClient  *D.Client
+		options []dialer.Option
+		conn    net.Conn
+		proxy   = c.proxy
 	)
 
 	if p, ok := resolver.GetProxy(ctx); ok {
@@ -71,8 +68,7 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 	}
 
 	if proxy != "" {
-		_, hasProxy = tunnel.FindProxyByName(proxy)
-		conn, err = dialContextByProxyOrInterface(ctx, proxy, network, netip.MustParseAddr(c.ip), c.port, options...)
+		conn, err = dialContextByProxyOrInterface(ctx, network, netip.MustParseAddr(c.ip), c.port, proxy, options...)
 	} else {
 		conn, err = dialer.DialContext(ctx, network, net.JoinHostPort(c.ip, c.port), options...)
 	}
@@ -81,17 +77,6 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 		return nil, err
 	}
 	defer conn.Close()
-
-	if hasProxy {
-		dClient = &D.Client{
-			Net:       c.Client.Net,
-			TLSConfig: c.Client.TLSConfig,
-			UDPSize:   c.Client.UDPSize,
-			Timeout:   proxyTimeout,
-		}
-	} else {
-		dClient = c.Client
-	}
 
 	// miekg/dns ExchangeContext doesn't respond to context cancel.
 	// this is a workaround
@@ -118,7 +103,7 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 		msg, _, err2 := dc.ExchangeWithConn(mm, cc)
 
 		dch <- result{msg, err2}
-	}(dClient, conn, m, ch)
+	}(c.Client, conn, m, ch)
 
 	select {
 	case <-ctx.Done():

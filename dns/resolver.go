@@ -10,6 +10,7 @@ import (
 	"time"
 
 	D "github.com/miekg/dns"
+	"github.com/samber/lo"
 	"golang.org/x/sync/singleflight"
 
 	"github.com/Dreamacro/clash/common/cache"
@@ -155,21 +156,19 @@ func (r *Resolver) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg, e
 		if expireTime.Before(now) {
 			setMsgTTL(msg, uint32(1)) // Continue fetch
 			go func() {
-				_, _ = r.exchangeWithoutCache(ctx, m)
+				_, _ = r.exchangeWithoutCache(ctx, m, q, key)
 			}()
 		} else {
 			setMsgTTLWithForce(msg, uint32(time.Until(expireTime).Seconds()), !resolver.IsProxyServer(ctx))
 		}
 		return
 	}
-	return r.exchangeWithoutCache(ctx, m)
+	return r.exchangeWithoutCache(ctx, m, q, key)
 }
 
 // ExchangeWithoutCache a batch of dns request, and it does NOT GET from cache
-func (r *Resolver) exchangeWithoutCache(ctx context.Context, m *D.Msg) (msg *D.Msg, err error) {
-	q := m.Question[0]
-
-	ret, err, shared := r.group.Do(q.String(), func() (result any, err error) {
+func (r *Resolver) exchangeWithoutCache(ctx context.Context, m *D.Msg, q D.Question, key string) (msg *D.Msg, err error) {
+	ret, err, shared := r.group.Do(key, func() (result any, err error) {
 		defer func() {
 			if err != nil {
 				return
@@ -179,11 +178,10 @@ func (r *Resolver) exchangeWithoutCache(ctx context.Context, m *D.Msg) (msg *D.M
 			if resolver.IsProxyServer(ctx) {
 				// reset proxy server ip ttl to at least 2 hours
 				setMsgTTLWithForce(msg1, 7200, false)
-				putMsgToCacheWithExpire(r.lruCache, q.String(), msg1, q, 7200)
+				putMsgToCacheWithExpire(r.lruCache, key, msg1, q, 7200)
 				return
 			}
 
-			key := genMsgCacheKey(ctx, q)
 			putMsgToCache(r.lruCache, key, msg1, q)
 		}()
 
@@ -366,11 +364,10 @@ func (r *Resolver) asyncExchange(ctx context.Context, client []dnsClient, msg *D
 }
 
 func (r *Resolver) RemoveCache(host string) {
-	n := D.Fqdn(host)
-	q1 := D.Question{Name: n, Qtype: D.TypeA, Qclass: D.ClassINET}
-	q2 := D.Question{Name: n, Qtype: D.TypeAAAA, Qclass: D.ClassINET}
-	r.lruCache.Delete(q1.String())
-	r.lruCache.Delete(q2.String())
+	q := D.Question{Name: D.Fqdn(host), Qtype: D.TypeA, Qclass: D.ClassINET}
+	r.lruCache.Delete(genMsgCacheKey(context.Background(), q))
+	q.Qtype = D.TypeAAAA
+	r.lruCache.Delete(genMsgCacheKey(context.Background(), q))
 }
 
 type NameServer struct {
@@ -432,7 +429,11 @@ func NewResolver(config Config) *Resolver {
 	}
 
 	if len(config.Remote) != 0 {
-		r.remote = transform(config.Remote, defaultResolver)
+		remotes := lo.Map(config.Remote, func(item NameServer, _ int) NameServer {
+			item.Proxy = "remote-resolver"
+			return item
+		})
+		r.remote = transform(remotes, defaultResolver)
 	}
 
 	if len(config.Policy) != 0 {
