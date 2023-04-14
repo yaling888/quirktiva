@@ -15,7 +15,6 @@ import (
 	"github.com/phuslu/log"
 	"github.com/samber/lo"
 	"go.uber.org/atomic"
-	"golang.org/x/sync/singleflight"
 
 	A "github.com/Dreamacro/clash/adapter"
 	"github.com/Dreamacro/clash/adapter/inbound"
@@ -63,8 +62,6 @@ var (
 		}
 		return providersMap
 	}
-
-	rawProxySingle singleflight.Group
 
 	UDPFallbackMatch  = atomic.NewBool(false)
 	UDPFallbackPolicy = atomic.NewString("")
@@ -116,9 +113,9 @@ func FindProxyByName(name string) (proxy C.Proxy, found bool) {
 		if pd.VehicleType() == provider.Compatible {
 			continue
 		}
-		for _, p := range pd.Proxies() {
-			found = p.Name() == name
-			if found {
+		ps := pd.Proxies()
+		for _, p := range ps {
+			if found = p.Name() == name; found {
 				proxy = p
 				return
 			}
@@ -127,38 +124,18 @@ func FindProxyByName(name string) (proxy C.Proxy, found bool) {
 	return
 }
 
-type rawProxyWrap struct {
-	proxy  C.Proxy
-	chains []string
-}
-
 func FetchRawProxyAdapter(proxy C.Proxy, metadata *C.Metadata) (C.Proxy, []string) {
-	result, _, _ := rawProxySingle.Do(proxy.Name(), func() (any, error) {
-		var chains []string
-		chains = append(chains, proxy.Name())
-		var (
-			rawProxy C.Proxy
-			subProxy = proxy.Unwrap(metadata)
-		)
-		for subProxy != nil {
-			chains = append(chains, subProxy.Name())
-			rawProxy = subProxy
-			subProxy = subProxy.Unwrap(metadata)
-		}
-		if rawProxy != nil {
-			return &rawProxyWrap{
-				proxy:  rawProxy,
-				chains: chains,
-			}, nil
-		}
-		return &rawProxyWrap{
-			proxy:  proxy,
-			chains: chains,
-		}, nil
-	})
-
-	rawProxy := result.(*rawProxyWrap)
-	return rawProxy.proxy, rawProxy.chains
+	var (
+		chains   = []string{proxy.Name()}
+		rawProxy = proxy
+		subProxy = proxy.Unwrap(metadata)
+	)
+	for subProxy != nil {
+		chains = append(chains, subProxy.Name())
+		rawProxy = subProxy
+		subProxy = subProxy.Unwrap(metadata)
+	}
+	return rawProxy, chains
 }
 
 // UpdateProxies handle update proxies
@@ -300,8 +277,10 @@ func resolveMetadata(_ C.PlainContext, metadata *C.Metadata) (proxy C.Proxy, rul
 		proxy = proxies["GLOBAL"]
 	case Script:
 		proxy, err = matchScript(metadata)
-	// Rule
-	default:
+		if err != nil {
+			err = fmt.Errorf("execute script failed: %w", err)
+		}
+	default: // Rule
 		proxy, rule, err = match(metadata)
 	}
 	return
@@ -349,11 +328,7 @@ func resolveDNS(metadata *C.Metadata, proxy, rawProxy C.Proxy) (isRemote bool, e
 	} else if isUDP {
 		err = localResolveDNS(metadata, true)
 	} else { // tcp
-		if proxy.DisableDnsResolve() && !rawProxy.DisableDnsResolve() {
-			err = localResolveDNS(metadata, false)
-		} else {
-			metadata.DstIP = netip.Addr{}
-		}
+		metadata.DstIP = netip.Addr{}
 	}
 	return
 }
@@ -495,22 +470,22 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 		pCtx.InjectPacketConn(rawPc)
 		pc := statistic.NewUDPTracker(rawPc, statistic.DefaultManager, metadata, rule)
 
-		entry := log.Info().EmbedObject(metadata)
 		switch true {
 		case metadata.SpecialProxy != "":
-			entry = entry.
-				Str("mode", "tunnel").
-				Str("specialProxy", metadata.SpecialProxy).
-				EmbedObject(rawPc)
+			log.Info().
+				EmbedObject(metadata).
+				EmbedObject(rawPc).
+				Msg("[UDP] tunnel connected")
 		case rule != nil:
-			entry = entry.
+			log.Info().
+				EmbedObject(metadata).
 				EmbedObject(mode).
 				Str("rule", fmt.Sprintf("%s(%s)", rule.RuleType().String(), rule.Payload())).
-				EmbedObject(rawPc)
+				EmbedObject(rawPc).
+				Msg("[UDP] connected")
 		default:
-			entry = entry.EmbedObject(mode).EmbedObject(rawPc)
+			log.Info().EmbedObject(metadata).EmbedObject(mode).EmbedObject(rawPc).Msg("[UDP] connected")
 		}
-		entry.Msg("[UDP] connected")
 
 		oAddr := metadata.DstIP
 		go handleUDPToLocal(packet.UDPPacket, pc, key, rKey, oAddr, fAddr)
@@ -555,7 +530,7 @@ func handleTCPConn(connCtx C.ConnContext) {
 		isMitmOutbound = proxy == mitmProxy
 	)
 
-	if !isMitmOutbound && metadata.SpecialProxy == "" {
+	if !isMitmOutbound {
 		rawProxy, chains = FetchRawProxyAdapter(proxy, metadata)
 		isRemote, err2 := resolveDNS(metadata, proxy, rawProxy)
 		if err2 != nil {
@@ -612,16 +587,13 @@ func handleTCPConn(connCtx C.ConnContext) {
 		_ = remoteConn.Close()
 	}(remoteConn)
 
-	switch true {
+	switch {
 	case isMitmOutbound:
-		break
 	case metadata.SpecialProxy != "":
 		log.Info().
 			EmbedObject(metadata).
-			Str("mode", "tunnel").
-			Str("specialProxy", metadata.SpecialProxy).
 			EmbedObject(remoteConn).
-			Msg("[TCP] connected")
+			Msg("[TCP] tunnel connected")
 	case rule != nil:
 		log.Info().
 			EmbedObject(metadata).
@@ -766,7 +738,7 @@ func matchScript(metadata *C.Metadata) (C.Proxy, error) {
 
 	adapter, ok := FindProxyByName(adapterName)
 	if !ok {
-		return nil, fmt.Errorf("proxy adapter [%s] not found by script", adapterName)
+		return nil, fmt.Errorf("proxy %s not found", adapterName)
 	}
 
 	if metadata.NetWork == C.UDP && !adapter.SupportUDP() {

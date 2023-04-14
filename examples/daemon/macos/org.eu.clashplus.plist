@@ -23,21 +23,24 @@ configuration folder: ~/.config/clash/
 <dict>
     <key>Label</key>
     <string>org.eu.clashplus</string>
-	<key>ProgramArguments</key>
-	<array>
+    <key>ProgramArguments</key>
+    <array>
         <string>sudo</string>
         <string>/usr/local/bin/clash</string>
     </array>
     <key>KeepAlive</key>
     <dict>
-    	<key>SuccessfulExit</key>
-    	<false/>
+        <key>SuccessfulExit</key>
+        <false/>
     </dict>
     <key>RunAtLoad</key>
     <true/>
-    <!-- <key>StandardErrorPath</key>
-    <string>/Users/your_user_name/.config/clash/clashplus.log</string>
+    <!-- remove the comment below and replace the 'your_username' with your own username, do not use relative path. -->
+    <!--
+    <key>StandardErrorPath</key>
+    <string>/Users/your_username/.config/clash/clashplus.log</string>
     <key>StandardOutPath</key>
-    <string>/Users/your_user_name/.config/clash/clashplus.log</string> -->
+    <string>/Users/your_username/.config/clash/clashplus.log</string>
+    -->
 </dict>
 </plist>

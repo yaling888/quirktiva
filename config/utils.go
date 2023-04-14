@@ -10,7 +10,11 @@ import (
 
 func trimArr(arr []string) (r []string) {
 	for _, e := range arr {
-		r = append(r, strings.Trim(e, " "))
+		t := strings.Trim(e, " ")
+		if t == "" {
+			continue
+		}
+		r = append(r, t)
 	}
 	return
 }

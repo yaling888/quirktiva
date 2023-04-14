@@ -61,10 +61,10 @@ func ParseProxyProvider(name string, mapping map[string]any, forceCertVerify boo
 
 	if schema.Header == nil {
 		schema.Header = map[string][]string{
-			"User-Agent": {"Clash/" + C.Version},
+			"User-Agent": {"ClashPlusPro/" + C.Version},
 		}
 	} else if _, ok := schema.Header["User-Agent"]; !ok {
-		schema.Header["User-Agent"] = []string{"Clash/" + C.Version}
+		schema.Header["User-Agent"] = []string{"ClashPlusPro/" + C.Version}
 	}
 
 	var hcInterval uint
@@ -80,6 +80,9 @@ func ParseProxyProvider(name string, mapping map[string]any, forceCertVerify boo
 	case "file":
 		vehicle = NewFileVehicle(path)
 	case "http":
+		if !C.Path.IsSubHomeDir(path) {
+			return nil, errors.New("the path is not a sub path of home directory")
+		}
 		vehicle = NewHTTPVehicle(path, schema.URL, schema.URLProxy, schema.Header)
 	default:
 		return nil, fmt.Errorf("%w: %s", errVehicleType, schema.Type)

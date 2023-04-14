@@ -90,7 +90,7 @@ func ServerHandshake(rw io.ReadWriter, authenticator auth.Authenticator) (addr s
 	}
 
 	// SOCKS4 only support USERID auth.
-	if authenticator == nil || authenticator.Verify(string(userID), "") {
+	if authenticator == nil || authenticator.HasUser(userID) {
 		code = RequestGranted
 	} else {
 		code = RequestIdentdMismatched

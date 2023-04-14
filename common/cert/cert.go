@@ -62,8 +62,9 @@ func NewAuthority(name, organization string, validity time.Duration) (*x509.Cert
 	tmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(serial),
 		Subject: pkix.Name{
-			CommonName:   name,
-			Organization: []string{organization},
+			CommonName:         name,
+			Organization:       []string{organization},
+			OrganizationalUnit: []string{"Clash"},
 		},
 		SubjectKeyId:          keyID,
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
@@ -247,9 +248,10 @@ func GenerateAndSave(caPath string, caKeyPath string) error {
 	tmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(time.Now().Unix()),
 		Subject: pkix.Name{
-			Country:      []string{"US"},
-			CommonName:   "Clash Root CA",
-			Organization: []string{"Clash Trust Services"},
+			Country:            []string{"US"},
+			CommonName:         "Clash Root CA",
+			Organization:       []string{"Clash Trust Services"},
+			OrganizationalUnit: []string{"Clash"},
 		},
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},

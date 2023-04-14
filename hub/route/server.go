@@ -2,6 +2,7 @@ package route
 
 import (
 	"bytes"
+	"crypto/subtle"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -22,7 +23,7 @@ import (
 )
 
 var (
-	serverSecret = ""
+	serverSecret []byte
 	serverAddr   = ""
 
 	uiPath = ""
@@ -57,7 +58,7 @@ func Start(addr string, secret string) {
 	}
 
 	serverAddr = addr
-	serverSecret = secret
+	serverSecret = []byte(secret)
 
 	r := chi.NewRouter()
 
@@ -115,7 +116,7 @@ func Start(addr string, secret string) {
 
 func authentication(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		if serverSecret == "" {
+		if len(serverSecret) == 0 {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -123,7 +124,7 @@ func authentication(next http.Handler) http.Handler {
 		// Browser websocket not support custom header
 		if websocket.IsWebSocketUpgrade(r) && r.URL.Query().Get("token") != "" {
 			token := r.URL.Query().Get("token")
-			if token != serverSecret {
+			if subtle.ConstantTimeCompare([]byte(token), serverSecret) != 1 {
 				render.Status(r, http.StatusUnauthorized)
 				render.JSON(w, r, ErrUnauthorized)
 				return
@@ -136,7 +137,7 @@ func authentication(next http.Handler) http.Handler {
 		bearer, token, found := strings.Cut(header, " ")
 
 		hasInvalidHeader := bearer != "Bearer"
-		hasInvalidSecret := !found || token != serverSecret
+		hasInvalidSecret := !found || subtle.ConstantTimeCompare([]byte(token), serverSecret) != 1
 		if hasInvalidHeader || hasInvalidSecret {
 			render.Status(r, http.StatusUnauthorized)
 			render.JSON(w, r, ErrUnauthorized)

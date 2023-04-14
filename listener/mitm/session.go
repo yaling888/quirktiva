@@ -39,14 +39,15 @@ func (s *Session) NewErrorResponse(err error) *http.Response {
 	return NewErrorResponse(s.request, err)
 }
 
-func (s *Session) writeResponse() error {
+func (s *Session) writeResponse() (err error) {
 	if s.response == nil {
 		return ErrInvalidResponse
 	}
-	defer func(resp *http.Response) {
-		_ = resp.Body.Close()
-	}(s.response)
-	return s.response.Write(s.conn)
+	err = s.response.Write(s.conn)
+	if s.response.Body != nil {
+		_ = s.response.Body.Close()
+	}
+	return
 }
 
 func newSession(conn net.Conn, request *http.Request, response *http.Response) *Session {

@@ -228,14 +228,21 @@ func dialContextByProxyOrInterface(
 		DstPort: port,
 	}
 
-	rawAdapter, _ := tunnel.FetchRawProxyAdapter(proxy, metadata)
-
 	if networkType == C.UDP {
-		if !rawAdapter.SupportUDP() && tunnel.UDPFallbackMatch.Load() {
-			return nil, fmt.Errorf("proxy adapter [%s] UDP is not supported", rawAdapter.Name())
+		if !proxy.SupportUDP() {
+			if tunnel.UDPFallbackMatch.Load() {
+				return nil, fmt.Errorf("proxy %s UDP is not supported", proxy.Name())
+			} else {
+				log.Debug().
+					Str("proxy", proxy.Name()).
+					Msg("[DNS] proxy UDP is not supported, fallback to TCP")
+
+				metadata.NetWork = C.TCP
+				goto tcp
+			}
 		}
 
-		packetConn, err := rawAdapter.ListenPacketContext(ctx, metadata, opts...)
+		packetConn, err := proxy.ListenPacketContext(ctx, metadata, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -246,7 +253,8 @@ func dialContextByProxyOrInterface(
 		}, nil
 	}
 
-	return rawAdapter.DialContext(ctx, metadata, opts...)
+tcp:
+	return proxy.DialContext(ctx, metadata, opts...)
 }
 
 func batchExchange(ctx context.Context, clients []dnsClient, m *D.Msg) (msg *D.Msg, err error) {

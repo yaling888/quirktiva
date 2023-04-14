@@ -141,7 +141,8 @@ func ServerHandshake(rw net.Conn, authenticator auth.Authenticator) (addr Addr, 
 		if _, err = io.ReadFull(rw, authBuf[:userLen]); err != nil {
 			return
 		}
-		user := string(authBuf[:userLen])
+		user := make([]byte, userLen)
+		copy(user, authBuf[:userLen])
 
 		// Get password
 		if _, err = rw.Read(header[:1]); err != nil {
@@ -156,7 +157,7 @@ func ServerHandshake(rw net.Conn, authenticator auth.Authenticator) (addr Addr, 
 		if _, err = io.ReadFull(rw, authBuf[:passLen]); err != nil {
 			return
 		}
-		pass := string(authBuf[:passLen])
+		pass := authBuf[:passLen]
 
 		// Verify
 		if ok := authenticator.Verify(user, pass); !ok {

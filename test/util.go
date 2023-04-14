@@ -24,7 +24,7 @@ func Listen(network, address string) (net.Listener, error) {
 
 func ListenPacket(network, address string) (net.PacketConn, error) {
 	var lastErr error
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 10; i++ {
 		l, err := net.ListenPacket(network, address)
 		if err == nil {
 			return l, nil

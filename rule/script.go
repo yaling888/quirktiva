@@ -20,7 +20,7 @@ func (s *Script) RuleType() C.RuleType {
 func (s *Script) Match(metadata *C.Metadata) bool {
 	rs, err := s.matcher.Match(metadata)
 	if err != nil {
-		log.Warn().Err(err).Msg("[Shortcuts]")
+		log.Warn().Err(err).Str("name", s.matcher.Name()).Msg("[Matcher] match shortcut failed")
 		return false
 	}
 

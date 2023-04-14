@@ -11,6 +11,7 @@ var (
 )
 
 type Matcher interface {
+	Name() string
 	Eval(metadata *Metadata) (string, error)
 	Match(metadata *Metadata) (bool, error)
 }

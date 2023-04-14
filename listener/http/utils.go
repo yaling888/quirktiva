@@ -1,12 +1,15 @@
 package http
 
 import (
+	"bytes"
 	"encoding/base64"
 	"errors"
 	"net"
 	"net/http"
 	"strings"
 )
+
+var basicAuthSep = []byte(":")
 
 // removeProxyHeaders remove Proxy-* headers
 func removeProxyHeaders(header http.Header) {
@@ -65,15 +68,15 @@ func parseBasicProxyAuthorization(request *http.Request) string {
 }
 
 // decodeBasicProxyAuthorization decode base64-encoded credential
-func decodeBasicProxyAuthorization(credential string) (string, string, error) {
+func decodeBasicProxyAuthorization(credential string) ([]byte, []byte, error) {
 	plain, err := base64.StdEncoding.DecodeString(credential)
 	if err != nil {
-		return "", "", err
+		return nil, nil, err
 	}
 
-	user, pass, found := strings.Cut(string(plain), ":")
+	user, pass, found := bytes.Cut(plain, basicAuthSep)
 	if !found {
-		return "", "", errors.New("invalid login")
+		return nil, nil, errors.New("invalid login")
 	}
 
 	return user, pass, nil

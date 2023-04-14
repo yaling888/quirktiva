@@ -518,18 +518,14 @@ tun:
 ```
 
 ### Template
-[Normal](https://github.com/yaling888/clash/blob/plus-pro/examples/template/local-client.yaml), usually used as a local client.
-
-[Auto redirect](https://github.com/yaling888/clash/blob/plus-pro/examples/template/auto-redir-transparent-gateway.yaml), usually used as a transparent proxy gateway.
-
-[Redirect to tun](https://github.com/yaling888/clash/blob/plus-pro/examples/template/redirect-to-tun-transparent-gateway.yaml), usually used as a transparent proxy gateway.
+* [Normal](https://github.com/yaling888/clash/blob/plus-pro/examples/template/local-client.yaml), usually used as a local client.
+* [Auto redirect](https://github.com/yaling888/clash/blob/plus-pro/examples/template/auto-redir-transparent-gateway.yaml), usually used as a transparent proxy gateway.
+* [Redirect to tun](https://github.com/yaling888/clash/blob/plus-pro/examples/template/redirect-to-tun-transparent-gateway.yaml), usually used as a transparent proxy gateway.
 
 ### Daemon
-For [macOS](https://github.com/yaling888/clash/blob/plus-pro/examples/daemon/macos/org.eu.clashplus.plist).
-
-For [Linux](https://github.com/yaling888/clash/blob/plus-pro/examples/daemon/linux/clash.service).
-
-For [Windows](https://github.com/yaling888/SoulX).
+* For [macOS](https://github.com/yaling888/clash/blob/plus-pro/examples/daemon/macos/org.eu.clashplus.plist).
+* For [Linux](https://github.com/yaling888/clash/blob/plus-pro/examples/daemon/linux/clash.service).
+* For [Windows](https://github.com/yaling888/SoulX).
 
 ### Web GUI
 Open the Dashboard online by click [http://yacd.clash-plus.cf](http://yacd.clash-plus.cf) for local API by Safari or [https://yacd.clash-plus.cf](https://yacd.clash-plus.cf) for local API by Chrome.

@@ -1,6 +1,7 @@
 package script
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/gofrs/uuid/v5"
@@ -76,10 +77,14 @@ func NewMatcher(name, filename, code string) (_ *Matcher, err error) {
 	}, nil
 }
 
+func (m *Matcher) Name() string {
+	return m.name
+}
+
 func (m *Matcher) Eval(metadata *C.Metadata) (string, error) {
 	metadataDict, err := metadataToDict(metadata)
 	if err != nil {
-		return "", fmt.Errorf("eval script function [%s] error: %w", m.name, err)
+		return "", err
 	}
 
 	predefined := make(starlark.StringDict)
@@ -95,25 +100,25 @@ func (m *Matcher) Eval(metadata *C.Metadata) (string, error) {
 
 	results, err := m.program.Init(thread, predefined)
 	if err != nil {
-		return "", fmt.Errorf("eval script function [%s] error: %w", m.name, err)
+		return "", err
 	}
 
 	evalResult := results[m.key]
 	if evalResult == nil {
-		return "", fmt.Errorf("eval script function [%s] error: return value is nil", m.name)
+		return "", errors.New("return value is nil")
 	}
 
 	if v, ok := evalResult.(starlark.String); ok {
 		return v.GoString(), nil
 	}
 
-	return "", fmt.Errorf("eval script function [%s] error: invalid return type, got %s, want string", m.name, evalResult.Type())
+	return "", fmt.Errorf("invalid return type, got %s, want string", evalResult.Type())
 }
 
 func (m *Matcher) Match(metadata *C.Metadata) (bool, error) {
 	predefined, err := metadataToStringDict(metadata, nil)
 	if err != nil {
-		return false, fmt.Errorf("match shortcut [%s] error: %w", m.name, err)
+		return false, err
 	}
 
 	predefined["now"] = time.Time(time.NowFunc())
@@ -128,17 +133,17 @@ func (m *Matcher) Match(metadata *C.Metadata) (bool, error) {
 
 	results, err := m.program.Init(thread, predefined)
 	if err != nil {
-		return false, fmt.Errorf("match shortcut [%s] error: %w", m.name, err)
+		return false, err
 	}
 
 	evalResult := results[m.key]
 	if evalResult == nil {
-		return false, fmt.Errorf("match shortcut [%s] error: return value is nil", m.name)
+		return false, errors.New("return value is nil")
 	}
 
 	if v, ok := evalResult.(starlark.Bool); ok {
 		return bool(v), nil
 	}
 
-	return false, fmt.Errorf("match shortcut [%s] error: invalid return type, got %s, want bool", m.name, evalResult.Type())
+	return false, fmt.Errorf("invalid return type, got %s, want bool", evalResult.Type())
 }

@@ -641,9 +641,8 @@ func parseProxies(cfg *RawConfig) (proxiesMap map[string]C.Proxy, pdsMap map[str
 
 func parseRules(cfg *RawConfig, proxies map[string]C.Proxy, matchers map[string]C.Matcher) ([]C.Rule, map[string]C.Rule, error) {
 	var (
-		rules   []C.Rule
-		foundRP bool
-
+		foundRP       bool
+		rules         = make([]C.Rule, 0, len(cfg.Rule))
 		ruleProviders = map[string]C.Rule{}
 		rulesConfig   = cfg.Rule
 	)
@@ -787,7 +786,7 @@ func parseNameServer(servers []string) ([]dns.NameServer, error) {
 			addr, err = hostWithDefaultPort(u.Host, "853")
 			dnsNetType = "tcp-tls" // DNS over TLS
 		case "https":
-			clearURL := url.URL{Scheme: "https", Host: u.Host, Path: u.Path}
+			clearURL := url.URL{Scheme: "https", Host: u.Host, Path: u.Path, User: u.User}
 			addr = clearURL.String()
 			dnsNetType = "https" // DNS over HTTPS
 		case "dhcp":
