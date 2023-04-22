@@ -41,6 +41,9 @@ func ParseRule(tp, payload, target string, params []string) (C.Rule, error) {
 		parsed, parseErr = NewScript(payload, target)
 	case "USER-AGENT":
 		parsed, parseErr = NewUserAgent(payload, target)
+	case "IPSET":
+		noResolve := HasNoResolve(params)
+		parsed, parseErr = NewIPSet(payload, target, noResolve)
 	case "MATCH":
 		parsed = NewMatch(target)
 	default:

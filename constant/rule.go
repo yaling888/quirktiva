@@ -17,6 +17,7 @@ const (
 	ProcessPath
 	Script
 	UserAgent
+	IPSet
 	MATCH
 )
 
@@ -50,6 +51,8 @@ func (rt RuleType) String() string {
 		return "Script"
 	case UserAgent:
 		return "UserAgent"
+	case IPSet:
+		return "IPSet"
 	case MATCH:
 		return "Match"
 	default:

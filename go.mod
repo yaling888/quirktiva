@@ -15,7 +15,7 @@ require (
 	github.com/phuslu/log v1.0.83
 	github.com/samber/lo v1.38.1
 	github.com/stretchr/testify v1.8.2
-	github.com/vishvananda/netlink v1.2.1-beta.2.0.20230316163032-ced5aaba43e3
+	github.com/vishvananda/netlink v1.2.1-beta.2.0.20230420174744-55c8b9515a01
 	github.com/xtls/go v0.0.0-20220914232946-0441cf4cf837
 	go.etcd.io/bbolt v1.3.7
 	go.starlark.net v0.0.0-20230302034142-4b1e35fe2254
