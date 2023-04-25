@@ -121,15 +121,14 @@ func (g *Conn) Read(b []byte) (n int, err error) {
 func (g *Conn) Write(b []byte) (n int, err error) {
 	protobufHeader := [binary.MaxVarintLen64 + 1]byte{0x0A}
 	varuintSize := binary.PutUvarint(protobufHeader[1:], uint64(len(b)))
-	grpcHeader := make([]byte, 5)
 	grpcPayloadLen := uint32(varuintSize + 1 + len(b))
-	binary.BigEndian.PutUint32(grpcHeader[1:5], grpcPayloadLen)
 
-	buf := pool.GetBuffer()
-	defer pool.PutBuffer(buf)
-	buf.Write(grpcHeader)
-	buf.Write(protobufHeader[:varuintSize+1])
-	buf.Write(b)
+	buf := pool.GetBufferWriter()
+	defer pool.PutBufferWriter(buf)
+	buf.PutUint8(0)
+	buf.PutUint32be(grpcPayloadLen)
+	buf.PutSlice(protobufHeader[:varuintSize+1])
+	buf.PutSlice(b)
 
 	_, err = g.writer.Write(buf.Bytes())
 	if err == io.ErrClosedPipe && g.err != nil {

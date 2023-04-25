@@ -1,8 +1,6 @@
 package vless
 
 import (
-	"bytes"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +9,8 @@ import (
 	"github.com/gofrs/uuid/v5"
 	xtls "github.com/xtls/go"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/Dreamacro/clash/common/pool"
 )
 
 type Conn struct {
@@ -34,10 +34,10 @@ func (vc *Conn) Read(b []byte) (int, error) {
 }
 
 func (vc *Conn) sendRequest() error {
-	buf := &bytes.Buffer{}
+	buf := pool.BufferWriter{}
 
-	buf.WriteByte(Version)   // protocol version
-	buf.Write(vc.id.Bytes()) // 16 bytes of uuid
+	buf.PutUint8(Version)       // protocol version
+	buf.PutSlice(vc.id.Bytes()) // 16 bytes of uuid
 
 	if vc.addons != nil {
 		bytes, err := proto.Marshal(vc.addons)
@@ -45,23 +45,23 @@ func (vc *Conn) sendRequest() error {
 			return err
 		}
 
-		buf.WriteByte(byte(len(bytes)))
-		buf.Write(bytes)
+		buf.PutUint8(byte(len(bytes)))
+		buf.PutSlice(bytes)
 	} else {
-		buf.WriteByte(0) // addon data length. 0 means no addon data
+		buf.PutUint8(0) // addon data length. 0 means no addon data
 	}
 
 	// command
 	if vc.dst.UDP {
-		buf.WriteByte(CommandUDP)
+		buf.PutUint8(CommandUDP)
 	} else {
-		buf.WriteByte(CommandTCP)
+		buf.PutUint8(CommandTCP)
 	}
 
 	// Port AddrType Addr
-	binary.Write(buf, binary.BigEndian, uint16(vc.dst.Port))
-	buf.WriteByte(vc.dst.AddrType)
-	buf.Write(vc.dst.Addr)
+	buf.PutUint16be(uint16(vc.dst.Port))
+	buf.PutUint8(vc.dst.AddrType)
+	buf.PutSlice(vc.dst.Addr)
 
 	_, err := vc.Conn.Write(buf.Bytes())
 	return err
@@ -86,7 +86,7 @@ func (vc *Conn) recvResponse() error {
 
 	length := int64(buf[0])
 	if length != 0 { // addon data length > 0
-		io.CopyN(io.Discard, vc.Conn, length) // just discard
+		_, _ = io.CopyN(io.Discard, vc.Conn, length) // just discard
 	}
 
 	return nil

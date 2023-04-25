@@ -16,7 +16,7 @@ import (
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 
-	"github.com/Dreamacro/clash/component/ebpf/byteorder"
+	"github.com/Dreamacro/clash/common/byteorder"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/transport/socks5"
 )

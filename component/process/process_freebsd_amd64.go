@@ -12,7 +12,7 @@ import (
 
 	"github.com/phuslu/log"
 
-	"github.com/Dreamacro/clash/component/ebpf/byteorder"
+	"github.com/Dreamacro/clash/common/byteorder"
 )
 
 // store process name for when dealing with multiple PROCESS-NAME rules

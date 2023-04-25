@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/Dreamacro/clash/component/ebpf/byteorder"
+	"github.com/Dreamacro/clash/common/byteorder"
 	"github.com/Dreamacro/clash/component/iface"
 )
 

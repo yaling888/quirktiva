@@ -1,7 +1,6 @@
 package vmess
 
 import (
-	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
@@ -12,11 +11,13 @@ import (
 	"errors"
 	"hash/fnv"
 	"io"
-	"math/big"
+	R "math/rand"
 	"net"
 	"time"
 
 	"golang.org/x/crypto/chacha20poly1305"
+
+	"github.com/Dreamacro/clash/common/pool"
 )
 
 // Conn wrapper a net.Conn with vmess protocol
@@ -57,52 +58,46 @@ func (vc *Conn) Read(b []byte) (int, error) {
 func (vc *Conn) sendRequest() error {
 	timestamp := time.Now()
 
-	mBuf := &bytes.Buffer{}
+	mBuf := pool.BufferWriter{}
 
 	if !vc.isAead {
 		h := hmac.New(md5.New, vc.id.UUID.Bytes())
 		_ = binary.Write(h, binary.BigEndian, uint64(timestamp.Unix()))
-		mBuf.Write(h.Sum(nil))
+		mBuf.PutSlice(h.Sum(nil))
 	}
 
-	buf := &bytes.Buffer{}
+	buf := pool.BufferWriter{}
 
 	// Ver IV Key V Opt
-	buf.WriteByte(Version)
-	buf.Write(vc.reqBodyIV[:])
-	buf.Write(vc.reqBodyKey[:])
-	buf.WriteByte(vc.respV)
-	buf.WriteByte(vc.option)
+	buf.PutUint8(Version)
+	buf.PutSlice(vc.reqBodyIV[:])
+	buf.PutSlice(vc.reqBodyKey[:])
+	buf.PutUint8(vc.respV)
+	buf.PutUint8(vc.option)
 
-	pad, err := rand.Int(rand.Reader, big.NewInt(16))
-	if err != nil {
-		return err
-	}
-	p := pad.Uint64()
+	p := R.Intn(16)
 	// P Sec Reserve Cmd
-	buf.WriteByte(byte(p<<4) | vc.security)
-	buf.WriteByte(0)
+	buf.PutUint8(byte(p<<4) | vc.security)
+	buf.PutUint8(0)
 	if vc.dst.UDP {
-		buf.WriteByte(CommandUDP)
+		buf.PutUint8(CommandUDP)
 	} else {
-		buf.WriteByte(CommandTCP)
+		buf.PutUint8(CommandTCP)
 	}
 
 	// Port AddrType Addr
-	_ = binary.Write(buf, binary.BigEndian, uint16(vc.dst.Port))
-	buf.WriteByte(vc.dst.AddrType)
-	buf.Write(vc.dst.Addr)
+	buf.PutUint16be(uint16(vc.dst.Port))
+	buf.PutUint8(vc.dst.AddrType)
+	buf.PutSlice(vc.dst.Addr)
 
 	// padding
 	if p > 0 {
-		padding := make([]byte, p)
-		_, _ = rand.Read(padding)
-		buf.Write(padding)
+		_ = buf.ReadFull(rand.Reader, p)
 	}
 
 	fnv1a := fnv.New32a()
 	_, _ = fnv1a.Write(buf.Bytes())
-	buf.Write(fnv1a.Sum(nil))
+	buf.PutSlice(fnv1a.Sum(nil))
 
 	if !vc.isAead {
 		block, err := aes.NewCipher(vc.id.CmdKey)
@@ -112,7 +107,7 @@ func (vc *Conn) sendRequest() error {
 
 		stream := cipher.NewCFBEncrypter(block, hashTimestamp(timestamp))
 		stream.XORKeyStream(buf.Bytes(), buf.Bytes())
-		mBuf.Write(buf.Bytes())
+		mBuf.PutSlice(buf.Bytes())
 		_, err = vc.Conn.Write(mBuf.Bytes())
 		return err
 	}
@@ -120,7 +115,7 @@ func (vc *Conn) sendRequest() error {
 	var fixedLengthCmdKey [16]byte
 	copy(fixedLengthCmdKey[:], vc.id.CmdKey)
 	vmessout := sealVMessAEADHeader(fixedLengthCmdKey, buf.Bytes(), timestamp)
-	_, err = vc.Conn.Write(vmessout)
+	_, err := vc.Conn.Write(vmessout)
 	return err
 }
 

@@ -1,14 +1,13 @@
 package socks4
 
 import (
-	"bytes"
-	"encoding/binary"
 	"errors"
 	"io"
 	"net"
 	"net/netip"
 	"strconv"
 
+	"github.com/Dreamacro/clash/common/pool"
 	"github.com/Dreamacro/clash/component/auth"
 )
 
@@ -49,20 +48,16 @@ func ServerHandshake(rw io.ReadWriter, authenticator auth.Authenticator) (addr s
 		return
 	}
 
-	if req[0] != Version {
+	r := pool.BufferReader(req[:])
+	if r.ReadUint8() != Version {
 		err = errVersionMismatched
 		return
 	}
 
-	if command = req[1]; command != CmdConnect {
+	if command = r.ReadUint8(); command != CmdConnect {
 		err = errCommandNotSupported
 		return
 	}
-
-	var (
-		dstIP   = netip.AddrFrom4([4]byte(req[4:8])) // [4]byte
-		dstPort = req[2:4]                           // [2]byte
-	)
 
 	var (
 		host   string
@@ -74,7 +69,9 @@ func ServerHandshake(rw io.ReadWriter, authenticator auth.Authenticator) (addr s
 		return
 	}
 
-	if isReservedIP(dstIP) {
+	dstPort := r.ReadUint16be()
+	dstAddr := r.ReadIPv4()
+	if isReservedIP(dstAddr) {
 		var target []byte
 		if target, err = readUntilNull(rw); err != nil {
 			return
@@ -82,11 +79,11 @@ func ServerHandshake(rw io.ReadWriter, authenticator auth.Authenticator) (addr s
 		host = string(target)
 	}
 
-	port = strconv.Itoa(int(binary.BigEndian.Uint16(dstPort)))
+	port = strconv.Itoa(int(dstPort))
 	if host != "" {
 		addr = net.JoinHostPort(host, port)
 	} else {
-		addr = net.JoinHostPort(dstIP.String(), port)
+		addr = net.JoinHostPort(dstAddr.String(), port)
 	}
 
 	// SOCKS4 only support USERID auth.
@@ -97,13 +94,13 @@ func ServerHandshake(rw io.ReadWriter, authenticator auth.Authenticator) (addr s
 		err = ErrRequestIdentdMismatched
 	}
 
-	var reply [8]byte
-	reply[0] = 0x00 // reply code
-	reply[1] = code // result code
-	copy(reply[4:8], dstIP.AsSlice())
-	copy(reply[2:4], dstPort)
+	reply := pool.BufferWriter(make([]byte, 0, 8))
+	reply.PutUint8(0)    // reply code
+	reply.PutUint8(code) // result code
+	reply.PutUint16be(dstPort)
+	reply.PutSlice(dstAddr.AsSlice())
 
-	_, wErr := rw.Write(reply[:])
+	_, wErr := rw.Write(reply.Bytes())
 	if err == nil {
 		err = wErr
 	}
@@ -128,17 +125,17 @@ func ClientHandshake(rw io.ReadWriter, addr string, command Command, userID stri
 		return errIPv6NotSupported
 	}
 
-	req := &bytes.Buffer{}
-	req.WriteByte(Version)
-	req.WriteByte(command)
-	_ = binary.Write(req, binary.BigEndian, uint16(port))
-	req.Write(dstIP.AsSlice())
-	req.WriteString(userID)
-	req.WriteByte(0) /* NULL */
+	req := pool.BufferWriter{}
+	req.PutUint8(Version)
+	req.PutUint8(command)
+	req.PutUint16be(uint16(port))
+	req.PutSlice(dstIP.AsSlice())
+	req.PutString(userID)
+	req.PutUint8(0) /* NULL */
 
 	if isReservedIP(dstIP) /* SOCKS4A */ {
-		req.WriteString(host)
-		req.WriteByte(0) /* NULL */
+		req.PutString(host)
+		req.PutUint8(0) /* NULL */
 	}
 
 	if _, err = rw.Write(req.Bytes()); err != nil {
@@ -180,7 +177,7 @@ func isReservedIP(ip netip.Addr) bool {
 }
 
 func readUntilNull(r io.Reader) ([]byte, error) {
-	buf := &bytes.Buffer{}
+	buf := pool.BufferWriter{}
 	var data [1]byte
 
 	for {
@@ -190,6 +187,6 @@ func readUntilNull(r io.Reader) ([]byte, error) {
 		if data[0] == 0 {
 			return buf.Bytes(), nil
 		}
-		buf.WriteByte(data[0])
+		buf.PutUint8(data[0])
 	}
 }

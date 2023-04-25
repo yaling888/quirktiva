@@ -1,11 +1,11 @@
 package outbound
 
 import (
-	"bytes"
 	"net"
 	"strconv"
 	"time"
 
+	"github.com/Dreamacro/clash/common/pool"
 	"github.com/Dreamacro/clash/component/resolver"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/transport/socks5"
@@ -19,24 +19,22 @@ func tcpKeepAlive(c net.Conn) {
 }
 
 func serializesSocksAddr(metadata *C.Metadata) []byte {
-	var buf [][]byte
+	buf := pool.BufferWriter{}
+
 	addrType := metadata.AddrType()
-	aType := uint8(addrType)
+	buf.PutUint8(uint8(addrType))
+
 	p, _ := strconv.ParseUint(metadata.DstPort, 10, 16)
-	port := []byte{uint8(p >> 8), uint8(p & 0xff)}
 	switch addrType {
 	case socks5.AtypDomainName:
-		lenM := uint8(len(metadata.Host))
-		host := []byte(metadata.Host)
-		buf = [][]byte{{aType, lenM}, host, port}
-	case socks5.AtypIPv4:
-		host := metadata.DstIP.AsSlice()
-		buf = [][]byte{{aType}, host, port}
-	case socks5.AtypIPv6:
-		host := metadata.DstIP.AsSlice()
-		buf = [][]byte{{aType}, host, port}
+		buf.PutUint8(uint8(len(metadata.Host)))
+		buf.PutString(metadata.Host)
+	case socks5.AtypIPv4, socks5.AtypIPv6:
+		buf.PutSlice(metadata.DstIP.AsSlice())
 	}
-	return bytes.Join(buf, nil)
+
+	buf.PutUint16be(uint16(p))
+	return buf.Bytes()
 }
 
 func resolveUDPAddr(network, address string) (*net.UDPAddr, error) {

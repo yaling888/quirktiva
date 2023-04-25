@@ -1,11 +1,13 @@
 package obfs
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"io"
 	"net"
+	"net/netip"
+
+	"github.com/Dreamacro/clash/common/pool"
 )
 
 type SessionStatus = byte
@@ -33,7 +35,7 @@ type MuxOption struct {
 // Mux is an mux-compatible client for v2ray-plugin, not a complete implementation
 type Mux struct {
 	net.Conn
-	buf    bytes.Buffer
+	buf    pool.BufferWriter
 	id     [2]byte
 	length [2]byte
 	status [2]byte
@@ -112,12 +114,12 @@ func (m *Mux) Write(b []byte) (int, error) {
 		m.otb = nil
 	}
 	m.buf.Reset()
-	binary.Write(&m.buf, binary.BigEndian, uint16(4))
-	m.buf.Write(m.id[:])
-	m.buf.WriteByte(SessionStatusKeep)
-	m.buf.WriteByte(OptionData)
-	binary.Write(&m.buf, binary.BigEndian, uint16(len(b)))
-	m.buf.Write(b)
+	m.buf.PutUint16be(4)
+	m.buf.PutSlice(m.id[:])
+	m.buf.PutUint8(SessionStatusKeep)
+	m.buf.PutUint8(OptionData)
+	m.buf.PutUint16be(uint16(len(b)))
+	m.buf.PutSlice(b)
 
 	return m.Conn.Write(m.buf.Bytes())
 }
@@ -131,35 +133,35 @@ func (m *Mux) Close() error {
 }
 
 func NewMux(conn net.Conn, option MuxOption) *Mux {
-	buf := &bytes.Buffer{}
+	buf := pool.BufferWriter{}
 
 	// fill empty length
-	buf.Write([]byte{0x0, 0x0})
-	buf.Write(option.ID[:])
-	buf.WriteByte(SessionStatusNew)
-	buf.WriteByte(OptionNone)
+	buf.PutSlice([]byte{0x0, 0x0})
+	buf.PutSlice(option.ID[:])
+	buf.PutUint8(SessionStatusNew)
+	buf.PutUint8(OptionNone)
 
 	// tcp
 	netType := byte(0x1)
 	if option.Type == "udp" {
 		netType = byte(0x2)
 	}
-	buf.WriteByte(netType)
+	buf.PutUint8(netType)
 
 	// port
-	binary.Write(buf, binary.BigEndian, option.Port)
+	buf.PutUint16be(option.Port)
 
 	// address
-	ip := net.ParseIP(option.Host)
-	if ip == nil {
-		buf.WriteByte(0x2)
-		buf.WriteString(option.Host)
-	} else if ipv4 := ip.To4(); ipv4 != nil {
-		buf.WriteByte(0x1)
-		buf.Write(ipv4)
+	ip, err := netip.ParseAddr(option.Host)
+	if err != nil {
+		buf.PutUint8(0x2)
+		buf.PutString(option.Host)
+	} else if ip.Is4() {
+		buf.PutUint8(0x1)
+		buf.PutSlice(ip.AsSlice())
 	} else {
-		buf.WriteByte(0x3)
-		buf.Write(ip.To16())
+		buf.PutUint8(0x3)
+		buf.PutSlice(ip.AsSlice())
 	}
 
 	metadata := buf.Bytes()

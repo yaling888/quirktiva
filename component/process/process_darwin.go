@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/Dreamacro/clash/component/ebpf/byteorder"
+	"github.com/Dreamacro/clash/common/byteorder"
 )
 
 const (

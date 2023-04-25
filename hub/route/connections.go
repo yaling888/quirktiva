@@ -1,7 +1,6 @@
 package route
 
 import (
-	"bytes"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -11,6 +10,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/gorilla/websocket"
 
+	"github.com/Dreamacro/clash/common/pool"
 	"github.com/Dreamacro/clash/tunnel/statistic"
 )
 
@@ -47,11 +47,11 @@ func getConnections(w http.ResponseWriter, r *http.Request) {
 		interval = t
 	}
 
-	buf := &bytes.Buffer{}
+	buf := pool.BufferWriter{}
 	sendSnapshot := func() error {
 		buf.Reset()
 		snapshot := statistic.DefaultManager.Snapshot()
-		if err := json.NewEncoder(buf).Encode(snapshot); err != nil {
+		if err := json.NewEncoder(&buf).Encode(snapshot); err != nil {
 			return err
 		}
 

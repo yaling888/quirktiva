@@ -1,7 +1,6 @@
 package route
 
 import (
-	"bytes"
 	"crypto/subtle"
 	"encoding/json"
 	"net"
@@ -17,6 +16,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/Dreamacro/clash/common/observable"
+	"github.com/Dreamacro/clash/common/pool"
 	C "github.com/Dreamacro/clash/constant"
 	L "github.com/Dreamacro/clash/log"
 	"github.com/Dreamacro/clash/tunnel/statistic"
@@ -170,12 +170,12 @@ func traffic(w http.ResponseWriter, r *http.Request) {
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
 	t := statistic.DefaultManager
-	buf := &bytes.Buffer{}
+	buf := pool.BufferWriter{}
 	var err error
 	for range tick.C {
 		buf.Reset()
 		up, down := t.Now()
-		if err := json.NewEncoder(buf).Encode(Traffic{
+		if err := json.NewEncoder(&buf).Encode(Traffic{
 			Up:   up,
 			Down: down,
 		}); err != nil {
@@ -231,7 +231,7 @@ func getLogs(w http.ResponseWriter, r *http.Request) {
 	var (
 		sub    observable.Subscription[L.Event]
 		ch     = make(chan L.Event, 1024)
-		buf    = &bytes.Buffer{}
+		buf    = pool.BufferWriter{}
 		closed = false
 	)
 
@@ -274,7 +274,7 @@ func getLogs(w http.ResponseWriter, r *http.Request) {
 		}
 		buf.Reset()
 
-		if err := json.NewEncoder(buf).Encode(Log{
+		if err := json.NewEncoder(&buf).Encode(Log{
 			Type:    logM.Type(),
 			Payload: logM.Payload,
 		}); err != nil {

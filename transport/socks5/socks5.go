@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"strconv"
 
+	"github.com/Dreamacro/clash/common/pool"
 	"github.com/Dreamacro/clash/component/auth"
 )
 
@@ -236,12 +237,12 @@ func ClientHandshake(rw io.ReadWriter, addr Addr, command Command, user *User) (
 		}
 
 		// password protocol version
-		authMsg := &bytes.Buffer{}
-		authMsg.WriteByte(1)
-		authMsg.WriteByte(uint8(len(user.Username)))
-		authMsg.WriteString(user.Username)
-		authMsg.WriteByte(uint8(len(user.Password)))
-		authMsg.WriteString(user.Password)
+		authMsg := pool.BufferWriter{}
+		authMsg.PutUint8(1)
+		authMsg.PutUint8(uint8(len(user.Username)))
+		authMsg.PutString(user.Username)
+		authMsg.PutUint8(uint8(len(user.Password)))
+		authMsg.PutString(user.Password)
 
 		if _, err := rw.Write(authMsg.Bytes()); err != nil {
 			return nil, err
@@ -331,39 +332,34 @@ func SplitAddr(b []byte) Addr {
 
 // ParseAddr parses the address in string s. Returns nil if failed.
 func ParseAddr(s string) Addr {
-	var addr Addr
+	buf := pool.BufferWriter{}
 	host, port, err := net.SplitHostPort(s)
 	if err != nil {
 		return nil
 	}
-	if ip := net.ParseIP(host); ip != nil {
-		if ip4 := ip.To4(); ip4 != nil {
-			addr = make([]byte, 1+net.IPv4len+2)
-			addr[0] = AtypIPv4
-			copy(addr[1:], ip4)
+	if ip, err := netip.ParseAddr(host); err == nil {
+		if ip.Is4() {
+			buf.PutUint8(AtypIPv4)
 		} else {
-			addr = make([]byte, 1+net.IPv6len+2)
-			addr[0] = AtypIPv6
-			copy(addr[1:], ip)
+			buf.PutUint8(AtypIPv6)
 		}
+		buf.PutSlice(ip.AsSlice())
 	} else {
 		if len(host) > 255 {
 			return nil
 		}
-		addr = make([]byte, 1+1+len(host)+2)
-		addr[0] = AtypDomainName
-		addr[1] = byte(len(host))
-		copy(addr[2:], host)
+		buf.PutUint8(AtypDomainName)
+		buf.PutUint8(byte(len(host)))
+		buf.PutString(host)
 	}
 
-	portnum, err := strconv.ParseUint(port, 10, 16)
+	portNum, err := strconv.ParseUint(port, 10, 16)
 	if err != nil {
 		return nil
 	}
 
-	addr[len(addr)-2], addr[len(addr)-1] = byte(portnum>>8), byte(portnum)
-
-	return addr
+	buf.PutUint16be(uint16(portNum))
+	return buf.Bytes()
 }
 
 // ParseAddrToSocksAddr parse a socks addr from net.addr
@@ -384,20 +380,19 @@ func ParseAddrToSocksAddr(addr net.Addr) Addr {
 		return ParseAddr(addr.String())
 	}
 
-	var parsed Addr
-	if ip4 := hostip.To4(); ip4.DefaultMask() != nil {
-		parsed = make([]byte, 1+net.IPv4len+2)
-		parsed[0] = AtypIPv4
-		copy(parsed[1:], ip4)
-		binary.BigEndian.PutUint16(parsed[1+net.IPv4len:], uint16(port))
-
+	var parsed pool.BufferWriter
+	if ip4 := hostip.To4(); ip4 != nil {
+		parsed = make([]byte, 0, 1+net.IPv4len+2)
+		parsed.PutUint8(AtypIPv4)
+		parsed.PutSlice(ip4)
 	} else {
-		parsed = make([]byte, 1+net.IPv6len+2)
-		parsed[0] = AtypIPv6
-		copy(parsed[1:], hostip)
-		binary.BigEndian.PutUint16(parsed[1+net.IPv6len:], uint16(port))
+		parsed = make([]byte, 0, 1+net.IPv6len+2)
+		parsed.PutUint8(AtypIPv6)
+		parsed.PutSlice(hostip)
 	}
-	return parsed
+
+	parsed.PutUint16be(uint16(port))
+	return parsed.Bytes()
 }
 
 func AddrFromStdAddrPort(addrPort netip.AddrPort) Addr {
@@ -417,28 +412,31 @@ func AddrFromStdAddrPort(addrPort netip.AddrPort) Addr {
 
 // DecodeUDPPacket split `packet` to addr payload, and this function is mutable with `packet`
 func DecodeUDPPacket(packet []byte) (addr Addr, payload []byte, err error) {
-	if len(packet) < 5 {
+	r := pool.BufferReader(packet)
+
+	if r.Len() < 5 {
 		err = errors.New("insufficient length of packet")
 		return
 	}
 
 	// packet[0] and packet[1] are reserved
-	if !bytes.Equal(packet[:2], []byte{0, 0}) {
+	reserved, r := r.SplitAt(2)
+	if !bytes.Equal(reserved, []byte{0, 0}) {
 		err = errors.New("reserved fields should be zero")
 		return
 	}
 
-	if packet[2] != 0 /* fragments */ {
+	if r.ReadUint8() != 0 /* fragments */ {
 		err = errors.New("discarding fragmented payload")
 		return
 	}
 
-	addr = SplitAddr(packet[3:])
+	addr = SplitAddr(r)
 	if addr == nil {
 		err = errors.New("failed to read UDP header")
 	}
 
-	payload = packet[3+len(addr):]
+	_, payload = r.SplitAt(len(addr))
 	return
 }
 
@@ -447,6 +445,10 @@ func EncodeUDPPacket(addr Addr, payload []byte) (packet []byte, err error) {
 		err = errors.New("address is invalid")
 		return
 	}
-	packet = bytes.Join([][]byte{{0, 0, 0}, addr, payload}, []byte{})
+	w := pool.BufferWriter{}
+	w.PutSlice([]byte{0, 0, 0})
+	w.PutSlice(addr)
+	w.PutSlice(payload)
+	packet = w.Bytes()
 	return
 }
