@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/netip"
 	"strings"
+	"time"
 
 	D "github.com/miekg/dns"
 
@@ -76,7 +77,6 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
 
 	// miekg/dns ExchangeContext doesn't respond to context cancel.
 	// this is a workaround
@@ -87,23 +87,24 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 
 	ch := make(chan result, 1)
 
-	go func(dc *D.Client, co net.Conn, mm *D.Msg, dch chan<- result) {
-		if strings.HasSuffix(dc.Net, "tls") {
-			co = tls.Client(co, dc.TLSConfig)
+	go func() {
+		if c.Client.Net == "tcp-tls" {
+			conn = tls.Client(conn, c.TLSConfig)
 		}
 
-		cc := &D.Conn{
-			Conn:         co,
-			UDPSize:      dc.UDPSize,
-			TsigSecret:   dc.TsigSecret,
-			TsigProvider: dc.TsigProvider,
+		co := &D.Conn{
+			Conn:         conn,
+			UDPSize:      c.Client.UDPSize,
+			TsigSecret:   c.Client.TsigSecret,
+			TsigProvider: c.Client.TsigProvider,
 		}
-		defer cc.Close()
 
-		msg, _, err2 := dc.ExchangeWithConn(mm, cc)
+		msg, _, err2 := c.Client.ExchangeWithConn(m, co)
 
-		dch <- result{msg, err2}
-	}(c.Client, conn, m, ch)
+		ch <- result{msg, err2}
+
+		_ = co.Close()
+	}()
 
 	select {
 	case <-ctx.Done():
@@ -117,5 +118,38 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 		}
 		logDnsResponse(m.Question[0], ret.msg, ret.err, clientNet, net.JoinHostPort(c.host, c.port), proxy)
 		return ret.msg, ret.err
+	}
+}
+
+func newClient(nw, addr, proxy, iface string, dhcp bool, r *Resolver) *client {
+	host, port, _ := net.SplitHostPort(addr)
+	var ip string
+	if _, err := netip.ParseAddr(host); err == nil {
+		ip = host
+	}
+
+	var timeout time.Duration
+	if proxy != "" {
+		timeout = proxyTimeout
+	} else {
+		timeout = resolver.DefaultDNSTimeout
+	}
+
+	return &client{
+		Client: &D.Client{
+			Net: nw,
+			TLSConfig: &tls.Config{
+				ServerName: host,
+			},
+			UDPSize: 4096,
+			Timeout: timeout,
+		},
+		port:   port,
+		host:   host,
+		ip:     ip,
+		iface:  iface,
+		proxy:  proxy,
+		isDHCP: dhcp,
+		r:      r,
 	}
 }

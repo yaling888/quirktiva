@@ -2,7 +2,6 @@ package dns
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -20,6 +19,11 @@ import (
 	"github.com/Dreamacro/clash/component/resolver"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/tunnel"
+)
+
+const (
+	proxyKey     = contextKey("key-dns-client-proxy")
+	proxyTimeout = 10 * time.Second
 )
 
 func putMsgToCache(c *cache.LruCache[string, *D.Msg], key string, msg *D.Msg, q D.Question) {
@@ -93,34 +97,7 @@ func transform(servers []NameServer, r *Resolver) []dnsClient {
 			continue
 		}
 
-		host, port, _ := net.SplitHostPort(s.Addr)
-		var ip string
-		if _, err := netip.ParseAddr(host); err == nil {
-			ip = host
-		}
-		var timeout time.Duration
-		if s.Proxy != "" {
-			timeout = proxyTimeout
-		} else {
-			timeout = resolver.DefaultDNSTimeout
-		}
-		ret = append(ret, &client{
-			Client: &D.Client{
-				Net: s.Net,
-				TLSConfig: &tls.Config{
-					ServerName: host,
-				},
-				UDPSize: 4096,
-				Timeout: timeout,
-			},
-			port:   port,
-			host:   host,
-			iface:  s.Interface,
-			r:      r,
-			proxy:  s.Proxy,
-			isDHCP: s.IsDHCP,
-			ip:     ip,
-		})
+		ret = append(ret, newClient(s.Net, s.Addr, s.Proxy, s.Interface, s.IsDHCP, r))
 	}
 	return ret
 }
@@ -289,6 +266,26 @@ func genMsgCacheKey(ctx context.Context, q D.Question) string {
 		return fmt.Sprintf("%s:%s:%d:%d", proxy, q.Name, q.Qtype, q.Qclass)
 	}
 	return fmt.Sprintf("%s:%d:%d", q.Name, q.Qtype, q.Qclass)
+}
+
+func getTCPConn(ctx context.Context, addr string) (conn net.Conn, err error) {
+	if proxy, ok := ctx.Value(proxyKey).(string); ok {
+		host, port, _ := net.SplitHostPort(addr)
+		ip, err1 := netip.ParseAddr(host)
+		if err1 != nil {
+			return nil, err1
+		}
+		conn, err = dialContextByProxyOrInterface(ctx, "tcp", ip, port, proxy)
+	} else {
+		conn, err = dialer.DialContext(ctx, "tcp", addr)
+	}
+
+	if err == nil {
+		if c, ok := conn.(*net.TCPConn); ok {
+			_ = c.SetKeepAlive(true)
+		}
+	}
+	return
 }
 
 func logDnsResponse(q D.Question, msg *D.Msg, err error, network, source, proxyAdapter string) {

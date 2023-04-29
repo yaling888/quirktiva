@@ -10,21 +10,17 @@ import (
 	"net/http"
 	"net/netip"
 	urlPkg "net/url"
+	"sync"
 	"time"
 
 	D "github.com/miekg/dns"
 
-	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"
-	"github.com/Dreamacro/clash/tunnel"
 )
 
 const (
 	// dotMimeType is the DoH mimetype that should be used.
 	dotMimeType = "application/dns-message"
-
-	proxyKey     = contextKey("key-doh-proxy")
-	proxyTimeout = 10 * time.Second
 )
 
 type contextKey string
@@ -35,9 +31,12 @@ type dohClient struct {
 	addr      string
 	proxy     string
 	urlLog    string
-	resolved  bool
 	timeout   time.Duration
 	transport *http.Transport
+
+	mux            sync.Mutex // guards following fields
+	resolved       bool
+	proxyTransport map[string]*http.Transport
 }
 
 func (dc *dohClient) Exchange(m *D.Msg) (msg *D.Msg, err error) {
@@ -45,23 +44,24 @@ func (dc *dohClient) Exchange(m *D.Msg) (msg *D.Msg, err error) {
 }
 
 func (dc *dohClient) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg, err error) {
+	dc.mux.Lock()
 	if !dc.resolved {
 		host, port, _ := net.SplitHostPort(dc.addr)
 		ips, err1 := resolver.LookupIPByResolver(context.Background(), host, dc.r)
 		if err1 != nil {
+			dc.mux.Unlock()
 			return nil, err1
 		}
 
-		if !dc.resolved {
-			u, _ := urlPkg.Parse(dc.url)
-			addr := net.JoinHostPort(ips[rand.Intn(len(ips))].String(), port)
+		u, _ := urlPkg.Parse(dc.url)
+		addr := net.JoinHostPort(ips[rand.Intn(len(ips))].String(), port)
 
-			u.Host = addr
-			dc.url = u.String()
-			dc.addr = addr
-			dc.resolved = true
-		}
+		u.Host = addr
+		dc.url = u.String()
+		dc.addr = addr
+		dc.resolved = true
 	}
+	dc.mux.Unlock()
 
 	// https://datatracker.ietf.org/doc/html/rfc8484#section-4.1
 	// In order to maximize cache friendliness, SHOULD use a DNS ID of 0 in every DNS request.
@@ -72,17 +72,12 @@ func (dc *dohClient) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg,
 		return nil, err
 	}
 
-	var (
-		proxy    = dc.proxy
-		hasProxy bool
-	)
-
+	proxy := dc.proxy
 	if p, ok := resolver.GetProxy(ctx); ok {
 		proxy = p
 	}
 
 	if proxy != "" {
-		_, hasProxy = tunnel.FindProxyByName(proxy)
 		ctx = context.WithValue(ctx, proxyKey, proxy)
 	}
 
@@ -93,7 +88,7 @@ func (dc *dohClient) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg,
 	}
 
 	req = req.WithContext(ctx)
-	msg, err = dc.doRequest(ctx, req, hasProxy)
+	msg, err = dc.doRequest(req, proxy)
 	if err == nil {
 		msg.Id = m.Id
 	}
@@ -118,30 +113,8 @@ func (dc *dohClient) newRequest(m *D.Msg) (*http.Request, error) {
 	return req, nil
 }
 
-func (dc *dohClient) doRequest(ctx context.Context, req *http.Request, hasProxy bool) (msg *D.Msg, err error) {
-	var client1 *http.Client
-	if hasProxy {
-		conn, err1 := getConn(ctx, dc.addr)
-		if err1 != nil {
-			return nil, err1
-		}
-		defer conn.Close()
-		transport := &http.Transport{
-			DialContext: func(ctx context.Context, network string, addr string) (net.Conn, error) {
-				return conn, nil
-			},
-			TLSClientConfig:     dc.transport.TLSClientConfig,
-			MaxIdleConns:        1,
-			MaxIdleConnsPerHost: 1,
-			MaxConnsPerHost:     1,
-			IdleConnTimeout:     1 * time.Second,
-		}
-		client1 = &http.Client{Transport: transport}
-		defer client1.CloseIdleConnections()
-	} else {
-		client1 = &http.Client{Transport: dc.transport}
-	}
-
+func (dc *dohClient) doRequest(req *http.Request, proxy string) (msg *D.Msg, err error) {
+	client1 := &http.Client{Transport: dc.getTransport(proxy)}
 	resp, err := client1.Do(req)
 	if err != nil {
 		return nil, err
@@ -159,6 +132,32 @@ func (dc *dohClient) doRequest(ctx context.Context, req *http.Request, hasProxy 
 	return msg, err
 }
 
+func (dc *dohClient) getTransport(proxy string) *http.Transport {
+	if proxy == "" {
+		return dc.transport
+	}
+
+	dc.mux.Lock()
+	if transport, ok := dc.proxyTransport[proxy]; ok {
+		dc.mux.Unlock()
+		return transport
+	}
+
+	transport := &http.Transport{
+		ForceAttemptHTTP2:   dc.transport.ForceAttemptHTTP2,
+		DialContext:         dc.transport.DialContext,
+		TLSClientConfig:     dc.transport.TLSClientConfig.Clone(),
+		TLSHandshakeTimeout: dc.transport.TLSHandshakeTimeout,
+		MaxIdleConnsPerHost: 5,
+		IdleConnTimeout:     10 * time.Minute,
+	}
+
+	dc.proxyTransport[proxy] = transport
+	dc.mux.Unlock()
+
+	return transport
+}
+
 func newDoHClient(url string, proxy string, r *Resolver) *dohClient {
 	u, _ := urlPkg.Parse(url)
 	host := u.Hostname()
@@ -168,9 +167,14 @@ func newDoHClient(url string, proxy string, r *Resolver) *dohClient {
 	}
 	addr := net.JoinHostPort(host, port)
 
-	var timeout time.Duration
+	var (
+		timeout        time.Duration
+		proxyTransport map[string]*http.Transport
+	)
+
 	if proxy != "" {
 		timeout = proxyTimeout
+		proxyTransport = make(map[string]*http.Transport)
 	} else {
 		timeout = resolver.DefaultDNSTimeout
 	}
@@ -191,25 +195,15 @@ func newDoHClient(url string, proxy string, r *Resolver) *dohClient {
 		transport: &http.Transport{
 			ForceAttemptHTTP2: true,
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return getConn(ctx, addr)
+				return getTCPConn(ctx, addr)
 			},
 			TLSClientConfig: &tls.Config{
 				ServerName: host,
 				NextProtos: []string{"dns"},
 			},
+			TLSHandshakeTimeout: timeout,
+			MaxIdleConnsPerHost: 5,
 		},
+		proxyTransport: proxyTransport,
 	}
-}
-
-func getConn(ctx context.Context, addr string) (net.Conn, error) {
-	if proxy, ok := ctx.Value(proxyKey).(string); ok {
-		host, port, _ := net.SplitHostPort(addr)
-		ip, err := netip.ParseAddr(host)
-		if err != nil {
-			return nil, err
-		}
-		return dialContextByProxyOrInterface(ctx, "tcp", ip, port, proxy)
-	}
-
-	return dialer.DialContext(ctx, "tcp", addr)
 }
