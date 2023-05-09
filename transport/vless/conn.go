@@ -45,7 +45,12 @@ func (vc *Conn) sendRequest() error {
 			return err
 		}
 
-		buf.PutUint8(byte(len(bytes)))
+		l := len(bytes)
+		if l > 255 {
+			return errors.New("invalid addons length")
+		}
+
+		buf.PutUint8(uint8(l))
 		buf.PutSlice(bytes)
 	} else {
 		buf.PutUint8(0) // addon data length. 0 means no addon data

@@ -3,6 +3,8 @@ package adapter
 import (
 	"fmt"
 
+	"github.com/phuslu/log"
+
 	"github.com/Dreamacro/clash/adapter/outbound"
 	"github.com/Dreamacro/clash/common/structure"
 	C "github.com/Dreamacro/clash/constant"
@@ -106,6 +108,7 @@ func ParseProxy(mapping map[string]any, forceCertVerify, udp, autoCipher, random
 		if udp {
 			vlessOption.UDP = true
 		}
+		log.Warn().Str("name", vlessOption.Name).Msg("[Config] proxy type VLESS is deprecated")
 		proxy, err = outbound.NewVless(*vlessOption)
 	case "snell":
 		snellOption := &outbound.SnellOption{}
@@ -131,6 +134,9 @@ func ParseProxy(mapping map[string]any, forceCertVerify, udp, autoCipher, random
 		}
 		if udp {
 			trojanOption.UDP = true
+		}
+		if trojanOption.Flow != "" {
+			log.Warn().Str("proxy", trojanOption.Name).Msg("[Config] trojan xTLS is deprecated")
 		}
 		proxy, err = outbound.NewTrojan(*trojanOption)
 	case "wireguard":
