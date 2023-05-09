@@ -14,7 +14,10 @@ import (
 )
 
 func TestWireGuard(t *testing.T) {
-	configPath := C.Path.Resolve("wireguard.conf")
+	if isDarwin {
+		t.Skip("network mode 'host' unsupported, skip test")
+		return
+	}
 
 	cfg := &container.Config{
 		Image: ImageBoringTun,
@@ -41,7 +44,7 @@ func TestWireGuard(t *testing.T) {
 				{HostPort: "10001", HostIP: "0.0.0.0"},
 			},
 		},
-		Binds:  []string{fmt.Sprintf("%s:/etc/wireguard/wg0.conf", configPath)},
+		Binds:  []string{fmt.Sprintf("%s:/etc/wireguard/wg0.conf", C.Path.Resolve("wireguard.conf"))},
 		CapAdd: []string{"MKNOD", "NET_ADMIN", "NET_RAW"},
 	}
 

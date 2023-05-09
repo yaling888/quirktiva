@@ -128,8 +128,10 @@ socks-port: 0
 mixed-port: 0
 redir-port: 0
 tproxy-port: 0
+mitm-port: 0
 dns:
 	enable: false
+	listen: ""
 `
 
 func cleanup() {
@@ -598,9 +600,9 @@ func testSuit(t *testing.T, proxy C.ProxyAdapter) {
 		DstPort: "10001",
 	})
 	require.NoError(t, err)
-	defer pc.Close()
 
 	assert.NoError(t, testPacketConnTimeout(t, pc))
+	_ = pc.Close()
 }
 
 func benchmarkProxy(b *testing.B, proxy C.ProxyAdapter) {
@@ -658,7 +660,9 @@ func benchmarkProxy(b *testing.B, proxy C.ProxyAdapter) {
 func TestClash_Basic(t *testing.T) {
 	basic := `
 mixed-port: 10000
-log-level: debug
+log-level: silent
+rules:
+  - match, DIRECT
 `
 
 	err := parseAndApply(basic)

@@ -125,6 +125,10 @@ func TestClash_TrojanWebsocket(t *testing.T) {
 }
 
 func TestClash_TrojanXTLS(t *testing.T) {
+	if !t.Skipped() {
+		t.Skip("xtls is deprecated, skip test")
+		return
+	}
 	cfg := &container.Config{
 		Image:        ImageXray,
 		ExposedPorts: defaultExposedPorts,

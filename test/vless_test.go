@@ -13,8 +13,12 @@ import (
 )
 
 func TestClash_VlessTLS(t *testing.T) {
+	if !t.Skipped() {
+		t.Skip("vless is deprecated, skip test")
+		return
+	}
 	cfg := &container.Config{
-		Image:        ImageVmess,
+		Image:        ImageXray,
 		ExposedPorts: defaultExposedPorts,
 	}
 	hostCfg := &container.HostConfig{
@@ -48,6 +52,10 @@ func TestClash_VlessTLS(t *testing.T) {
 }
 
 func TestClash_VlessXTLS(t *testing.T) {
+	if !t.Skipped() {
+		t.Skip("vless is deprecated, skip test")
+		return
+	}
 	cfg := &container.Config{
 		Image:        ImageXray,
 		ExposedPorts: defaultExposedPorts,
@@ -85,8 +93,12 @@ func TestClash_VlessXTLS(t *testing.T) {
 }
 
 func TestClash_VlessWS(t *testing.T) {
+	if !t.Skipped() {
+		t.Skip("vless is deprecated, skip test")
+		return
+	}
 	cfg := &container.Config{
-		Image:        ImageVmess,
+		Image:        ImageXray,
 		ExposedPorts: defaultExposedPorts,
 	}
 	hostCfg := &container.HostConfig{
