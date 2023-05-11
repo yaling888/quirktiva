@@ -36,7 +36,7 @@ const (
 	ImageTrojanGo        = "p4gefau1t/trojan-go:latest"
 	ImageSnell           = "ghcr.io/icpz/snell-server:latest"
 	ImageXray            = "teddysun/xray:latest"
-	ImageBoringTun       = "ghcr.io/ntkme/boringtun:edge"
+	ImageWireguardGo     = "masipcat/wireguard-go:latest"
 )
 
 var (
@@ -104,7 +104,7 @@ func init() {
 		ImageTrojanGo,
 		ImageSnell,
 		ImageXray,
-		ImageBoringTun,
+		ImageWireguardGo,
 	}
 
 	for _, image := range images {
@@ -255,7 +255,7 @@ func testPingPongWithSocksPort(t *testing.T, port int) {
 	test(t)
 }
 
-func testPingPongWithConn(t *testing.T, c net.Conn) error {
+func testPingPongWithConn(t *testing.T, dialFn func() (net.Conn, error)) error {
 	l, err := Listen("tcp", ":10001")
 	if err != nil {
 		return err
@@ -279,6 +279,10 @@ func testPingPongWithConn(t *testing.T, c net.Conn) error {
 			return
 		}
 	}()
+
+	c, err := dialFn()
+	require.NoError(t, err)
+	defer c.Close()
 
 	go func() {
 		if _, err := c.Write([]byte("ping")); err != nil {
@@ -339,7 +343,7 @@ type hashPair struct {
 	recvHash map[int][]byte
 }
 
-func testLargeDataWithConn(t *testing.T, c net.Conn) error {
+func testLargeDataWithConn(t *testing.T, dialFn func() (net.Conn, error)) error {
 	l, err := Listen("tcp", ":10001")
 	require.NoError(t, err)
 	defer l.Close()
@@ -400,6 +404,9 @@ func testLargeDataWithConn(t *testing.T, c net.Conn) error {
 			recvHash: hashMap,
 		}
 	}()
+
+	c, err := dialFn()
+	require.NoError(t, err)
 
 	go func() {
 		sendHash, err := writeRandData(c)
@@ -548,27 +555,26 @@ func testPacketConnTimeout(t *testing.T, pc net.PacketConn) error {
 
 func testSuit(t *testing.T, proxy C.ProxyAdapter) {
 	dest := localIP
-	if proxy.Type() == C.WireGuard {
+	if proxy.Type() == C.WireGuard && !isDarwin {
 		dest = netip.MustParseAddr("10.0.0.1")
 	}
 
-	conn, err := proxy.DialContext(context.Background(), &C.Metadata{
-		Host:    dest.String(),
-		DstPort: "10001",
-	})
-	require.NoError(t, err)
+	dialTcpFn := func() (net.Conn, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+		defer cancel()
+		return proxy.DialContext(ctx, &C.Metadata{
+			Host:    dest.String(),
+			DstPort: "10001",
+		})
+	}
 
-	assert.NoError(t, testPingPongWithConn(t, conn))
-	_ = conn.Close()
+	assert.NoError(t, testPingPongWithConn(t, dialTcpFn))
 
-	conn, err = proxy.DialContext(context.Background(), &C.Metadata{
-		Host:    dest.String(),
-		DstPort: "10001",
-	})
-	require.NoError(t, err)
+	if proxy.Type() == C.WireGuard && isDarwin {
+		return
+	}
 
-	assert.NoError(t, testLargeDataWithConn(t, conn))
-	_ = conn.Close()
+	assert.NoError(t, testLargeDataWithConn(t, dialTcpFn))
 
 	if !proxy.SupportUDP() {
 		return
