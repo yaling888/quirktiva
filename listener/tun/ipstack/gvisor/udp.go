@@ -98,13 +98,13 @@ func dialUDP(s *stack.Stack, id tcpip.NICID, lAddr, rAddr netip.AddrPort) (*gone
 
 	src := &tcpip.FullAddress{
 		NIC:  id,
-		Addr: tcpip.Address(lAddr.Addr().AsSlice()),
+		Addr: tcpip.AddrFromSlice(lAddr.Addr().AsSlice()),
 		Port: lAddr.Port(),
 	}
 
 	dst := &tcpip.FullAddress{
 		NIC:  id,
-		Addr: tcpip.Address(rAddr.Addr().AsSlice()),
+		Addr: tcpip.AddrFromSlice(rAddr.Addr().AsSlice()),
 		Port: rAddr.Port(),
 	}
 

@@ -98,7 +98,7 @@ func (gh *gvHandler) HandleTCP(tunConn net.Conn) {
 func (gh *gvHandler) HandleUDP(stack *stack.Stack, id stack.TransportEndpointID, pkt stack.PacketBufferPtr) {
 	defer pkt.DecRef()
 
-	rAddr, ok := netip.AddrFromSlice([]byte(id.LocalAddress))
+	rAddr, ok := netip.AddrFromSlice(id.LocalAddress.AsSlice())
 	if !ok {
 		log.Debug().Msg("[GVisor] udp endpoint not connected")
 		return
@@ -109,7 +109,7 @@ func (gh *gvHandler) HandleUDP(stack *stack.Stack, id stack.TransportEndpointID,
 		return
 	}
 
-	lAddr, ok := netip.AddrFromSlice([]byte(id.RemoteAddress))
+	lAddr, ok := netip.AddrFromSlice(id.RemoteAddress.AsSlice())
 	if !ok {
 		log.Debug().Msg("[GVisor] udp endpoint not connected")
 		return

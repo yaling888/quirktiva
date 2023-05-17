@@ -67,7 +67,7 @@ func CreateNetTUN(localAddresses, dnsServers []netip.Addr, mtu int) (tun.Device,
 		}
 		protoAddr := tcpip.ProtocolAddress{
 			Protocol:          protoNumber,
-			AddressWithPrefix: tcpip.Address(ip.AsSlice()).WithPrefix(),
+			AddressWithPrefix: tcpip.AddrFromSlice(ip.AsSlice()).WithPrefix(),
 		}
 		tcpipErr := dev.stack.AddProtocolAddress(1, protoAddr, stack.AddressProperties{})
 		if tcpipErr != nil {
@@ -185,7 +185,7 @@ func convertToFullAddr(endpoint netip.AddrPort) (tcpip.FullAddress, tcpip.Networ
 	}
 	return tcpip.FullAddress{
 		NIC:  1,
-		Addr: tcpip.Address(endpoint.Addr().AsSlice()),
+		Addr: tcpip.AddrFromSlice(endpoint.Addr().AsSlice()),
 		Port: endpoint.Port(),
 	}, protoNumber
 }
