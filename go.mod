@@ -9,12 +9,12 @@ require (
 	github.com/go-chi/render v1.0.2
 	github.com/gofrs/uuid/v5 v5.0.0
 	github.com/gorilla/websocket v1.5.0
-	github.com/insomniacslk/dhcp v0.0.0-20230407062729-974c6f05fe16
+	github.com/insomniacslk/dhcp v0.0.0-20230516061539-49801966e6cb
 	github.com/miekg/dns v1.1.54
 	github.com/oschwald/geoip2-golang v1.8.0
 	github.com/phuslu/log v1.0.86
 	github.com/samber/lo v1.38.1
-	github.com/stretchr/testify v1.8.2
+	github.com/stretchr/testify v1.8.3
 	github.com/vishvananda/netlink v1.2.1-beta.2.0.20230420174744-55c8b9515a01
 	github.com/xtls/go v0.0.0-20220914232946-0441cf4cf837
 	go.etcd.io/bbolt v1.3.7
