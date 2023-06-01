@@ -4,7 +4,7 @@ import (
 	"net"
 	"net/netip"
 
-	"gvisor.dev/gvisor/pkg/bufferv2"
+	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -19,7 +19,7 @@ type packet struct {
 	stack *stack.Stack
 	nicID tcpip.NICID
 	lAddr netip.AddrPort
-	data  *bufferv2.View
+	data  *buffer.View
 }
 
 func (pkt *packet) Data() []byte {

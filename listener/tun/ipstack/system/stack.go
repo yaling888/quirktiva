@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/phuslu/log"
-	"gvisor.dev/gvisor/pkg/bufferv2"
+	"gvisor.dev/gvisor/pkg/buffer"
 
 	"github.com/Dreamacro/clash/adapter/inbound"
 	"github.com/Dreamacro/clash/common/nnip"
@@ -167,10 +167,10 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 				continue
 			}
 
-			data := bufferv2.NewViewWithData(buf[:n])
+			data := buffer.NewViewWithData(buf[:n])
 
 			if D.ShouldHijackDns(dnsAddr, rAddrPort, "udp") {
-				go func(st *mars.StackListener, dat *bufferv2.View, rap, lap netip.AddrPort) {
+				go func(st *mars.StackListener, dat *buffer.View, rap, lap netip.AddrPort) {
 					log.Debug().Str("addr", rap.String()).Msg("[TUN] hijack udp dns")
 
 					defer dat.Release()

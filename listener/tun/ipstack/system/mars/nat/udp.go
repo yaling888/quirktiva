@@ -7,14 +7,14 @@ import (
 	"net/netip"
 	"sync"
 
-	"gvisor.dev/gvisor/pkg/bufferv2"
+	"gvisor.dev/gvisor/pkg/buffer"
 
 	dev "github.com/Dreamacro/clash/listener/tun/device"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/system/mars/tcpip"
 )
 
 type udpElement struct {
-	packet      *bufferv2.View
+	packet      *buffer.View
 	source      netip.AddrPort
 	destination netip.AddrPort
 }
@@ -124,7 +124,7 @@ func (u *UDP) handleUDPPacket(ip tcpip.IP, pkt tcpip.UDPPacket) {
 	}
 
 	elem := u.getUDPElement()
-	elem.packet = bufferv2.NewViewWithData(pkt.Payload())
+	elem.packet = buffer.NewViewWithData(pkt.Payload())
 
 	elem.source = netip.AddrPortFrom(ip.SourceIP(), pkt.SourcePort())
 	elem.destination = netip.AddrPortFrom(ip.DestinationIP(), pkt.DestinationPort())

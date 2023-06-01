@@ -4,7 +4,7 @@ import (
 	"net"
 	"net/netip"
 
-	"gvisor.dev/gvisor/pkg/bufferv2"
+	"gvisor.dev/gvisor/pkg/buffer"
 
 	"github.com/Dreamacro/clash/listener/tun/ipstack/system/mars/nat"
 )
@@ -12,7 +12,7 @@ import (
 type packet struct {
 	sender *nat.UDP
 	lAddr  netip.AddrPort
-	data   *bufferv2.View
+	data   *buffer.View
 }
 
 func (pkt *packet) Data() []byte {
