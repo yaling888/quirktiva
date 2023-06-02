@@ -88,14 +88,8 @@ func (a Addr) UDPAddr() *net.UDPAddr {
 
 // SOCKS errors as defined in RFC 1928 section 6.
 const (
-	ErrGeneralFailure       = Error(1)
-	ErrConnectionNotAllowed = Error(2)
-	ErrNetworkUnreachable   = Error(3)
-	ErrHostUnreachable      = Error(4)
-	ErrConnectionRefused    = Error(5)
-	ErrTTLExpired           = Error(6)
-	ErrCommandNotSupported  = Error(7)
-	ErrAddressNotSupported  = Error(8)
+	ErrCommandNotSupported = Error(7)
+	ErrAddressNotSupported = Error(8)
 )
 
 // ErrAuth errors used to return a specific "Auth failed" error
@@ -320,7 +314,6 @@ func SplitAddr(b []byte) Addr {
 		addrLen = 1 + net.IPv6len + 2
 	default:
 		return nil
-
 	}
 
 	if len(b) < addrLen {
@@ -396,18 +389,21 @@ func ParseAddrToSocksAddr(addr net.Addr) Addr {
 }
 
 func AddrFromStdAddrPort(addrPort netip.AddrPort) Addr {
-	addr := addrPort.Addr()
-	if addr.Is4() {
-		ip4 := addr.As4()
-		return []byte{AtypIPv4, ip4[0], ip4[1], ip4[2], ip4[3], byte(addrPort.Port() >> 8), byte(addrPort.Port())}
+	addr := addrPort.Addr().Unmap()
+	if !addr.IsValid() {
+		return nil
 	}
 
-	buf := make([]byte, 1+net.IPv6len+2)
-	buf[0] = AtypIPv6
-	copy(buf[1:], addr.AsSlice())
-	buf[1+net.IPv6len] = byte(addrPort.Port() >> 8)
-	buf[1+net.IPv6len+1] = byte(addrPort.Port())
-	return buf
+	buf := pool.BufferWriter{}
+	if addr.Is4() {
+		buf.PutUint8(AtypIPv4)
+	} else {
+		buf.PutUint8(AtypIPv6)
+	}
+
+	buf.PutSlice(addr.AsSlice())
+	buf.PutUint16be(addrPort.Port())
+	return buf.Bytes()
 }
 
 // DecodeUDPPacket split `packet` to addr payload, and this function is mutable with `packet`

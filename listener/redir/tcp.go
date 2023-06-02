@@ -3,6 +3,8 @@ package redir
 import (
 	"net"
 
+	"github.com/phuslu/log"
+
 	"github.com/Dreamacro/clash/adapter/inbound"
 	C "github.com/Dreamacro/clash/constant"
 )
@@ -58,9 +60,10 @@ func New(addr string, in chan<- C.ConnContext) (*Listener, error) {
 func handleRedir(conn net.Conn, in chan<- C.ConnContext) {
 	target, err := parserPacket(conn)
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
+		log.Warn().Err(err).Msg("[Redir] handle redirect")
 		return
 	}
-	conn.(*net.TCPConn).SetKeepAlive(true)
+	_ = conn.(*net.TCPConn).SetKeepAlive(true)
 	in <- inbound.NewSocket(target, conn, C.REDIR)
 }

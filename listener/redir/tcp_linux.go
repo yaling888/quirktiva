@@ -23,15 +23,22 @@ func parserPacket(conn net.Conn) (socks5.Addr, error) {
 		return nil, err
 	}
 
-	var addr netip.AddrPort
+	var (
+		addr     netip.AddrPort
+		innerErr error
+	)
 
-	rc.Control(func(fd uintptr) {
+	err = rc.Control(func(fd uintptr) {
 		if ip4 := c.LocalAddr().(*net.TCPAddr).IP.To4(); ip4 != nil {
-			addr, err = getorigdst(fd)
+			addr, innerErr = getorigdst(fd)
 		} else {
-			addr, err = getorigdst6(fd)
+			addr, innerErr = getorigdst6(fd)
 		}
 	})
+
+	if innerErr != nil {
+		err = innerErr
+	}
 
 	return socks5.AddrFromStdAddrPort(addr), err
 }
