@@ -12,13 +12,13 @@ require (
 	github.com/insomniacslk/dhcp v0.0.0-20230516061539-49801966e6cb
 	github.com/miekg/dns v1.1.54
 	github.com/oschwald/geoip2-golang v1.8.0
-	github.com/phuslu/log v1.0.86
+	github.com/phuslu/log v1.0.87
 	github.com/samber/lo v1.38.1
-	github.com/stretchr/testify v1.8.3
-	github.com/vishvananda/netlink v1.2.1-beta.2.0.20230420174744-55c8b9515a01
+	github.com/stretchr/testify v1.8.4
+	github.com/vishvananda/netlink v1.2.1-beta.2.0.20230604041157-acdc658b8613
 	github.com/xtls/go v0.0.0-20220914232946-0441cf4cf837
 	go.etcd.io/bbolt v1.3.7
-	go.starlark.net v0.0.0-20230302034142-4b1e35fe2254
+	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.5.2
 	golang.org/x/crypto v0.9.0
@@ -27,11 +27,11 @@ require (
 	golang.org/x/sys v0.8.0
 	golang.org/x/text v0.9.0
 	golang.org/x/time v0.3.0
-	golang.zx2c4.com/wireguard v0.0.0-20230325221338-052af4a8072b
+	golang.zx2c4.com/wireguard v0.0.0-20230421181259-ac2fe4ce9227
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b
 	google.golang.org/protobuf v1.30.0
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20230601233700-64d1e9c09bfd
+	gvisor.dev/gvisor v0.0.0-20230610041700-6b8dbbf6f6fb
 )
 
 require (
