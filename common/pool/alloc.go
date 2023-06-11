@@ -32,29 +32,38 @@ func NewAllocator() *Allocator {
 
 // Get a []byte from pool with most appropriate cap
 func (alloc *Allocator) Get(size int) []byte {
-	if size <= 0 || size > 65536 {
+	switch {
+	case size < 0:
+		panic("alloc.Get: len out of range")
+	case size == 0:
 		return nil
-	}
+	case size > 65536:
+		return make([]byte, size)
+	default:
+		bt := msb(size)
+		if size == 1<<bt {
+			return alloc.buffers[bt].Get().([]byte)[:size]
+		}
 
-	bits := msb(size)
-	if size == 1<<bits {
-		return alloc.buffers[bits].Get().([]byte)[:size]
+		return alloc.buffers[bt+1].Get().([]byte)[:size]
 	}
-
-	return alloc.buffers[bits+1].Get().([]byte)[:size]
 }
 
 // Put returns a []byte to pool for future use,
 // which the cap must be exactly 2^n
 func (alloc *Allocator) Put(buf []byte) error {
-	bits := msb(cap(buf))
-	if cap(buf) == 0 || cap(buf) > 65536 || cap(buf) != 1<<bits {
+	if cap(buf) == 0 || cap(buf) > 65536 {
+		return nil
+	}
+
+	bt := msb(cap(buf))
+	if cap(buf) != 1<<bt {
 		return errors.New("allocator Put() incorrect buffer size")
 	}
 
 	//nolint
 	//lint:ignore SA6002 ignore temporarily
-	alloc.buffers[bits].Put(buf)
+	alloc.buffers[bt].Put(buf)
 	return nil
 }
 

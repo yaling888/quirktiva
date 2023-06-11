@@ -57,7 +57,7 @@ func (pp *ProxySetProvider) Name() string {
 }
 
 func (pp *ProxySetProvider) HealthCheck() {
-	pp.healthCheck.check()
+	pp.healthCheck.checkAll()
 }
 
 func (pp *ProxySetProvider) Update() error {
@@ -113,13 +113,13 @@ func (pp *ProxySetProvider) setProxies(proxies []C.Proxy) {
 		})
 		statistic.DefaultManager.KickOut(names...)
 		if pp.healthCheck.auto() {
-			go pp.healthCheck.check()
+			go pp.healthCheck.checkAll()
 		}
 	} else if pp.healthCheck.auto() {
 		go func() {
 			time.Sleep(45 * time.Second)
 			if pp.healthCheck.auto() {
-				pp.healthCheck.check()
+				pp.healthCheck.checkAll()
 			}
 		}()
 	}
@@ -193,7 +193,7 @@ func (cp *CompatibleProvider) Name() string {
 }
 
 func (cp *CompatibleProvider) HealthCheck() {
-	cp.healthCheck.check()
+	cp.healthCheck.checkAll()
 }
 
 func (cp *CompatibleProvider) Update() error {
@@ -304,7 +304,7 @@ func (cp *CompatibleProvider) healthCheckWait() {
 	cp.hcWait.Store(true)
 	time.Sleep(30 * time.Second)
 	if cp.healthCheck.auto() {
-		cp.healthCheck.check()
+		cp.healthCheck.checkAll()
 	}
 	cp.hcWait.Store(false)
 }

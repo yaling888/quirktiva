@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io"
+	"net"
 	"net/netip"
 	"sync"
 	"unicode/utf8"
@@ -239,6 +240,13 @@ func (br *BufferReader) Skip(n int) {
 }
 
 func (br *BufferReader) Read(p []byte) (n int, err error) {
+	if br.IsEmpty() {
+		if len(p) == 0 {
+			return 0, nil
+		}
+		return 0, io.EOF
+	}
+
 	n = copy(p, *br)
 	*br = (*br)[n:]
 	return
@@ -394,6 +402,22 @@ func (bw *BufferWriter) PutVarint(v int64) {
 
 func (bw *BufferWriter) PutSlice(p []byte) {
 	copy(bw.next(len(p)), p)
+}
+
+func (bw *BufferWriter) PutIPv4(ip net.IP) {
+	copy(bw.next(4), ip.To4())
+}
+
+func (bw *BufferWriter) PutIPv6(ip net.IP) {
+	copy(bw.next(16), ip.To16())
+}
+
+func (bw *BufferWriter) PutNetIPv4(addr netip.Addr) {
+	bw.PutIPv4(addr.AsSlice())
+}
+
+func (bw *BufferWriter) PutNetIPv6(addr netip.Addr) {
+	bw.PutIPv6(addr.AsSlice())
 }
 
 func (bw *BufferWriter) PutString(s string) {

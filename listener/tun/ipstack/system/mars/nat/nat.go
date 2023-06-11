@@ -11,7 +11,7 @@ import (
 	"github.com/Dreamacro/clash/listener/tun/ipstack/system/mars/tcpip"
 )
 
-func Start(device dev.Device, gateway, portal, broadcast netip.Addr) (*TCP, *UDP, error) {
+func Start(device dev.Device, gateway, portal, _ netip.Addr) (*TCP, *UDP, error) {
 	if !portal.Is4() || !gateway.Is4() {
 		return nil, nil, net.InvalidAddrError("only ipv4 supported")
 	}
@@ -118,7 +118,7 @@ func Start(device dev.Device, gateway, portal, broadcast netip.Addr) (*TCP, *UDP
 
 				destinationIP := ip.DestinationIP()
 
-				if !destinationIP.IsGlobalUnicast() || destinationIP == broadcast {
+				if !destinationIP.IsGlobalUnicast() {
 					continue
 				}
 

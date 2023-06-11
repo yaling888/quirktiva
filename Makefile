@@ -24,6 +24,7 @@ PLATFORM_LIST = \
 	linux-mips64 \
 	linux-mips64le \
 	linux-riscv64 \
+	linux-loong64 \
 	freebsd-386 \
 	freebsd-amd64 \
 	freebsd-amd64-v3 \
@@ -91,6 +92,9 @@ linux-mips64le:
 
 linux-riscv64:
 	GOARCH=riscv64 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
+
+linux-loong64:
+	GOARCH=loong64 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
 
 freebsd-386:
 	GOARCH=386 GOOS=freebsd $(GOBUILD) -o $(BINDIR)/$(NAME)-$@

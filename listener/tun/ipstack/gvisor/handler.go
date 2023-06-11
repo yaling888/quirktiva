@@ -105,7 +105,7 @@ func (gh *gvHandler) HandleUDP(stack *stack.Stack, id stack.TransportEndpointID,
 	}
 	rAddrPort := netip.AddrPortFrom(rAddr.Unmap(), id.LocalPort)
 
-	if rAddrPort.Addr() == gh.gateway || rAddrPort.Addr() == gh.broadcast {
+	if rAddrPort.Addr() == gh.gateway {
 		return
 	}
 

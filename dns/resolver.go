@@ -156,7 +156,9 @@ func (r *Resolver) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg, e
 		if expireTime.Before(now) {
 			setMsgTTL(msg, uint32(1)) // Continue fetch
 			go func() {
-				_, _ = r.exchangeWithoutCache(ctx, m, q, key)
+				ctx1, cancel := context.WithTimeout(ctx, resolver.DefaultDNSTimeout)
+				_, _ = r.exchangeWithoutCache(ctx1, m, q, key)
+				cancel()
 			}()
 		} else {
 			setMsgTTLWithForce(msg, uint32(time.Until(expireTime).Seconds()), !resolver.IsProxyServer(ctx))

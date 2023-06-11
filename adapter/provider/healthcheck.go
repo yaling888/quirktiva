@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/samber/lo"
 	"go.uber.org/atomic"
 
 	"github.com/Dreamacro/clash/common/batch"
@@ -42,7 +43,14 @@ func (hc *HealthCheck) process() {
 		case <-hc.ticker.C:
 			now := time.Now().Unix()
 			if !hc.lazy || now-hc.lastTouch.Load() < int64(hc.interval) {
-				hc.check()
+				hc.checkAll()
+			} else { // lazy but still need to check not alive proxies
+				notAliveProxies := lo.Filter(hc.getProxies(), func(proxy C.Proxy, _ int) bool {
+					return !proxy.Alive()
+				})
+				if len(notAliveProxies) != 0 {
+					hc.check(notAliveProxies)
+				}
 			}
 		case <-hc.done:
 			hc.ticker.Stop()
@@ -68,13 +76,18 @@ func (hc *HealthCheck) touch() {
 	hc.lastTouch.Store(time.Now().Unix())
 }
 
-func (hc *HealthCheck) check() {
-	var proxies []C.Proxy
+func (hc *HealthCheck) getProxies() []C.Proxy {
 	if hc.proxiesFn != nil {
-		proxies = hc.proxiesFn()
-	} else {
-		proxies = hc.proxies
+		return hc.proxiesFn()
 	}
+	return hc.proxies
+}
+
+func (hc *HealthCheck) checkAll() {
+	hc.check(hc.getProxies())
+}
+
+func (hc *HealthCheck) check(proxies []C.Proxy) {
 	if len(proxies) == 0 {
 		return
 	}
