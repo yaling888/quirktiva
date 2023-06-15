@@ -80,7 +80,7 @@ func handleSocksUDP(pc net.PacketConn, in chan<- *inbound.PacketAdapter, buf []b
 		bufRef:  buf,
 	}
 	select {
-	case in <- inbound.NewPacket(target, packet, C.SOCKS5):
+	case in <- inbound.NewPacket(target, pc.LocalAddr(), packet, C.SOCKS5):
 	default:
 	}
 }

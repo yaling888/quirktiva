@@ -3,6 +3,7 @@ package inbound
 import (
 	"net"
 	"net/http"
+	"net/netip"
 
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/context"
@@ -15,6 +16,9 @@ func NewHTTPS(request *http.Request, conn net.Conn) *context.ConnContext {
 	if ip, port, err := parseAddr(conn.RemoteAddr().String()); err == nil {
 		metadata.SrcIP = ip
 		metadata.SrcPort = port
+	}
+	if addrPort, err := netip.ParseAddrPort(conn.LocalAddr().String()); err == nil {
+		metadata.OriginDst = addrPort
 	}
 	return context.NewConnContext(conn, metadata)
 }

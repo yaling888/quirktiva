@@ -6,4 +6,4 @@ import (
 )
 
 //go:linkname validMethod net/http.validMethod
-func validMethod(method string) bool
+func validMethod(_ string) bool

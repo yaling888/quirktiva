@@ -92,7 +92,8 @@ func resolveProcessName(thread *starlark.Thread, _ *starlark.Builtin, _ starlark
 
 	if mtd.Process == "" {
 		if srcPort, err := strconv.ParseUint(mtd.SrcPort, 10, 16); err == nil {
-			if path, err1 := P.FindProcessName(mtd.NetWork.String(), mtd.SrcIP, int(srcPort)); err1 == nil {
+			path, err1 := P.FindProcessPath(mtd.NetWork.String(), netip.AddrPortFrom(mtd.SrcIP, uint16(srcPort)), mtd.OriginDst)
+			if err1 == nil {
 				mtd.Process = filepath.Base(path)
 				mtd.ProcessPath = path
 			}
@@ -112,7 +113,8 @@ func resolveProcessPath(thread *starlark.Thread, _ *starlark.Builtin, _ starlark
 
 	if mtd.ProcessPath == "" {
 		if srcPort, err := strconv.ParseUint(mtd.SrcPort, 10, 16); err == nil {
-			if path, err1 := P.FindProcessName(mtd.NetWork.String(), mtd.SrcIP, int(srcPort)); err1 == nil {
+			path, err1 := P.FindProcessPath(mtd.NetWork.String(), netip.AddrPortFrom(mtd.SrcIP, uint16(srcPort)), mtd.OriginDst)
+			if err1 == nil {
 				mtd.Process = filepath.Base(path)
 				mtd.ProcessPath = path
 			}

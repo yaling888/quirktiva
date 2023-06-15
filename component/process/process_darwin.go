@@ -30,7 +30,7 @@ func init() {
 	}
 }
 
-func findProcessName(network string, ip netip.Addr, port int) (string, error) {
+func findProcessPath(network string, from netip.AddrPort, _ netip.AddrPort) (string, error) {
 	var spath string
 	switch network {
 	case TCP:
@@ -61,7 +61,7 @@ func findProcessName(network string, ip netip.Addr, port int) (string, error) {
 		inp, so := i, i+104
 
 		srcPort := binary.BigEndian.Uint16(buf[inp+18 : inp+20])
-		if uint16(port) != srcPort {
+		if from.Port() != srcPort {
 			continue
 		}
 
@@ -75,26 +75,23 @@ func findProcessName(network string, ip netip.Addr, port int) (string, error) {
 			srcIP, _ = netip.AddrFromSlice(buf[inp+76 : inp+80])
 		case flag&0x2 > 0:
 			// ipv6
-			ipv6 := buf[inp+64 : inp+80]
-			ipv6[2] = 0x00
-			ipv6[3] = 0x00
-			srcIP, _ = netip.AddrFromSlice(ipv6)
+			srcIP, _ = netip.AddrFromSlice(buf[inp+64 : inp+80])
 		default:
 			continue
 		}
 
-		if ip.Is4() {
-			srcIP = srcIP.Unmap()
+		if !srcIP.IsValid() {
+			continue
 		}
 
-		if ip == srcIP {
+		if from.Addr() == srcIP {
 			// xsocket_n.so_last_pid
 			pid := readNativeUint32(buf[so+68 : so+72])
 			return getExecPathFromPID(pid)
 		}
 
 		// udp packet connection may be not equal with srcIP
-		if network == UDP && srcIP.IsUnspecified() && srcIP.Is4() {
+		if network == UDP && srcIP.IsUnspecified() && from.Addr().Is4() == srcIP.Is4() {
 			fallbackUDPProcess, _ = getExecPathFromPID(readNativeUint32(buf[so+68 : so+72]))
 		}
 	}

@@ -45,7 +45,7 @@ func HandleUpgrade(localConn net.Conn, serverConn *N.BufferedConn, request *http
 
 		left, right := net.Pipe()
 
-		in <- inbound.NewHTTP(dstAddr, localConn.RemoteAddr(), right)
+		in <- inbound.NewHTTP(dstAddr, localConn.RemoteAddr(), localConn.LocalAddr(), right)
 
 		serverConn = N.NewBufferedConn(left)
 

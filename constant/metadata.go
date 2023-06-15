@@ -103,6 +103,8 @@ type Metadata struct {
 	ProcessPath  string     `json:"processPath"`
 	UserAgent    string     `json:"userAgent"`
 	SpecialProxy string     `json:"specialProxy"`
+
+	OriginDst netip.AddrPort `json:"-"`
 }
 
 func (m *Metadata) RemoteAddress() string {

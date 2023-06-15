@@ -657,8 +657,13 @@ func match(metadata *C.Metadata) (C.Proxy, C.Rule, error) {
 			processFound = true
 
 			srcPort, err := strconv.ParseUint(metadata.SrcPort, 10, 16)
-			if err == nil {
-				path, err2 := P.FindProcessName(metadata.NetWork.String(), metadata.SrcIP, int(srcPort))
+			if err == nil && metadata.OriginDst.IsValid() {
+				path, err2 := P.FindProcessPath(
+					metadata.NetWork.String(),
+					netip.AddrPortFrom(metadata.SrcIP, uint16(srcPort)),
+					metadata.OriginDst,
+				)
+
 				if err2 != nil {
 					log.Debug().
 						Err(err2).

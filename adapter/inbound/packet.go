@@ -1,6 +1,7 @@
 package inbound
 
 import (
+	"net"
 	"net/netip"
 	"strconv"
 
@@ -20,7 +21,7 @@ func (s *PacketAdapter) Metadata() *C.Metadata {
 }
 
 // NewPacket is PacketAdapter generator
-func NewPacket(target socks5.Addr, packet C.UDPPacket, source C.Type) *PacketAdapter {
+func NewPacket(target socks5.Addr, originTarget net.Addr, packet C.UDPPacket, source C.Type) *PacketAdapter {
 	metadata := parseSocksAddr(target)
 	metadata.NetWork = C.UDP
 	metadata.Type = source
@@ -28,7 +29,11 @@ func NewPacket(target socks5.Addr, packet C.UDPPacket, source C.Type) *PacketAda
 		metadata.SrcIP = ip
 		metadata.SrcPort = port
 	}
-
+	if originTarget != nil {
+		if addrPort, err := netip.ParseAddrPort(originTarget.String()); err == nil {
+			metadata.OriginDst = addrPort
+		}
+	}
 	return &PacketAdapter{
 		UDPPacket: packet,
 		metadata:  metadata,
@@ -44,6 +49,7 @@ func NewPacketBy(packet C.UDPPacket, src, dst netip.AddrPort, tp C.Type) *Packet
 	metadata.SrcPort = strconv.FormatUint(uint64(src.Port()), 10)
 	metadata.DstIP = dst.Addr()
 	metadata.DstPort = strconv.FormatUint(uint64(dst.Port()), 10)
+	metadata.OriginDst = dst
 
 	return &PacketAdapter{
 		UDPPacket: packet,

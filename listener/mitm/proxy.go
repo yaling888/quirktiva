@@ -132,7 +132,7 @@ readLoop:
 						session.request.TLS = connState
 					}
 
-					serverConn, err = getServerConn(serverConn, session.request, sourceAddr, in)
+					serverConn, err = getServerConn(serverConn, session.request, sourceAddr, conn.LocalAddr(), in)
 					if err != nil {
 						break
 					}
@@ -160,7 +160,7 @@ readLoop:
 
 			// forward websocket
 			if isWebsocketRequest(request) {
-				serverConn, err = getServerConn(serverConn, session.request, sourceAddr, in)
+				serverConn, err = getServerConn(serverConn, session.request, sourceAddr, conn.LocalAddr(), in)
 				if err != nil {
 					break
 				}
@@ -195,7 +195,7 @@ readLoop:
 				if session.request.URL.Host == "" {
 					session.response = session.NewErrorResponse(ErrInvalidURL)
 				} else {
-					serverConn, err = getServerConn(serverConn, session.request, sourceAddr, in)
+					serverConn, err = getServerConn(serverConn, session.request, sourceAddr, conn.LocalAddr(), in)
 					if err != nil {
 						break
 					}

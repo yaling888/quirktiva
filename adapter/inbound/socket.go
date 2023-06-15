@@ -19,7 +19,9 @@ func NewSocket(target socks5.Addr, conn net.Conn, source C.Type) *context.ConnCo
 		metadata.SrcIP = ip
 		metadata.SrcPort = port
 	}
-
+	if addrPort, err := netip.ParseAddrPort(conn.LocalAddr().String()); err == nil {
+		metadata.OriginDst = addrPort
+	}
 	return context.NewConnContext(conn, metadata)
 }
 
@@ -32,6 +34,7 @@ func NewSocketBy(conn net.Conn, src, dst netip.AddrPort, tp C.Type) *context.Con
 	metadata.SrcPort = strconv.FormatUint(uint64(src.Port()), 10)
 	metadata.DstIP = dst.Addr()
 	metadata.DstPort = strconv.FormatUint(uint64(dst.Port()), 10)
+	metadata.OriginDst = dst
 
 	return context.NewConnContext(conn, metadata)
 }
