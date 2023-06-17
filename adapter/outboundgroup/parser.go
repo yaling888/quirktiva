@@ -3,7 +3,8 @@ package outboundgroup
 import (
 	"errors"
 	"fmt"
-	"regexp"
+
+	regexp "github.com/dlclark/regexp2"
 
 	"github.com/Dreamacro/clash/adapter/outbound"
 	"github.com/Dreamacro/clash/adapter/provider"
@@ -65,7 +66,7 @@ func ParseProxyGroup(
 
 	var filterRegx *regexp.Regexp
 	if groupOption.Filter != "" {
-		regx, err := regexp.Compile(groupOption.Filter)
+		regx, err := regexp.Compile(groupOption.Filter, 0)
 		if err != nil {
 			return nil, fmt.Errorf("%s: invalid filter regex: %w", groupName, err)
 		}

@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"time"
 
+	regexp "github.com/dlclark/regexp2"
 	"github.com/samber/lo"
 	"go.uber.org/atomic"
 	"gopkg.in/yaml.v3"
@@ -140,7 +140,7 @@ func NewProxySetProvider(
 	randomHost bool,
 	prefixName string,
 ) (*ProxySetProvider, error) {
-	filterReg, err := regexp.Compile(filter)
+	filterReg, err := regexp.Compile(filter, 0)
 	if err != nil {
 		return nil, fmt.Errorf("invalid filter regex: %w", err)
 	}
@@ -234,7 +234,8 @@ func (cp *CompatibleProvider) Proxies() []C.Proxy {
 					return lo.Filter(
 						provider.Proxies(),
 						func(proxy C.Proxy, _ int) bool {
-							return cp.filterRegx.MatchString(proxy.Name())
+							rs, _ := cp.filterRegx.MatchString(proxy.Name())
+							return rs
 						})
 				})
 
@@ -356,8 +357,14 @@ func proxiesParseAndFilter(filter string, filterReg *regexp.Regexp, forceCertVer
 		proxies := []C.Proxy{}
 		for idx, mapping := range schema.Proxies {
 			name, ok := mapping["name"].(string)
-			if ok && len(filter) > 0 && !filterReg.MatchString(name) {
-				continue
+			if ok && len(filter) > 0 {
+				matched, err := filterReg.MatchString(name)
+				if err != nil {
+					return nil, fmt.Errorf("match filter regex failed: %w", err)
+				}
+				if !matched {
+					continue
+				}
 			}
 
 			if prefixName != "" {
