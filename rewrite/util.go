@@ -2,6 +2,8 @@ package rewrites
 
 import (
 	"strings"
+
+	regexp "github.com/dlclark/regexp2"
 )
 
 var allowContentType = []string{
@@ -25,4 +27,18 @@ func CanRewriteBody(contentLength int64, contentType string) bool {
 	}
 
 	return false
+}
+
+func findStringSubmatch(re *regexp.Regexp, s string) []string {
+	var sub []string
+	m, _ := re.FindStringMatch(s)
+	for m != nil {
+		for _, g := range m.Groups() {
+			for _, c := range g.Captures {
+				sub = append(sub, c.String())
+			}
+		}
+		m, _ = re.FindNextMatch(m)
+	}
+	return sub
 }

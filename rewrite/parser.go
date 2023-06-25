@@ -1,8 +1,9 @@
 package rewrites
 
 import (
-	"regexp"
 	"strings"
+
+	regexp "github.com/dlclark/regexp2"
 
 	C "github.com/Dreamacro/clash/constant"
 )
@@ -22,7 +23,7 @@ func ParseRewrite(line string) (C.Rewrite, error) {
 		err error
 	)
 
-	urlRegx, err = regexp.Compile(strings.Trim(url, " "))
+	urlRegx, err = regexp.Compile(strings.Trim(url, " "), 0)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +51,7 @@ func ParseRewrite(line string) (C.Rewrite, error) {
 			rulePayload = rs[0]
 			break
 		} else {
-			ruleRegx, err = regexp.Compile(rs[0])
+			ruleRegx, err = regexp.Compile(rs[0], 0)
 			if err != nil {
 				return nil, err
 			}

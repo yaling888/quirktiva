@@ -2,10 +2,10 @@ package rewrites
 
 import (
 	"errors"
-	"regexp"
 	"strconv"
 	"strings"
 
+	regexp "github.com/dlclark/regexp2"
 	"github.com/gofrs/uuid/v5"
 
 	C "github.com/Dreamacro/clash/constant"
@@ -61,7 +61,8 @@ func (r *RewriteRule) ReplaceSubPayload(oldData string) string {
 		return oldData
 	}
 
-	sub := r.ruleRegx.FindStringSubmatch(oldData)
+	// sub := r.ruleRegx.FindStringSubmatch(oldData) // std
+	sub := findStringSubmatch(r.ruleRegx, oldData)
 	l := len(sub)
 
 	if l == 0 {
