@@ -121,6 +121,7 @@ type Tun struct {
 
 // Script config
 type Script struct {
+	Engine        string            `yaml:"engine" json:"engine"`
 	MainCode      string            `yaml:"code" json:"code"`
 	MainPath      string            `yaml:"path" json:"path"`
 	ShortcutsCode map[string]string `yaml:"shortcuts" json:"shortcuts"`
@@ -368,6 +369,9 @@ func UnmarshalRawConfig(buf []byte) (*RawConfig, error) {
 		Profile: Profile{
 			StoreSelected: true,
 			Tracing:       true,
+		},
+		Script: Script{
+			Engine: "expr",
 		},
 	}
 
@@ -1036,10 +1040,15 @@ func parseAuthentication(rawRecords []string) []auth.AuthUser {
 
 func parseScript(script Script, rawRules []string) (map[string]C.Matcher, []string, error) {
 	var (
+		engine        = script.Engine
 		path          = script.MainPath
 		mainCode      = script.MainCode
 		shortcutsCode = script.ShortcutsCode
 	)
+
+	if len(shortcutsCode) > 0 && engine != "expr" && engine != "starlark" {
+		return nil, nil, fmt.Errorf("invalid script shortcut engine, got %s, want expr or starlark", engine)
+	}
 
 	if path != "" {
 		if !strings.HasSuffix(path, ".star") {
@@ -1082,7 +1091,12 @@ def main(ctx, metadata):
 
 		v = strings.ReplaceAll(strings.ReplaceAll(v, "\r", " "), "\n", " ")
 
-		m, err := S.NewMatcher(k, "", v)
+		var m C.Matcher
+		if engine == "expr" {
+			m, err = S.NewExprMatcher(k, v)
+		} else {
+			m, err = S.NewMatcher(k, "", v)
+		}
 		if err != nil {
 			return nil, nil, fmt.Errorf("initialized script module failure, %w", err)
 		}
@@ -1097,7 +1111,7 @@ def main(ctx, metadata):
 		rawRules = append(rawRules, rule)
 	}
 
-	log.Info().Msg("[Config] initial script module successful")
+	log.Info().Str("engine", engine).Msg("[Config] initial script module successful")
 
 	return matchers, rawRules, nil
 }

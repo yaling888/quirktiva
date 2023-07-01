@@ -1,0 +1,110 @@
+package script
+
+import (
+	"context"
+	"fmt"
+	"math/rand"
+	"net/netip"
+	"path/filepath"
+	"strconv"
+	"strings"
+
+	"github.com/Dreamacro/clash/component/ipset"
+	"github.com/Dreamacro/clash/component/mmdb"
+	P "github.com/Dreamacro/clash/component/process"
+	"github.com/Dreamacro/clash/component/resolver"
+	C "github.com/Dreamacro/clash/constant"
+)
+
+func uResolveIP(mtd *C.Metadata, host string) string {
+	var ip string
+
+	if mtd.Resolved() {
+		ip = mtd.DstIP.String()
+	} else if rAddrs, err := resolver.LookupIP(context.Background(), host); err == nil {
+		addr := rAddrs[0]
+		if l := len(rAddrs); l > 1 && mtd.NetWork != C.UDP {
+			addr = rAddrs[rand.Intn(l)]
+		}
+		ip = addr.String()
+		mtd.DstIP = addr
+	}
+
+	return ip
+}
+
+func uInCidr(ip, cidr string) (bool, error) {
+	var (
+		mIP   netip.Addr
+		mCidr netip.Prefix
+		err   error
+	)
+
+	if mIP, err = netip.ParseAddr(ip); err != nil {
+		return false, err
+	}
+
+	if mCidr, err = netip.ParsePrefix(cidr); err != nil {
+		return false, err
+	}
+
+	return mCidr.Contains(mIP), nil
+}
+
+func uInIPSet(name, ip string) bool {
+	dstIP, err := netip.ParseAddr(ip)
+	if err != nil {
+		return false
+	}
+	rs, err := ipset.Test(name, dstIP)
+	if err != nil {
+		return false
+	}
+	return rs
+}
+
+func uGeoIP(ip string) string {
+	dstIP, err := netip.ParseAddr(ip)
+	if err != nil {
+		return ""
+	}
+
+	if dstIP.IsPrivate() ||
+		dstIP.IsUnspecified() ||
+		dstIP.IsLoopback() ||
+		dstIP.IsMulticast() ||
+		dstIP.IsLinkLocalUnicast() ||
+		resolver.IsFakeBroadcastIP(dstIP) {
+
+		return "LAN"
+	}
+
+	record, _ := mmdb.Instance().Country(dstIP.AsSlice())
+
+	return strings.ToUpper(record.Country.IsoCode)
+}
+
+func uMatchProvider(mtd *C.Metadata, name string) (bool, error) {
+	providerName := strings.TrimPrefix(name, "geosite:")
+
+	rule := C.GetScriptRuleProviders()[providerName]
+	if rule == nil {
+		return false, fmt.Errorf("call match_provider error: rule provider [%s] not found", providerName)
+	}
+
+	return rule.Match(mtd), nil
+}
+
+func uResolveProcess(mtd *C.Metadata) {
+	if mtd.ProcessPath != "" || !mtd.OriginDst.IsValid() {
+		return
+	}
+
+	if srcPort, err := strconv.ParseUint(mtd.SrcPort, 10, 16); err == nil {
+		path, err1 := P.FindProcessPath(mtd.NetWork.String(), netip.AddrPortFrom(mtd.SrcIP, uint16(srcPort)), mtd.OriginDst)
+		if err1 == nil {
+			mtd.Process = filepath.Base(path)
+			mtd.ProcessPath = path
+		}
+	}
+}

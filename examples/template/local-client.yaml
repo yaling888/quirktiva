@@ -408,12 +408,12 @@ script:
 
       return "Mismatch" # default policy for requests which are not matched by any other script
 
+  engine: expr # or starlark (10x to 20x slower)
   shortcuts:
     QUIC: |
       network == "udp" and dst_port == 443
     Privacy: |
-      "analytics" in host or "adservice" in host or "firebase" in host or "safebrowsing" in host or
-      "doubleclick" in host or "bugly" in host
+      any(["analytics", "adservice", "firebase", "safebrowsing", "doubleclick", "bugly", "bugsnag"], host contains #)
     BilibiliUdp: |
       network == "udp" and match_provider("bilibili")
     DirectUdp: |

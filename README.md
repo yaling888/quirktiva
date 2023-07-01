@@ -180,6 +180,8 @@ Finally, open the Clash
 - Support `process` condition for all rules.
 - Support source IPCIDR condition for all rules, just append to the end.
 
+Script shortcuts engines: [expr](https://expr.medv.io/) & [starlark](https://github.com/google/starlark-go).
+
 The `GEOIP` databases via [https://github.com/Loyalsoldier/geoip](https://raw.githubusercontent.com/Loyalsoldier/geoip/release/Country.mmdb).
 
 The `GEOSITE` databases via [https://github.com/Loyalsoldier/v2ray-rules-dat](https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat).
@@ -187,9 +189,12 @@ The `GEOSITE` databases via [https://github.com/Loyalsoldier/v2ray-rules-dat](ht
 mode: rule
 
 script:
+  engine: expr # or starlark (10x to 20x slower), the default engine is `expr`
   shortcuts: # `src_port` and `dst_port` are number
     quic: 'network == "udp" and dst_port == 443'
-    privacy: '"analytics" in host or "adservice" in host or "firebase" in host or "safebrowsing" in host or "doubleclick" in host'
+    # privacy: '"analytics" in host or "adservice" in host or "firebase" in host or "safebrowsing" in host or "doubleclick" in host'
+    privacy: |
+      any(["analytics", "adservice", "firebase", "safebrowsing", "doubleclick", "bugly", "bugsnag"], host contains #)
     BilibiliUdp: |
       network == "udp" and match_provider("bilibili")
     ParentalControls: |
@@ -518,7 +523,7 @@ tun:
 ```
 
 ### Template
-* [Normal](https://github.com/yaling888/clash/blob/plus-pro/examples/template/local-client.yaml), usually used as a local client.
+* [General](https://github.com/yaling888/clash/blob/plus-pro/examples/template/local-client.yaml), usually used as a local client.
 * [Auto redirect](https://github.com/yaling888/clash/blob/plus-pro/examples/template/auto-redir-transparent-gateway.yaml), usually used as a transparent proxy gateway.
 * [Redirect to tun](https://github.com/yaling888/clash/blob/plus-pro/examples/template/redirect-to-tun-transparent-gateway.yaml), usually used as a transparent proxy gateway.
 
