@@ -26,6 +26,10 @@ func (b *Base) SetRuleExtra(re *C.RuleExtra) {
 	b.ruleExtra = re
 }
 
+func (b *Base) SubRules() []C.Rule {
+	return nil
+}
+
 func (b *Base) ShouldFindProcess() bool {
 	return false
 }

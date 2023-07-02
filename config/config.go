@@ -252,6 +252,53 @@ func (t *Tunnel) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
+type rawRule struct {
+	If     string    `yaml:"if"`
+	Name   string    `yaml:"name"`
+	Engine string    `yaml:"engine"`
+	Rules  []RawRule `yaml:"rules"`
+	Line   string    `yaml:"-"`
+}
+
+type RawRule rawRule
+
+// UnmarshalYAML implements yaml.Unmarshaler
+func (r *RawRule) UnmarshalYAML(unmarshal func(any) error) error {
+	var line string
+	if err := unmarshal(&line); err != nil {
+		inner := rawRule{
+			Engine: "expr",
+		}
+		if err = unmarshal(&inner); err != nil {
+			return err
+		}
+
+		if inner.Name == "" {
+			return fmt.Errorf("invalid rule name")
+		}
+
+		if inner.If == "" {
+			return fmt.Errorf("invalid rule %s if", inner.Name)
+		}
+
+		if inner.Engine != "expr" && inner.Engine != "starlark" {
+			return fmt.Errorf("invalid rule %s engine, got %s, want expr or starlark", inner.Name, inner.Engine)
+		}
+
+		if len(inner.Rules) == 0 {
+			return fmt.Errorf("rule %s sub-rules can not be empty", inner.Name)
+		}
+
+		*r = RawRule(inner)
+		return nil
+	}
+
+	*r = RawRule(rawRule{
+		Line: line,
+	})
+	return nil
+}
+
 type RawConfig struct {
 	Port               int          `yaml:"port"`
 	SocksPort          int          `yaml:"socks-port"`
@@ -284,7 +331,7 @@ type RawConfig struct {
 	Profile       Profile                   `yaml:"profile"`
 	Proxy         []map[string]any          `yaml:"proxies"`
 	ProxyGroup    []map[string]any          `yaml:"proxy-groups"`
-	Rule          []string                  `yaml:"rules"`
+	Rule          []RawRule                 `yaml:"rules"`
 	Script        Script                    `yaml:"script"`
 	EBpf          EBpf                      `yaml:"ebpf"`
 }
@@ -310,7 +357,7 @@ func UnmarshalRawConfig(buf []byte) (*RawConfig, error) {
 		Authentication:  []string{},
 		LogLevel:        L.INFO,
 		Hosts:           map[string]string{},
-		Rule:            []string{},
+		Rule:            []RawRule{},
 		Proxy:           []map[string]any{},
 		ProxyGroup:      []map[string]any{},
 		Tun: Tun{
@@ -644,15 +691,59 @@ func parseProxies(cfg *RawConfig) (proxiesMap map[string]C.Proxy, pdsMap map[str
 }
 
 func parseRules(cfg *RawConfig, proxies map[string]C.Proxy, matchers map[string]C.Matcher) ([]C.Rule, map[string]C.Rule, error) {
-	var (
-		foundRP       bool
-		rules         = make([]C.Rule, 0, len(cfg.Rule))
-		ruleProviders = map[string]C.Rule{}
-		rulesConfig   = cfg.Rule
-	)
+	defer runtime.GC()
 
-	// parse rules
-	for idx, line := range rulesConfig {
+	ruleProviders := make(map[string]C.Rule)
+
+	rules, err := parseRawRules(cfg.Rule, ruleProviders, proxies, matchers)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return rules, ruleProviders, nil
+}
+
+func parseRawRules(
+	rawRules []RawRule,
+	ruleProviders map[string]C.Rule,
+	proxies map[string]C.Proxy,
+	matchers map[string]C.Matcher,
+) ([]C.Rule, error) {
+	rules := make([]C.Rule, 0, len(rawRules))
+
+	for idx, raw := range rawRules {
+		line := raw.Line
+		if line == "" {
+			if raw.Name == "" {
+				continue
+			}
+
+			var (
+				groupMatcher C.Matcher
+				err          error
+			)
+
+			if raw.Engine == "expr" {
+				groupMatcher, err = S.NewExprMatcher(raw.Name, raw.If)
+			} else {
+				groupMatcher, err = S.NewMatcher(raw.Name, "", raw.If)
+			}
+
+			if err != nil {
+				return nil, fmt.Errorf("parse rule %s failed, %w", raw.Name, err)
+			}
+
+			subRules, err := parseRawRules(raw.Rules, ruleProviders, proxies, matchers)
+			if err != nil {
+				return nil, fmt.Errorf("parse rule %s failed, %w", raw.Name, err)
+			}
+
+			parsed := R.NewGroup(raw.Name, groupMatcher, subRules)
+
+			rules = append(rules, parsed)
+			continue
+		}
+
 		rule := trimArr(strings.Split(line, ","))
 		var (
 			payload  string
@@ -664,7 +755,7 @@ func parseRules(cfg *RawConfig, proxies map[string]C.Proxy, matchers map[string]
 		l := len(rule)
 
 		if l < 2 {
-			return nil, nil, fmt.Errorf("rules[%d] [%s] error: format invalid", idx, line)
+			return nil, fmt.Errorf("rules[%d] [%s] error: format invalid", idx, line)
 		}
 
 		if l < 4 {
@@ -684,11 +775,11 @@ func parseRules(cfg *RawConfig, proxies map[string]C.Proxy, matchers map[string]
 		params = rule[l:]
 
 		if _, ok := proxies[target]; !ok && ruleName != "GEOSITE" && target != C.ScriptRuleGeoSiteTarget {
-			return nil, nil, fmt.Errorf("rules[%d] [%s] error: proxy [%s] not found", idx, line, target)
+			return nil, fmt.Errorf("rules[%d] [%s] error: proxy [%s] not found", idx, line, target)
 		}
 
 		pvName := payload
-		_, foundRP = ruleProviders[pvName]
+		_, foundRP := ruleProviders[pvName]
 		if ruleName == "GEOSITE" && target == C.ScriptRuleGeoSiteTarget && foundRP {
 			continue
 		}
@@ -697,13 +788,13 @@ func parseRules(cfg *RawConfig, proxies map[string]C.Proxy, matchers map[string]
 
 		parsed, parseErr := R.ParseRule(ruleName, payload, target, params)
 		if parseErr != nil {
-			return nil, nil, fmt.Errorf("rules[%d] [%s] error: %w", idx, line, parseErr)
+			return nil, fmt.Errorf("rules[%d] [%s] error: %w", idx, line, parseErr)
 		}
 
 		if scr, ok := parsed.(*R.Script); ok {
 			m := matchers[payload]
 			if m == nil {
-				return nil, nil, fmt.Errorf(
+				return nil, fmt.Errorf(
 					"rules[%d] [%s] error: shortcut name [%s] not found", idx, line, payload,
 				)
 			}
@@ -717,9 +808,7 @@ func parseRules(cfg *RawConfig, proxies map[string]C.Proxy, matchers map[string]
 		rules = append(rules, parsed)
 	}
 
-	runtime.GC()
-
-	return rules, ruleProviders, nil
+	return rules, nil
 }
 
 func parseHosts(cfg *RawConfig) (*trie.DomainTrie[netip.Addr], error) {
@@ -1038,7 +1127,7 @@ func parseAuthentication(rawRecords []string) []auth.AuthUser {
 	return users
 }
 
-func parseScript(script Script, rawRules []string) (map[string]C.Matcher, []string, error) {
+func parseScript(script Script, rawRules []RawRule) (map[string]C.Matcher, []RawRule, error) {
 	var (
 		engine        = script.Engine
 		path          = script.MainPath
@@ -1108,7 +1197,7 @@ def main(ctx, metadata):
 	rpdArr := findRuleProvidersName(content)
 	for _, v := range rpdArr {
 		rule := fmt.Sprintf("GEOSITE,%s,%s", strings.TrimPrefix(v, "geosite:"), C.ScriptRuleGeoSiteTarget)
-		rawRules = append(rawRules, rule)
+		rawRules = append(rawRules, RawRule(rawRule{Line: rule}))
 	}
 
 	log.Info().Str("engine", engine).Msg("[Config] initial script module successful")
@@ -1143,7 +1232,7 @@ func findRuleProvidersName(s string) []string {
 		}
 	}
 
-	return rpd
+	return lo.Uniq(rpd)
 }
 
 func parseMitm(rawMitm RawMitm) (*Mitm, error) {

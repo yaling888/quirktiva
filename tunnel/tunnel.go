@@ -630,8 +630,18 @@ func match(metadata *C.Metadata) (C.Proxy, C.Rule, error) {
 		resolved = true
 	}
 
-	for _, rule := range rules {
-		if !resolved && shouldResolveIP(rule, metadata) {
+	adapter, rule, _ := matchRule(rules, metadata, &resolved, &processFound)
+
+	if adapter != nil {
+		return adapter, rule, nil
+	}
+
+	return proxies["REJECT"], nil, nil
+}
+
+func matchRule(subRules []C.Rule, metadata *C.Metadata, resolved, processFound *bool) (C.Proxy, C.Rule, error) {
+	for _, rule := range subRules {
+		if !*resolved && shouldResolveIP(rule, metadata) {
 			rAddrs, err := resolver.LookupIP(context.Background(), metadata.Host)
 			if err != nil {
 				log.Debug().
@@ -650,11 +660,11 @@ func match(metadata *C.Metadata) (C.Proxy, C.Rule, error) {
 
 				metadata.DstIP = ip
 			}
-			resolved = true
+			*resolved = true
 		}
 
-		if !processFound && rule.ShouldFindProcess() {
-			processFound = true
+		if !*processFound && rule.ShouldFindProcess() {
+			*processFound = true
 
 			srcPort, err := strconv.ParseUint(metadata.SrcPort, 10, 16)
 			if err == nil && metadata.OriginDst.IsValid() {
@@ -682,6 +692,14 @@ func match(metadata *C.Metadata) (C.Proxy, C.Rule, error) {
 		}
 
 		if rule.Match(metadata) {
+			if rule.RuleType() == C.Group {
+				adapter, subRule, _ := matchRule(rule.SubRules(), metadata, resolved, processFound)
+				if adapter != nil {
+					return adapter, subRule, nil
+				}
+				continue
+			}
+
 			adapter, ok := FindProxyByName(rule.Adapter())
 			if !ok {
 				continue
@@ -725,7 +743,7 @@ func match(metadata *C.Metadata) (C.Proxy, C.Rule, error) {
 		}
 	}
 
-	return proxies["REJECT"], nil, nil
+	return nil, nil, nil
 }
 
 func matchScript(metadata *C.Metadata) (C.Proxy, error) {

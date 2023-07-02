@@ -19,6 +19,7 @@ const (
 	UserAgent
 	IPSet
 	MATCH
+	Group
 )
 
 type RuleType int
@@ -55,6 +56,8 @@ func (rt RuleType) String() string {
 		return "IPSet"
 	case MATCH:
 		return "Match"
+	case Group:
+		return "Group"
 	default:
 		return "Unknown"
 	}
@@ -69,6 +72,7 @@ type Rule interface {
 	RuleExtra() *RuleExtra
 	SetRuleExtra(re *RuleExtra)
 	ShouldFindProcess() bool
+	SubRules() []Rule
 }
 
 type RuleGeoSite interface {

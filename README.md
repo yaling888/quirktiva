@@ -179,6 +179,7 @@ Finally, open the Clash
 - Support `network` condition for all rules.
 - Support `process` condition for all rules.
 - Support source IPCIDR condition for all rules, just append to the end.
+- Support nestable "rule groups", `if` field is the same as the shortcut syntax and if none of the sub-rules match, then continue to match the next rule.
 
 Script shortcuts engines: [expr](https://expr.medv.io/) & [starlark](https://github.com/google/starlark-go).
 
@@ -200,6 +201,16 @@ script:
     ParentalControls: |
       src_ip == "192.168.1.123" and now.hour < 8 and now.hour > 22
 rules:
+  - if: network == 'tcp'
+    name: TCP
+    # engine: expr # the default engine is `expr`, `starlark` is also valid
+    rules:
+      - if: dst_port == 443
+        name: HTTPS
+        rules:
+          - MATCH,DIRECT
+      - DOMAIN-SUFFIX,baidu.com,DIRECT
+
   # rule SCRIPT shortcuts
   - SCRIPT,quic,REJECT # Disable QUIC
   - SCRIPT,privacy,REJECT
