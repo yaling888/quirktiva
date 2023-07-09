@@ -39,44 +39,6 @@ type Matcher struct {
 	program *starlark.Program
 }
 
-func NewMatcher(name, filename, code string) (_ *Matcher, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("parse script code panic: %v", r)
-		}
-	}()
-
-	if filename == "" {
-		filename = name + ".star"
-	}
-
-	key := fmt.Sprintf("_%s_eval", name)
-	if name == "main" {
-		code = fmt.Sprintf("%s\n\n%s=main(_clash_ctx, _metadata)\n", code, key)
-	} else {
-		code = fmt.Sprintf("%s=(%s)", key, code)
-	}
-
-	starFile, err := syntax.Parse(filename, code, 0)
-	if err != nil {
-		return nil, fmt.Errorf("parse script code error: %w", err)
-	}
-
-	p, err := starlark.FileProgram(starFile, func(s string) bool {
-		rs, ok := keywordAllow[s]
-		return ok && rs
-	})
-	if err != nil {
-		return nil, fmt.Errorf("program script code error: %w", err)
-	}
-
-	return &Matcher{
-		name:    name,
-		key:     key,
-		program: p,
-	}, nil
-}
-
 func (m *Matcher) Name() string {
 	return m.name
 }
@@ -104,12 +66,12 @@ func (m *Matcher) Eval(metadata *C.Metadata) (string, error) {
 	}
 
 	evalResult := results[m.key]
-	if evalResult == nil {
-		return "", errors.New("return value is nil")
-	}
-
 	if v, ok := evalResult.(starlark.String); ok {
 		return v.GoString(), nil
+	}
+
+	if evalResult == nil {
+		return "", errors.New("invalid return type, got <nil>, want string")
 	}
 
 	return "", fmt.Errorf("invalid return type, got %s, want string", evalResult.Type())
@@ -137,13 +99,51 @@ func (m *Matcher) Match(metadata *C.Metadata) (bool, error) {
 	}
 
 	evalResult := results[m.key]
-	if evalResult == nil {
-		return false, errors.New("return value is nil")
-	}
-
 	if v, ok := evalResult.(starlark.Bool); ok {
 		return bool(v), nil
 	}
 
+	if evalResult == nil {
+		return false, errors.New("invalid return type, got <nil>, want bool")
+	}
+
 	return false, fmt.Errorf("invalid return type, got %s, want bool", evalResult.Type())
+}
+
+func NewMatcher(name, filename, code string) (_ *Matcher, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("parse script code panic: %v", r)
+		}
+	}()
+
+	if filename == "" {
+		filename = name + ".star"
+	}
+
+	key := fmt.Sprintf("_%s_eval", name)
+	if name == "main" {
+		code = fmt.Sprintf("%s\n\n%s=main(_clash_ctx, _metadata)\n", code, key)
+	} else {
+		code = fmt.Sprintf("%s=(%s)", key, code)
+	}
+
+	starFile, err := syntax.Parse(filename, code, 0)
+	if err != nil {
+		return nil, fmt.Errorf("parse script code error: %w", err)
+	}
+
+	program, err := starlark.FileProgram(starFile, func(s string) bool {
+		rs, ok := keywordAllow[s]
+		return ok && rs
+	})
+	if err != nil {
+		return nil, fmt.Errorf("compile script code error: %w", err)
+	}
+
+	return &Matcher{
+		name:    name,
+		key:     key,
+		program: program,
+	}, nil
 }

@@ -718,6 +718,11 @@ func parseRawRules(
 				continue
 			}
 
+			mk := "rule:" + raw.Name
+			if _, ok := matchers[mk]; ok {
+				return nil, fmt.Errorf("parse rule %s failed, rule name is exist", raw.Name)
+			}
+
 			var (
 				groupMatcher C.Matcher
 				err          error
@@ -733,14 +738,29 @@ func parseRawRules(
 				return nil, fmt.Errorf("parse rule %s failed, %w", raw.Name, err)
 			}
 
+			matchers[mk] = groupMatcher
+
 			subRules, err := parseRawRules(raw.Rules, ruleProviders, proxies, matchers)
 			if err != nil {
-				return nil, fmt.Errorf("parse rule %s failed, %w", raw.Name, err)
+				return nil, err
 			}
 
 			parsed := R.NewGroup(raw.Name, groupMatcher, subRules)
 
 			rules = append(rules, parsed)
+
+			rpdArr := findRuleProvidersName(raw.If)
+			for _, v := range rpdArr {
+				v = strings.ToLower(v)
+				if _, ok := ruleProviders[v]; ok {
+					continue
+				}
+				rpd, err := R.NewGEOSITE(v, C.ScriptRuleGeoSiteTarget)
+				if err != nil {
+					continue
+				}
+				ruleProviders[v] = rpd
+			}
 			continue
 		}
 
@@ -778,7 +798,7 @@ func parseRawRules(
 			return nil, fmt.Errorf("rules[%d] [%s] error: proxy [%s] not found", idx, line, target)
 		}
 
-		pvName := payload
+		pvName := strings.ToLower(payload)
 		_, foundRP := ruleProviders[pvName]
 		if ruleName == "GEOSITE" && target == C.ScriptRuleGeoSiteTarget && foundRP {
 			continue
@@ -1173,6 +1193,10 @@ def main(ctx, metadata):
 	matchers := make(map[string]C.Matcher)
 	matchers["main"] = matcher
 	for k, v := range shortcutsCode {
+		if _, ok := matchers[k]; ok {
+			return nil, nil, fmt.Errorf("initialized rule SCRIPT failure, shortcut name [%s] is exist", k)
+		}
+
 		v = strings.TrimSpace(v)
 		if v == "" {
 			return nil, nil, fmt.Errorf("initialized rule SCRIPT failure, shortcut [%s] code syntax invalid", k)
@@ -1196,7 +1220,7 @@ def main(ctx, metadata):
 
 	rpdArr := findRuleProvidersName(content)
 	for _, v := range rpdArr {
-		rule := fmt.Sprintf("GEOSITE,%s,%s", strings.TrimPrefix(v, "geosite:"), C.ScriptRuleGeoSiteTarget)
+		rule := fmt.Sprintf("GEOSITE,%s,%s", v, C.ScriptRuleGeoSiteTarget)
 		rawRules = append(rawRules, RawRule(rawRule{Line: rule}))
 	}
 
@@ -1206,7 +1230,10 @@ def main(ctx, metadata):
 }
 
 func cleanScriptKeywords(code string) string {
-	keywords := []string{`load\(`, `def resolve_ip\(`, `def geoip\(`, `def match_provider\(`, `def in_cidr\(`}
+	keywords := []string{
+		`load\(`, `def resolve_ip\(`, `def in_cidr\(`, `def in_ipset\(`, `def geoip\(`, `def log\(`,
+		`def match_provider\(`, `def resolve_process_name\(`, `def resolve_process_path\(`,
+	}
 
 	for _, kw := range keywords {
 		reg := regexp.MustCompile("(?m)[\r\n]+^.*" + kw + ".*$")

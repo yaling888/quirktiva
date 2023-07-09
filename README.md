@@ -276,6 +276,7 @@ Script shortcut functions
 ```ts
 type resolve_ip = (host: string) => string // ip string
 type in_cidr = (ip: string, cidr: string) => boolean // ip in cidr
+type in_ipset = (name: string, ip: string) => boolean // ip in ipset
 type geoip = (ip: string) => string // country code
 type match_provider = (name: string) => boolean // in rule provider
 type resolve_process_name = () => string // process name

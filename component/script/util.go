@@ -85,11 +85,11 @@ func uGeoIP(ip string) string {
 }
 
 func uMatchProvider(mtd *C.Metadata, name string) (bool, error) {
-	providerName := strings.TrimPrefix(name, "geosite:")
+	providerName := strings.ToLower(name)
 
 	rule := C.GetScriptRuleProviders()[providerName]
 	if rule == nil {
-		return false, fmt.Errorf("call match_provider error: rule provider [%s] not found", providerName)
+		return false, fmt.Errorf("call match_provider error: rule provider [%s] not found", name)
 	}
 
 	return rule.Match(mtd), nil

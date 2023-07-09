@@ -2,7 +2,6 @@ package script
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/antonmedv/expr"
 	"github.com/antonmedv/expr/vm"
@@ -10,7 +9,11 @@ import (
 	C "github.com/Dreamacro/clash/constant"
 )
 
-var _ C.Matcher = (*ExprMatcher)(nil)
+var (
+	_ C.Matcher = (*ExprMatcher)(nil)
+
+	inStringPatch = &stringInString{}
+)
 
 type ExprMatcher struct {
 	name    string
@@ -21,7 +24,7 @@ func (e *ExprMatcher) Name() string {
 	return e.name
 }
 
-func (e *ExprMatcher) Eval(_ *C.Metadata) (string, error) {
+func (*ExprMatcher) Eval(*C.Metadata) (string, error) {
 	panic("unimplemented")
 }
 
@@ -37,13 +40,13 @@ func (e *ExprMatcher) Match(mtd *C.Metadata) (bool, error) {
 		return v, nil
 	}
 
-	return false, fmt.Errorf("invalid return type, got %v, want bool", reflect.TypeOf(result))
+	return false, fmt.Errorf("invalid return type, got %T, want bool", result)
 }
 
 func NewExprMatcher(name, code string) (*ExprMatcher, error) {
 	options := []expr.Option{
 		expr.Env(shortcutEnvironment{}),
-		expr.Patch(&stringInString{}),
+		expr.Patch(inStringPatch),
 		expr.AsBool(),
 	}
 

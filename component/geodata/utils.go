@@ -38,6 +38,7 @@ func CleanGeoSiteCache() {
 }
 
 func LoadProviderByCode(countryCode string) (matcher *router.DomainMatcher, count int, err error) {
+	countryCode = strings.ToLower(countryCode)
 	if ruleProviders == nil {
 		ruleProviders = make(map[string]*router.DomainMatcher)
 	}
