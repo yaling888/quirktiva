@@ -135,8 +135,13 @@ func parseURLTestOption(config map[string]any) []urlTestOption {
 	var opts []urlTestOption
 
 	// tolerance
-	if tolerance, ok := config["tolerance"].(int); ok {
+	switch tolerance := config["tolerance"].(type) {
+	case int:
 		opts = append(opts, urlTestWithTolerance(uint16(tolerance)))
+	case string:
+		if dur, err := time.ParseDuration(tolerance); err == nil {
+			opts = append(opts, urlTestWithTolerance(uint16(dur.Milliseconds())))
+		}
 	}
 
 	return opts

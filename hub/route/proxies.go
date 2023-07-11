@@ -95,18 +95,35 @@ func updateProxy(w http.ResponseWriter, r *http.Request) {
 }
 
 func getProxyDelay(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
-	url := query.Get("url")
-	timeout, err := strconv.ParseInt(query.Get("timeout"), 10, 16)
+	var (
+		query      = r.URL.Query()
+		url        = query.Get("url")
+		timeoutStr = query.Get("timeout")
+		timeout    time.Duration
+	)
+
+	t, err := strconv.ParseInt(timeoutStr, 10, 64)
 	if err != nil {
+		d, err := time.ParseDuration(timeoutStr)
+		if err != nil {
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, ErrBadRequest)
+			return
+		}
+		timeout = d
+	} else {
+		timeout = time.Duration(t) * time.Millisecond
+	}
+
+	if timeout < time.Millisecond && timeout > 30*time.Second {
 		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, ErrBadRequest)
+		render.JSON(w, r, newError(fmt.Sprintf("invalid timeout, got %s, want 1ms to 30s", timeout)))
 		return
 	}
 
 	proxy := r.Context().Value(CtxKeyProxy).(C.Proxy)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*time.Duration(timeout))
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	delay, avgDelay, err := proxy.URLTest(ctx, url)

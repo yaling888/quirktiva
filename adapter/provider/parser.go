@@ -13,10 +13,10 @@ import (
 var errVehicleType = errors.New("unsupport vehicle type")
 
 type healthCheckSchema struct {
-	Enable   bool   `provider:"enable"`
-	URL      string `provider:"url"`
-	Interval int    `provider:"interval"`
-	Lazy     bool   `provider:"lazy,omitempty"`
+	Enable   bool          `provider:"enable"`
+	URL      string        `provider:"url"`
+	Interval time.Duration `provider:"interval"`
+	Lazy     bool          `provider:"lazy,omitempty"`
 }
 
 type proxyProviderSchema struct {
@@ -24,7 +24,7 @@ type proxyProviderSchema struct {
 	Path            string              `provider:"path"`
 	URL             string              `provider:"url,omitempty"`
 	URLProxy        bool                `provider:"url-proxy,omitempty"`
-	Interval        int                 `provider:"interval,omitempty"`
+	Interval        time.Duration       `provider:"interval,omitempty"`
 	Filter          string              `provider:"filter,omitempty"`
 	HealthCheck     healthCheckSchema   `provider:"health-check,omitempty"`
 	ForceCertVerify bool                `provider:"force-cert-verify,omitempty"`
@@ -67,9 +67,9 @@ func ParseProxyProvider(name string, mapping map[string]any, forceCertVerify boo
 		schema.Header["User-Agent"] = []string{"ClashPlusPro/" + C.Version}
 	}
 
-	var hcInterval uint
+	var hcInterval time.Duration
 	if schema.HealthCheck.Enable {
-		hcInterval = uint(schema.HealthCheck.Interval)
+		hcInterval = schema.HealthCheck.Interval
 	}
 	hc := NewHealthCheck([]C.Proxy{}, schema.HealthCheck.URL, hcInterval, schema.HealthCheck.Lazy)
 
@@ -88,7 +88,7 @@ func ParseProxyProvider(name string, mapping map[string]any, forceCertVerify boo
 		return nil, fmt.Errorf("%w: %s", errVehicleType, schema.Type)
 	}
 
-	interval := time.Duration(schema.Interval) * time.Second
+	interval := schema.Interval
 	filter := schema.Filter
 	return NewProxySetProvider(name, interval, filter, vehicle, hc, schema.ForceCertVerify,
 		schema.UDP, schema.RandomHost, schema.PrefixName)

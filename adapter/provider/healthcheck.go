@@ -15,16 +15,11 @@ const (
 	defaultURLTestTimeout = time.Second * 5
 )
 
-type HealthCheckOption struct {
-	URL      string
-	Interval uint
-}
-
 type HealthCheck struct {
 	url       string
 	proxies   []C.Proxy
 	proxiesFn func() []C.Proxy
-	interval  uint
+	interval  time.Duration
 	lazy      bool
 	lastTouch *atomic.Int64
 	ticker    *time.Ticker
@@ -36,12 +31,12 @@ func (hc *HealthCheck) process() {
 		return
 	}
 
-	hc.ticker = time.NewTicker(time.Duration(hc.interval) * time.Second)
+	hc.ticker = time.NewTicker(hc.interval)
 
 	for {
 		select {
 		case <-hc.ticker.C:
-			now := time.Now().Unix()
+			now := time.Now().UnixNano()
 			if !hc.lazy || now-hc.lastTouch.Load() < int64(hc.interval) {
 				hc.checkAll()
 			} else { // lazy but still need to check not alive proxies
@@ -73,7 +68,7 @@ func (hc *HealthCheck) auto() bool {
 }
 
 func (hc *HealthCheck) touch() {
-	hc.lastTouch.Store(time.Now().Unix())
+	hc.lastTouch.Store(time.Now().UnixNano())
 }
 
 func (hc *HealthCheck) getProxies() []C.Proxy {
@@ -113,7 +108,7 @@ func (hc *HealthCheck) close() {
 	hc.proxies = nil
 }
 
-func NewHealthCheck(proxies []C.Proxy, url string, interval uint, lazy bool) *HealthCheck {
+func NewHealthCheck(proxies []C.Proxy, url string, interval time.Duration, lazy bool) *HealthCheck {
 	return &HealthCheck{
 		proxies:   proxies,
 		url:       url,

@@ -3,6 +3,7 @@ package outboundgroup
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	regexp "github.com/dlclark/regexp2"
 
@@ -23,16 +24,16 @@ var (
 
 type GroupCommonOption struct {
 	outbound.BasicOption
-	Name       string   `group:"name"`
-	Type       string   `group:"type"`
-	Proxies    []string `group:"proxies,omitempty"`
-	Use        []string `group:"use,omitempty"`
-	URL        string   `group:"url,omitempty"`
-	Interval   int      `group:"interval,omitempty"`
-	Lazy       bool     `group:"lazy,omitempty"`
-	DisableUDP bool     `group:"disable-udp,omitempty"`
-	DisableDNS bool     `group:"disable-dns,omitempty"`
-	Filter     string   `group:"filter,omitempty"`
+	Name       string        `group:"name"`
+	Type       string        `group:"type"`
+	Proxies    []string      `group:"proxies,omitempty"`
+	Use        []string      `group:"use,omitempty"`
+	URL        string        `group:"url,omitempty"`
+	Interval   time.Duration `group:"interval,omitempty"`
+	Lazy       bool          `group:"lazy,omitempty"`
+	DisableUDP bool          `group:"disable-udp,omitempty"`
+	DisableDNS bool          `group:"disable-dns,omitempty"`
+	Filter     string        `group:"filter,omitempty"`
 }
 
 func ParseProxyGroup(
@@ -79,10 +80,10 @@ func ParseProxyGroup(
 	if groupOption.Type == "select" || groupOption.Type == "relay" {
 		hc = provider.NewHealthCheck([]C.Proxy{}, "", 0, true)
 	} else {
-		if groupOption.URL == "" || groupOption.Interval == 0 {
+		if groupOption.URL == "" || groupOption.Interval <= 0 {
 			return nil, fmt.Errorf("%s: %w", groupName, errMissHealthCheck)
 		}
-		hc = provider.NewHealthCheck([]C.Proxy{}, groupOption.URL, uint(groupOption.Interval), groupOption.Lazy)
+		hc = provider.NewHealthCheck([]C.Proxy{}, groupOption.URL, groupOption.Interval, groupOption.Lazy)
 	}
 
 	pd, err := provider.NewCompatibleProvider(groupName, hc, filterRegx)
