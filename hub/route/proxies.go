@@ -115,7 +115,7 @@ func getProxyDelay(w http.ResponseWriter, r *http.Request) {
 		timeout = time.Duration(t) * time.Millisecond
 	}
 
-	if timeout < time.Millisecond && timeout > 30*time.Second {
+	if timeout < time.Millisecond || timeout > 30*time.Second {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, newError(fmt.Sprintf("invalid timeout, got %s, want 1ms to 30s", timeout)))
 		return
