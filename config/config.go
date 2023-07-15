@@ -164,7 +164,7 @@ type Config struct {
 
 type RawDNS struct {
 	Enable                bool              `yaml:"enable"`
-	IPv6                  bool              `yaml:"ipv6"`
+	IPv6                  *bool             `yaml:"ipv6"`
 	RemoteDnsResolve      bool              `yaml:"remote-dns-resolve"`
 	UseHosts              bool              `yaml:"use-hosts"`
 	NameServer            []string          `yaml:"nameserver"`
@@ -987,7 +987,7 @@ func parseDNS(rawCfg *RawConfig, hosts *trie.DomainTrie[netip.Addr]) (*DNS, erro
 	dnsCfg := &DNS{
 		Enable:           cfg.Enable,
 		Listen:           cfg.Listen,
-		IPv6:             cfg.IPv6,
+		IPv6:             lo.FromPtrOr(cfg.IPv6, rawCfg.IPv6),
 		EnhancedMode:     cfg.EnhancedMode,
 		RemoteDnsResolve: cfg.RemoteDnsResolve,
 		FallbackFilter: FallbackFilter{
