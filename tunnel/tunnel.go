@@ -636,6 +636,10 @@ func match(metadata *C.Metadata) (C.Proxy, C.Rule, error) {
 		return adapter, rule, nil
 	}
 
+	if len(rules) == 0 {
+		return proxies["DIRECT"], nil, nil
+	}
+
 	return proxies["REJECT"], nil, nil
 }
 
