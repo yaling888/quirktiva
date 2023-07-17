@@ -60,7 +60,7 @@ func verifyGeoSite(path string) error {
 		return err
 	}
 
-	_, err = geoLoader.LoadSite(path, "cn")
+	_, err = geoLoader.LoadSite(path, "gfw")
 
 	runtime.GC()
 

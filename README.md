@@ -183,9 +183,6 @@ Finally, open the Clash
 
 Script shortcuts engines: [expr](https://expr.medv.io/) & [starlark](https://github.com/google/starlark-go).
 
-The `GEOIP` databases via [https://github.com/Loyalsoldier/geoip](https://raw.githubusercontent.com/Loyalsoldier/geoip/release/Country.mmdb).
-
-The `GEOSITE` databases via [https://github.com/Loyalsoldier/v2ray-rules-dat](https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat).
 ```yaml
 mode: rule
 
