@@ -3,26 +3,26 @@ module github.com/Dreamacro/clash
 go 1.20
 
 require (
-	github.com/antonmedv/expr v1.12.5
+	github.com/antonmedv/expr v1.12.7
 	github.com/cilium/ebpf v0.11.0
 	github.com/dlclark/regexp2 v1.10.0
-	github.com/go-chi/chi/v5 v5.0.8
+	github.com/go-chi/chi/v5 v5.0.10
 	github.com/go-chi/cors v1.2.1
-	github.com/go-chi/render v1.0.2
+	github.com/go-chi/render v1.0.3
 	github.com/gofrs/uuid/v5 v5.0.0
 	github.com/gorilla/websocket v1.5.0
-	github.com/insomniacslk/dhcp v0.0.0-20230612134759-b20c9ba983df
+	github.com/insomniacslk/dhcp v0.0.0-20230720093626-5648422c16cd
 	github.com/miekg/dns v1.1.55
 	github.com/oschwald/geoip2-golang v1.9.0
 	github.com/phuslu/log v1.0.87
 	github.com/samber/lo v1.38.1
 	github.com/stretchr/testify v1.8.4
-	github.com/vishvananda/netlink v1.2.1-beta.2.0.20230705154206-78ac5704cfa0
+	github.com/vishvananda/netlink v1.2.1-beta.2.0.20230717173657-1b5637395dd8
 	github.com/xtls/go v0.0.0-20220914232946-0441cf4cf837
 	go.etcd.io/bbolt v1.3.7
-	go.starlark.net v0.0.0-20230612165344-9532f5667272
+	go.starlark.net v0.0.0-20230721164632-08598ae210f9
 	go.uber.org/atomic v1.11.0
-	go.uber.org/automaxprocs v1.5.2
+	go.uber.org/automaxprocs v1.5.3
 	golang.org/x/crypto v0.11.0
 	golang.org/x/net v0.12.0
 	golang.org/x/sync v0.3.0
@@ -33,7 +33,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20230707024312-7927a286870a
+	gvisor.dev/gvisor v0.0.0-20230721184925-1a20c31151f2
 )
 
 require (
