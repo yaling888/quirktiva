@@ -161,7 +161,7 @@ func (r *Resolver) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg, e
 				cancel()
 			}()
 		} else {
-			setMsgTTLWithForce(msg, uint32(time.Until(expireTime).Seconds()), !resolver.IsProxyServer(ctx))
+			setMsgMaxTTL(msg, uint32(time.Until(expireTime).Seconds()))
 		}
 		return
 	}
@@ -178,13 +178,17 @@ func (r *Resolver) exchangeWithoutCache(ctx context.Context, m *D.Msg, q D.Quest
 
 			msg1 := result.(*D.Msg)
 			if resolver.IsProxyServer(ctx) {
-				// reset proxy server ip ttl to at least 2 hours
-				setMsgTTLWithForce(msg1, 7200, false)
-				putMsgToCacheWithExpire(r.lruCache, key, msg1, q, 7200)
+				// reset proxy server ip cache expire time to at least 2 hours
+				ttl := minTTL(msg1.Answer)
+				if ttl < 7200 {
+					ttl = 7200
+				}
+				setMsgMaxTTL(msg1, ttl)
+				putMsgToCacheWithExpire(r.lruCache, key, msg1, ttl)
 				return
 			}
 
-			putMsgToCache(r.lruCache, key, msg1, q)
+			putMsgToCache(r.lruCache, key, msg1)
 		}()
 
 		isIPReq := isIPRequest(q)

@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"strings"
 	"time"
 
 	D "github.com/miekg/dns"
 	"github.com/phuslu/log"
+	"github.com/samber/lo"
 
 	"github.com/Dreamacro/clash/common/cache"
 	"github.com/Dreamacro/clash/common/errors2"
@@ -26,59 +26,56 @@ const (
 	proxyTimeout = 10 * time.Second
 )
 
-func putMsgToCache(c *cache.LruCache[string, *D.Msg], key string, msg *D.Msg, q D.Question) {
-	putMsgToCacheWithExpire(c, key, msg, q, 0)
+func putMsgToCache(c *cache.LruCache[string, *D.Msg], key string, msg *D.Msg) {
+	putMsgToCacheWithExpire(c, key, msg, 0)
 }
 
-func putMsgToCacheWithExpire(c *cache.LruCache[string, *D.Msg], key string, msg *D.Msg, q D.Question, ttl uint32) {
-	if q.Qtype == D.TypeTXT && strings.HasPrefix(q.Name, "_acme-challenge") {
-		return
+func putMsgToCacheWithExpire(c *cache.LruCache[string, *D.Msg], key string, msg *D.Msg, ttl uint32) {
+	if ttl == 0 {
+		if ttl = minTTL(msg.Answer); ttl == 0 {
+			return
+		}
 	}
 
-	if ttl > 0 {
-		goto set
-	}
-
-	switch {
-	case len(msg.Answer) != 0:
-		ttl = msg.Answer[0].Header().Ttl
-	case len(msg.Ns) != 0:
-		ttl = msg.Ns[0].Header().Ttl
-	case len(msg.Extra) != 0:
-		ttl = msg.Extra[0].Header().Ttl
-	default:
-		return
-	}
-
-set:
-	c.SetWithExpire(key, msg.Copy(), time.Now().Add(time.Second*time.Duration(ttl)))
+	c.SetWithExpire(key, msg.Copy(), time.Now().Add(time.Duration(ttl)*time.Second))
 }
 
 func setMsgTTL(msg *D.Msg, ttl uint32) {
 	setMsgTTLWithForce(msg, ttl, true)
 }
 
+func setMsgMaxTTL(msg *D.Msg, ttl uint32) {
+	setMsgTTLWithForce(msg, ttl, false)
+}
+
 func setMsgTTLWithForce(msg *D.Msg, ttl uint32, force bool) {
-	for _, answer := range msg.Answer {
-		if !force && answer.Header().Ttl <= ttl {
-			continue
+	setTTL(msg.Answer, ttl, force)
+	setTTL(msg.Ns, ttl, force)
+	setTTL(msg.Extra, ttl, force)
+}
+
+func setTTL(records []D.RR, ttl uint32, force bool) {
+	if force {
+		for i := range records {
+			records[i].Header().Ttl = ttl
 		}
-		answer.Header().Ttl = ttl
+		return
 	}
 
-	for _, ns := range msg.Ns {
-		if !force && ns.Header().Ttl <= ttl {
-			continue
-		}
-		ns.Header().Ttl = ttl
+	delta := minTTL(records) - ttl
+	for i := range records {
+		records[i].Header().Ttl = lo.Clamp(records[i].Header().Ttl-delta, 1, records[i].Header().Ttl)
 	}
+}
 
-	for _, extra := range msg.Extra {
-		if !force && extra.Header().Ttl <= ttl {
-			continue
-		}
-		extra.Header().Ttl = ttl
+func minTTL(records []D.RR) uint32 {
+	minObj := lo.MinBy(records, func(r1 D.RR, r2 D.RR) bool {
+		return r1.Header().Ttl < r2.Header().Ttl
+	})
+	if minObj != nil {
+		return minObj.Header().Ttl
 	}
+	return 0
 }
 
 func isIPRequest(q D.Question) bool {
