@@ -9,7 +9,7 @@ require (
 	github.com/miekg/dns v1.1.55
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/automaxprocs v1.5.3
-	golang.org/x/net v0.12.0
+	golang.org/x/net v0.13.0
 )
 
 replace github.com/Dreamacro/clash => ../
@@ -26,7 +26,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/btree v1.0.1 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
-	github.com/insomniacslk/dhcp v0.0.0-20230720093626-5648422c16cd // indirect
+	github.com/insomniacslk/dhcp v0.0.0-20230731140434-0f9eb93a696c // indirect
 	github.com/josharian/native v1.1.0 // indirect
 	github.com/moby/term v0.5.0 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
@@ -40,11 +40,11 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/samber/lo v1.38.1 // indirect
 	github.com/u-root/uio v0.0.0-20230220225925-ffce2a382923 // indirect
-	github.com/vishvananda/netlink v1.2.1-beta.2.0.20230717173657-1b5637395dd8 // indirect
+	github.com/vishvananda/netlink v1.2.1-beta.2.0.20230728152629-dbf1bd04f9af // indirect
 	github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae // indirect
 	github.com/xtls/go v0.0.0-20220914232946-0441cf4cf837 // indirect
 	go.etcd.io/bbolt v1.3.7 // indirect
-	go.starlark.net v0.0.0-20230721164632-08598ae210f9 // indirect
+	go.starlark.net v0.0.0-20230731234521-9b46791399bf // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/crypto v0.11.0 // indirect
 	golang.org/x/exp v0.0.0-20230224173230-c95f2b4c22f2 // indirect

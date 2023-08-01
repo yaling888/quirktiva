@@ -11,20 +11,20 @@ require (
 	github.com/go-chi/render v1.0.3
 	github.com/gofrs/uuid/v5 v5.0.0
 	github.com/gorilla/websocket v1.5.0
-	github.com/insomniacslk/dhcp v0.0.0-20230720093626-5648422c16cd
+	github.com/insomniacslk/dhcp v0.0.0-20230731140434-0f9eb93a696c
 	github.com/miekg/dns v1.1.55
 	github.com/oschwald/geoip2-golang v1.9.0
 	github.com/phuslu/log v1.0.87
 	github.com/samber/lo v1.38.1
 	github.com/stretchr/testify v1.8.4
-	github.com/vishvananda/netlink v1.2.1-beta.2.0.20230717173657-1b5637395dd8
+	github.com/vishvananda/netlink v1.2.1-beta.2.0.20230728152629-dbf1bd04f9af
 	github.com/xtls/go v0.0.0-20220914232946-0441cf4cf837
 	go.etcd.io/bbolt v1.3.7
-	go.starlark.net v0.0.0-20230721164632-08598ae210f9
+	go.starlark.net v0.0.0-20230731234521-9b46791399bf
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.5.3
 	golang.org/x/crypto v0.11.0
-	golang.org/x/net v0.12.0
+	golang.org/x/net v0.13.0
 	golang.org/x/sync v0.3.0
 	golang.org/x/sys v0.10.0
 	golang.org/x/text v0.11.0
