@@ -38,29 +38,29 @@ import (
 
 // General config
 type General struct {
-	Inbound
+	LegacyInbound
 	Controller
-	Mode        T.TunnelMode `json:"mode"`
-	LogLevel    L.LogLevel   `json:"log-level"`
-	IPv6        bool         `json:"ipv6"`
-	Sniffing    bool         `json:"sniffing"`
-	Interface   string       `json:"-"`
-	RoutingMark int          `json:"-"`
-	Tun         Tun          `json:"tun"`
-	EBpf        EBpf         `json:"-"`
+	Authentication []string     `json:"authentication"`
+	Mode           T.TunnelMode `json:"mode"`
+	LogLevel       L.LogLevel   `json:"log-level"`
+	IPv6           bool         `json:"ipv6"`
+	Sniffing       bool         `json:"sniffing"`
+	Interface      string       `json:"-"`
+	RoutingMark    int          `json:"-"`
+	Tun            Tun          `json:"tun"`
+	EBpf           EBpf         `json:"-"`
 }
 
-// Inbound config
-type Inbound struct {
-	Port           int      `json:"port"`
-	SocksPort      int      `json:"socks-port"`
-	RedirPort      int      `json:"redir-port"`
-	TProxyPort     int      `json:"tproxy-port"`
-	MixedPort      int      `json:"mixed-port"`
-	MitmPort       int      `json:"mitm-port"`
-	Authentication []string `json:"authentication"`
-	AllowLan       bool     `json:"allow-lan"`
-	BindAddress    string   `json:"bind-address"`
+// LegacyInbound config
+type LegacyInbound struct {
+	Port        int    `json:"port"`
+	SocksPort   int    `json:"socks-port"`
+	RedirPort   int    `json:"redir-port"`
+	TProxyPort  int    `json:"tproxy-port"`
+	MixedPort   int    `json:"mixed-port"`
+	MitmPort    int    `json:"mitm-port"`
+	AllowLan    bool   `json:"allow-lan"`
+	BindAddress string `json:"bind-address"`
 }
 
 // Controller config
@@ -153,6 +153,7 @@ type Config struct {
 	Experimental  *Experimental
 	Hosts         *trie.DomainTrie[netip.Addr]
 	Profile       *Profile
+	Inbounds      []C.Inbound
 	Rules         []C.Rule
 	RuleProviders map[string]C.Rule
 	Users         []auth.AuthUser
@@ -324,6 +325,7 @@ type RawConfig struct {
 
 	ProxyProvider map[string]map[string]any `yaml:"proxy-providers"`
 	Hosts         map[string]string         `yaml:"hosts"`
+	Inbounds      []C.Inbound               `yaml:"inbounds"`
 	DNS           RawDNS                    `yaml:"dns"`
 	Tun           Tun                       `yaml:"tun"`
 	MITM          RawMitm                   `yaml:"mitm"`
@@ -458,6 +460,8 @@ func ParseRawConfig(rawCfg *RawConfig) (config *Config, err error) {
 	}
 	config.General = general
 
+	config.Inbounds = rawCfg.Inbounds
+
 	proxies, providers, err := parseProxies(rawCfg)
 	if err != nil {
 		return
@@ -542,7 +546,7 @@ func parseGeneral(cfg *RawConfig) (*General, error) {
 	cfg.Tun.RedirectToTun = cfg.EBpf.RedirectToTun
 
 	return &General{
-		Inbound: Inbound{
+		LegacyInbound: LegacyInbound{
 			Port:        cfg.Port,
 			SocksPort:   cfg.SocksPort,
 			RedirPort:   cfg.RedirPort,

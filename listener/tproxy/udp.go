@@ -32,7 +32,7 @@ func (l *UDPListener) Close() error {
 	return l.packetConn.Close()
 }
 
-func NewUDP(addr string, in chan<- *inbound.PacketAdapter) (*UDPListener, error) {
+func NewUDP(addr string, in chan<- *inbound.PacketAdapter) (C.Listener, error) {
 	l, err := net.ListenPacket("udp", addr)
 	if err != nil {
 		return nil, err

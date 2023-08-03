@@ -36,7 +36,7 @@ func (l *Listener) handleTProxy(conn net.Conn, in chan<- C.ConnContext) {
 	in <- inbound.NewSocket(target, conn, C.TPROXY)
 }
 
-func New(addr string, in chan<- C.ConnContext) (*Listener, error) {
+func New(addr string, in chan<- C.ConnContext) (C.Listener, error) {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err

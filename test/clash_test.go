@@ -215,23 +215,27 @@ func newLargeDataPair() (chan hashPair, chan hashPair, func(t *testing.T) error)
 	return pingCh, pongCh, test
 }
 
-func testPingPongWithSocksPort(t *testing.T, port int) {
+func testPingPongWithSocksPort(t *testing.T, port int) error {
+	l, err := Listen("tcp", ":10001")
+	require.NoError(t, err)
+	defer l.Close()
+
 	pingCh, pongCh, test := newPingPongPair()
 	go func() {
-		l, err := Listen("tcp", ":10001")
-		require.NoError(t, err)
-		defer l.Close()
-
 		c, err := l.Accept()
-		require.NoError(t, err)
+		if err != nil {
+			return
+		}
 
 		buf := make([]byte, 4)
-		_, err = io.ReadFull(c, buf)
-		require.NoError(t, err)
+		if _, err = io.ReadFull(c, buf); err != nil {
+			return
+		}
 
 		pingCh <- buf
-		_, err = c.Write([]byte("pong"))
-		require.NoError(t, err)
+		if _, err = c.Write([]byte("pong")); err != nil {
+			return
+		}
 	}()
 
 	go func() {
@@ -239,20 +243,23 @@ func testPingPongWithSocksPort(t *testing.T, port int) {
 		require.NoError(t, err)
 		defer c.Close()
 
-		_, err = socks5.ClientHandshake(c, socks5.ParseAddr("127.0.0.1:10001"), socks5.CmdConnect, nil)
-		require.NoError(t, err)
+		if _, err = socks5.ClientHandshake(c, socks5.ParseAddr("127.0.0.1:10001"), socks5.CmdConnect, nil); err != nil {
+			return
+		}
 
-		_, err = c.Write([]byte("ping"))
-		require.NoError(t, err)
+		if _, err = c.Write([]byte("ping")); err != nil {
+			return
+		}
 
 		buf := make([]byte, 4)
-		_, err = io.ReadFull(c, buf)
-		require.NoError(t, err)
+		if _, err = io.ReadFull(c, buf); err != nil {
+			return
+		}
 
 		pongCh <- buf
 	}()
 
-	test(t)
+	return test(t)
 }
 
 func testPingPongWithConn(t *testing.T, dialFn func() (net.Conn, error)) error {
@@ -676,7 +683,7 @@ rules:
 	defer cleanup()
 
 	require.True(t, TCPing(net.JoinHostPort("127.0.0.1", "10000")))
-	testPingPongWithSocksPort(t, 10000)
+	require.NoError(t, testPingPongWithSocksPort(t, 10000))
 }
 
 func Benchmark_Direct(b *testing.B) {

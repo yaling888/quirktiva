@@ -21,7 +21,7 @@ import (
 	H "github.com/Dreamacro/clash/listener/http"
 )
 
-func HandleConn(c net.Conn, opt *Option, in chan<- C.ConnContext, cache *cache.LruCache[string, bool]) {
+func HandleConn(c net.Conn, opt *C.MitmOption, in chan<- C.ConnContext, cache *cache.LruCache[string, bool]) {
 	var (
 		clientIP   = netip.MustParseAddrPort(c.RemoteAddr().String()).Addr()
 		sourceAddr net.Addr
@@ -56,31 +56,31 @@ readLoop:
 
 		var response *http.Response
 
-		session := newSession(conn, request, response)
+		session := C.NewMitmSession(conn, request, response)
 
-		sourceAddr = parseSourceAddress(session.request, conn.RemoteAddr(), sourceAddr)
-		session.request.RemoteAddr = sourceAddr.String()
+		sourceAddr = parseSourceAddress(session.Request, conn.RemoteAddr(), sourceAddr)
+		session.Request.RemoteAddr = sourceAddr.String()
 
 		if !trusted {
-			session.response = H.Authenticate(session.request, cache)
+			session.Response = H.Authenticate(session.Request, cache)
 
-			trusted = session.response == nil
+			trusted = session.Response == nil
 		}
 
 		if trusted {
-			if session.request.Method == http.MethodConnect {
-				if session.request.ProtoMajor > 1 {
-					session.request.ProtoMajor = 1
-					session.request.ProtoMinor = 1
+			if session.Request.Method == http.MethodConnect {
+				if session.Request.ProtoMajor > 1 {
+					session.Request.ProtoMajor = 1
+					session.Request.ProtoMinor = 1
 				}
 
 				// Manual writing to support CONNECT for http 1.0 (workaround for uplay client)
-				if _, err = fmt.Fprintf(session.conn, "HTTP/%d.%d %03d %s\r\n\r\n", session.request.ProtoMajor, session.request.ProtoMinor, http.StatusOK, "Connection established"); err != nil {
+				if _, err = fmt.Fprintf(session.Conn, "HTTP/%d.%d %03d %s\r\n\r\n", session.Request.ProtoMajor, session.Request.ProtoMinor, http.StatusOK, "Connection established"); err != nil {
 					handleError(opt, session, err)
 					break // close connection
 				}
 
-				if strings.HasSuffix(session.request.URL.Host, ":80") {
+				if strings.HasSuffix(session.Request.URL.Host, ":80") {
 					goto readLoop
 				}
 
@@ -92,13 +92,13 @@ readLoop:
 
 				// TLS handshake.
 				if b[0] == 0x16 {
-					tlsConn := tls.Server(conn, opt.CertConfig.NewTLSConfigForHost(session.request.URL.Hostname()))
+					tlsConn := tls.Server(conn, opt.CertConfig.NewTLSConfigForHost(session.Request.URL.Hostname()))
 
 					ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTLSTimeout)
 					// handshake with the local client
 					if err = tlsConn.HandshakeContext(ctx); err != nil {
 						cancel()
-						session.response = session.NewErrorResponse(fmt.Errorf("handshake failed: %w", err))
+						session.Response = session.NewErrorResponse(fmt.Errorf("handshake failed: %w", err))
 						_ = writeResponse(session, false)
 						break // close connection
 					}
@@ -110,7 +110,7 @@ readLoop:
 					conn = N.NewBufferedConn(tlsConn)
 				}
 
-				if strings.HasSuffix(session.request.URL.Host, ":443") {
+				if strings.HasSuffix(session.Request.URL.Host, ":443") {
 					goto readLoop
 				}
 
@@ -129,10 +129,10 @@ readLoop:
 				// others protocol over tcp
 				if !isHTTPTraffic(buf) {
 					if connState != nil {
-						session.request.TLS = connState
+						session.Request.TLS = connState
 					}
 
-					serverConn, err = getServerConn(serverConn, session.request, sourceAddr, conn.LocalAddr(), in)
+					serverConn, err = getServerConn(serverConn, session.Request, sourceAddr, conn.LocalAddr(), in)
 					if err != nil {
 						break
 					}
@@ -148,10 +148,10 @@ readLoop:
 				goto readLoop
 			}
 
-			prepareRequest(connState, session.request)
+			prepareRequest(connState, session.Request)
 
 			// hijack api
-			if session.request.URL.Hostname() == opt.ApiHost {
+			if session.Request.URL.Hostname() == opt.ApiHost {
 				if err = handleApiRequest(session, opt); err != nil {
 					handleError(opt, session, err)
 				}
@@ -160,28 +160,28 @@ readLoop:
 
 			// forward websocket
 			if isWebsocketRequest(request) {
-				serverConn, err = getServerConn(serverConn, session.request, sourceAddr, conn.LocalAddr(), in)
+				serverConn, err = getServerConn(serverConn, session.Request, sourceAddr, conn.LocalAddr(), in)
 				if err != nil {
 					break
 				}
 
-				session.request.RequestURI = ""
-				if session.response = H.HandleUpgrade(conn, serverConn, request, in); session.response == nil {
+				session.Request.RequestURI = ""
+				if session.Response = H.HandleUpgrade(conn, serverConn, request, in); session.Response == nil {
 					return // hijack connection
 				}
 			}
 
-			if session.response == nil {
-				H.RemoveHopByHopHeaders(session.request.Header)
-				H.RemoveExtraHTTPHostPort(session.request)
+			if session.Response == nil {
+				H.RemoveHopByHopHeaders(session.Request.Header)
+				H.RemoveExtraHTTPHostPort(session.Request)
 
 				// hijack custom request and write back custom response if necessary
 				newReq, newRes := opt.Handler.HandleRequest(session)
 				if newReq != nil {
-					session.request = newReq
+					session.Request = newReq
 				}
 				if newRes != nil {
-					session.response = newRes
+					session.Response = newRes
 
 					if err = writeResponse(session, false); err != nil {
 						handleError(opt, session, err)
@@ -190,23 +190,23 @@ readLoop:
 					continue
 				}
 
-				session.request.RequestURI = ""
+				session.Request.RequestURI = ""
 
-				if session.request.URL.Host == "" {
-					session.response = session.NewErrorResponse(ErrInvalidURL)
+				if session.Request.URL.Host == "" {
+					session.Response = session.NewErrorResponse(C.ErrInvalidURL)
 				} else {
-					serverConn, err = getServerConn(serverConn, session.request, sourceAddr, conn.LocalAddr(), in)
+					serverConn, err = getServerConn(serverConn, session.Request, sourceAddr, conn.LocalAddr(), in)
 					if err != nil {
 						break
 					}
 
 					// send the request to remote server
-					err = session.request.Write(serverConn)
+					err = session.Request.Write(serverConn)
 					if err != nil {
 						break
 					}
 
-					session.response, err = http.ReadResponse(serverConn.Reader(), request)
+					session.Response, err = http.ReadResponse(serverConn.Reader(), request)
 					if err != nil {
 						break
 					}
@@ -223,40 +223,40 @@ readLoop:
 	_ = conn.Close()
 }
 
-func writeResponseWithHandler(session *Session, opt *Option) error {
+func writeResponseWithHandler(session *C.MitmSession, opt *C.MitmOption) error {
 	res := opt.Handler.HandleResponse(session)
 	if res != nil {
-		session.response = res
+		session.Response = res
 	}
 
 	return writeResponse(session, true)
 }
 
-func writeResponse(session *Session, keepAlive bool) error {
-	H.RemoveHopByHopHeaders(session.response.Header)
+func writeResponse(session *C.MitmSession, keepAlive bool) error {
+	H.RemoveHopByHopHeaders(session.Response.Header)
 
 	if keepAlive {
-		session.response.Header.Set("Connection", "keep-alive")
-		session.response.Header.Set("Keep-Alive", "timeout=60")
+		session.Response.Header.Set("Connection", "keep-alive")
+		session.Response.Header.Set("Keep-Alive", "timeout=60")
 	}
 
-	return session.writeResponse()
+	return session.WriteResponse()
 }
 
-func handleApiRequest(session *Session, opt *Option) error {
-	if opt.CertConfig != nil && strings.ToLower(session.request.URL.Path) == "/cert.crt" {
+func handleApiRequest(session *C.MitmSession, opt *C.MitmOption) error {
+	if opt.CertConfig != nil && strings.ToLower(session.Request.URL.Path) == "/cert.crt" {
 		b := pem.EncodeToMemory(&pem.Block{
 			Type:  "CERTIFICATE",
 			Bytes: opt.CertConfig.GetCA().Raw,
 		})
 
-		session.response = session.NewResponse(http.StatusOK, bytes.NewReader(b))
+		session.Response = session.NewResponse(http.StatusOK, bytes.NewReader(b))
 
-		session.response.Close = true
-		session.response.Header.Set("Content-Type", "application/x-x509-ca-cert")
-		session.response.ContentLength = int64(len(b))
+		session.Response.Close = true
+		session.Response.Header.Set("Content-Type", "application/x-x509-ca-cert")
+		session.Response.ContentLength = int64(len(b))
 
-		return session.writeResponse()
+		return session.WriteResponse()
 	}
 
 	b := `<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
@@ -272,21 +272,21 @@ func handleApiRequest(session *Session, opt *Option) error {
 		return nil
 	}
 
-	b = fmt.Sprintf(b, session.request.URL.Path)
+	b = fmt.Sprintf(b, session.Request.URL.Path)
 
-	session.response = session.NewResponse(http.StatusNotFound, bytes.NewReader([]byte(b)))
-	session.response.Close = true
-	session.response.Header.Set("Content-Type", "text/html;charset=utf-8")
-	session.response.ContentLength = int64(len(b))
+	session.Response = session.NewResponse(http.StatusNotFound, bytes.NewReader([]byte(b)))
+	session.Response.Close = true
+	session.Response.Header.Set("Content-Type", "text/html;charset=utf-8")
+	session.Response.ContentLength = int64(len(b))
 
-	return session.writeResponse()
+	return session.WriteResponse()
 }
 
-func handleError(opt *Option, session *Session, err error) {
-	if session.response != nil {
+func handleError(opt *C.MitmOption, session *C.MitmSession, err error) {
+	if session.Response != nil {
 		defer func() {
-			_, _ = io.Copy(io.Discard, session.response.Body)
-			_ = session.response.Body.Close()
+			_, _ = io.Copy(io.Discard, session.Response.Body)
+			_ = session.Response.Body.Close()
 		}()
 	}
 	opt.Handler.HandleError(session, err)

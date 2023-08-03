@@ -8,6 +8,14 @@ import (
 	C "github.com/Dreamacro/clash/constant"
 )
 
+type PortType int
+
+const (
+	PortTypeSrc PortType = iota
+	PortTypeDest
+	PortTypeInbound
+)
+
 type portReal struct {
 	portStart int
 	portEnd   int
@@ -17,22 +25,34 @@ type Port struct {
 	*Base
 	adapter  string
 	port     string
-	isSource bool
+	portType PortType
 	portList []portReal
 }
 
 func (p *Port) RuleType() C.RuleType {
-	if p.isSource {
+	switch p.portType {
+	case PortTypeSrc:
 		return C.SrcPort
+	case PortTypeDest:
+		return C.DstPort
+	case PortTypeInbound:
+		return C.InboundPort
+	default:
+		panic(fmt.Errorf("unknown port type: %v", p.portType))
 	}
-	return C.DstPort
 }
 
 func (p *Port) Match(metadata *C.Metadata) bool {
-	if p.isSource {
+	switch p.portType {
+	case PortTypeSrc:
 		return p.matchPortReal(metadata.SrcPort)
+	case PortTypeDest:
+		return p.matchPortReal(metadata.DstPort)
+	case PortTypeInbound:
+		return p.matchPortReal(strconv.FormatUint(uint64(metadata.OriginDst.Port()), 10))
+	default:
+		panic(fmt.Errorf("unknown port type: %v", p.portType))
 	}
-	return p.matchPortReal(metadata.DstPort)
 }
 
 func (p *Port) Adapter() string {
@@ -63,7 +83,7 @@ func (p *Port) matchPortReal(portRef string) bool {
 	return false
 }
 
-func NewPort(port string, adapter string, isSource bool) (*Port, error) {
+func NewPort(port string, adapter string, portType PortType) (*Port, error) {
 	ports := strings.Split(port, "/")
 	if len(ports) > 28 {
 		return nil, fmt.Errorf("%s, too many ports to use, maximum support 28 ports", errPayload.Error())
@@ -112,7 +132,7 @@ func NewPort(port string, adapter string, isSource bool) (*Port, error) {
 		Base:     &Base{},
 		adapter:  adapter,
 		port:     port,
-		isSource: isSource,
+		portType: portType,
 		portList: portList,
 	}, nil
 }

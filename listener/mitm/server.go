@@ -1,38 +1,36 @@
 package mitm
 
 import (
+	"crypto/rsa"
 	"crypto/tls"
+	"crypto/x509"
 	"net"
-	"net/http"
+	"os"
+	"sync"
+	"sync/atomic"
+	"time"
 
+	"github.com/phuslu/log"
+
+	"github.com/Dreamacro/clash/adapter/outbound"
 	"github.com/Dreamacro/clash/common/cache"
 	"github.com/Dreamacro/clash/common/cert"
 	C "github.com/Dreamacro/clash/constant"
+	rewrites "github.com/Dreamacro/clash/rewrite"
+	"github.com/Dreamacro/clash/tunnel"
 )
 
-type Handler interface {
-	HandleRequest(*Session) (*http.Request, *http.Response) // Session.Response maybe nil
-	HandleResponse(*Session) *http.Response
-	HandleApiRequest(*Session) bool
-	HandleError(*Session, error) // Session maybe nil
-}
-
-type Option struct {
-	Addr    string
-	ApiHost string
-
-	TLSConfig  *tls.Config
-	CertConfig *cert.Config
-
-	Handler Handler
-}
+var (
+	mitmOption *C.MitmOption
+	optionOnce sync.Once
+	proxyDone  uint32
+)
 
 type Listener struct {
-	*Option
-
 	listener net.Listener
 	addr     string
 	closed   bool
+	asProxy  bool
 }
 
 // RawAddress implements C.Listener
@@ -47,17 +45,41 @@ func (l *Listener) Address() string {
 
 // Close implements C.Listener
 func (l *Listener) Close() error {
+	if l.asProxy {
+		l.asProxy = false
+		tunnel.SetMitmOutbound(nil)
+		atomic.StoreUint32(&proxyDone, 0)
+	}
 	l.closed = true
 	return l.listener.Close()
 }
 
 // New the MITM proxy actually is a type of HTTP proxy
-func New(option *Option, in chan<- C.ConnContext) (*Listener, error) {
-	return NewWithAuthenticate(option, in, true)
+func New(addr string, in chan<- C.ConnContext) (C.Listener, error) {
+	var err error
+	optionOnce.Do(func() {
+		mitmOption, err = initOption()
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	ml, err := NewWithAuthenticate(addr, mitmOption, in, true)
+	if err != nil {
+		return nil, err
+	}
+
+	if atomic.LoadUint32(&proxyDone) == 0 {
+		ml.asProxy = true
+		atomic.StoreUint32(&proxyDone, 1)
+		tunnel.SetMitmOutbound(outbound.NewMitm(ml.Address()))
+	}
+
+	return ml, nil
 }
 
-func NewWithAuthenticate(option *Option, in chan<- C.ConnContext, authenticate bool) (*Listener, error) {
-	l, err := net.Listen("tcp", option.Addr)
+func NewWithAuthenticate(addr string, option *C.MitmOption, in chan<- C.ConnContext, authenticate bool) (*Listener, error) {
+	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
@@ -67,16 +89,15 @@ func NewWithAuthenticate(option *Option, in chan<- C.ConnContext, authenticate b
 		c = cache.New[string, bool](cache.WithAge[string, bool](90))
 	}
 
-	hl := &Listener{
+	ml := &Listener{
 		listener: l,
-		addr:     option.Addr,
-		Option:   option,
+		addr:     addr,
 	}
 	go func() {
 		for {
-			conn, err1 := hl.listener.Accept()
+			conn, err1 := ml.listener.Accept()
 			if err1 != nil {
-				if hl.closed {
+				if ml.closed {
 					break
 				}
 				continue
@@ -85,5 +106,55 @@ func NewWithAuthenticate(option *Option, in chan<- C.ConnContext, authenticate b
 		}
 	}()
 
-	return hl, nil
+	return ml, nil
+}
+
+func initOption() (*C.MitmOption, error) {
+	if err := initCert(); err != nil {
+		return nil, err
+	}
+
+	rootCACert, err := tls.LoadX509KeyPair(C.Path.RootCA(), C.Path.CAKey())
+	if err != nil {
+		return nil, err
+	}
+
+	privateKey := rootCACert.PrivateKey.(*rsa.PrivateKey)
+
+	x509c, err := x509.ParseCertificate(rootCACert.Certificate[0])
+	if err != nil {
+		return nil, err
+	}
+
+	certOption, err := cert.NewConfig(
+		x509c,
+		privateKey,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	certOption.SetValidity(time.Hour * 24 * 365 * 2) // 2 years
+	certOption.SetOrganization("Clash ManInTheMiddle Proxy Services")
+
+	option := &C.MitmOption{
+		ApiHost:    "mitm.clash",
+		CertConfig: certOption,
+		Handler:    &rewrites.RewriteHandler{},
+	}
+
+	return option, nil
+}
+
+func initCert() error {
+	if _, err := os.Stat(C.Path.RootCA()); os.IsNotExist(err) {
+		log.Info().Msg("[Config] can't find mitm_ca.crt, start generate")
+		err = cert.GenerateAndSave(C.Path.RootCA(), C.Path.CAKey())
+		if err != nil {
+			return err
+		}
+		log.Info().Msg("[Config] generated CA private key and CA certificate")
+	}
+
+	return nil
 }

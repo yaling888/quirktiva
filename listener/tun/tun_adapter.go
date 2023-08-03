@@ -137,7 +137,7 @@ func New(
 		Bool("autoRoute", autoRoute).
 		Bool("autoDetectInterface", tunConf.AutoDetectInterface).
 		Str("ipStack", stackType.String()).
-		Msg("[Inbound] TUN listening")
+		Msg("[Inbound] tun listening")
 	return tunStack, nil
 }
 

@@ -1,22 +1,87 @@
-package mitm
+package constant
 
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/transform"
+
+	"github.com/Dreamacro/clash/common/cert"
 )
 
 var (
 	ErrInvalidResponse = errors.New("invalid response")
 	ErrInvalidURL      = errors.New("invalid URL")
 )
+
+type RewriteHandler interface {
+	HandleRequest(*MitmSession) (*http.Request, *http.Response) // session.Response maybe nil
+	HandleResponse(*MitmSession) *http.Response
+	HandleApiRequest(*MitmSession) bool
+	HandleError(*MitmSession, error) // session maybe nil
+}
+
+type MitmOption struct {
+	ApiHost string
+
+	TLSConfig  *tls.Config
+	CertConfig *cert.Config
+
+	Handler RewriteHandler
+}
+
+type MitmSession struct {
+	Conn     net.Conn
+	Request  *http.Request
+	Response *http.Response
+
+	props map[string]any
+}
+
+func (s *MitmSession) GetProperties(key string) (any, bool) {
+	v, ok := s.props[key]
+	return v, ok
+}
+
+func (s *MitmSession) SetProperties(key string, val any) {
+	s.props[key] = val
+}
+
+func (s *MitmSession) NewResponse(code int, body io.Reader) *http.Response {
+	return NewResponse(code, body, s.Request)
+}
+
+func (s *MitmSession) NewErrorResponse(err error) *http.Response {
+	return NewErrorResponse(s.Request, err)
+}
+
+func (s *MitmSession) WriteResponse() (err error) {
+	if s.Response == nil {
+		return ErrInvalidResponse
+	}
+	err = s.Response.Write(s.Conn)
+	if s.Response.Body != nil {
+		_ = s.Response.Body.Close()
+	}
+	return
+}
+
+func NewMitmSession(conn net.Conn, request *http.Request, response *http.Response) *MitmSession {
+	return &MitmSession{
+		Conn:     conn,
+		Request:  request,
+		Response: response,
+		props:    map[string]any{},
+	}
+}
 
 func NewResponse(code int, body io.Reader, req *http.Request) *http.Response {
 	if body == nil {

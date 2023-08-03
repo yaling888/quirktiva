@@ -1,24 +1,17 @@
 package listener
 
 import (
-	"crypto/rsa"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"net"
 	"net/netip"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/phuslu/log"
 	"github.com/samber/lo"
 
 	"github.com/Dreamacro/clash/adapter/inbound"
-	"github.com/Dreamacro/clash/adapter/outbound"
-	"github.com/Dreamacro/clash/common/cert"
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/ebpf"
 	"github.com/Dreamacro/clash/component/iface"
@@ -35,8 +28,6 @@ import (
 	"github.com/Dreamacro/clash/listener/tun/ipstack"
 	"github.com/Dreamacro/clash/listener/tun/ipstack/commons"
 	"github.com/Dreamacro/clash/listener/tunnel"
-	rewrites "github.com/Dreamacro/clash/rewrite"
-	T "github.com/Dreamacro/clash/tunnel"
 	"github.com/Dreamacro/clash/tunnel/statistic"
 )
 
@@ -45,34 +36,47 @@ var (
 	bindAddress = "*"
 	lastTunConf *config.Tun
 
-	socksListener      *socks.Listener
-	socksUDPListener   *socks.UDPListener
-	httpListener       *http.Listener
-	redirListener      *redir.Listener
-	redirUDPListener   *tproxy.UDPListener
-	tproxyListener     *tproxy.Listener
-	tproxyUDPListener  *tproxy.UDPListener
-	mixedListener      *mixed.Listener
-	mixedUDPLister     *socks.UDPListener
-	tunStackListener   ipstack.Stack
-	mitmListener       *mitm.Listener
-	tcProgram          *ebpf.TcEBpfProgram
-	autoRedirListener  *autoredir.Listener
-	autoRedirProgram   *ebpf.TcEBpfProgram
+	tcpListeners = map[C.Inbound]C.Listener{}
+	udpListeners = map[C.Inbound]C.Listener{}
+
+	tunStackListener  ipstack.Stack
+	tcProgram         *ebpf.TcEBpfProgram
+	autoRedirListener *autoredir.Listener
+	autoRedirProgram  *ebpf.TcEBpfProgram
+
 	tunnelTCPListeners = map[string]*tunnel.Listener{}
 	tunnelUDPListeners = map[string]*tunnel.PacketConn{}
 
 	// lock for recreate function
-	socksMux     sync.Mutex
-	httpMux      sync.Mutex
-	redirMux     sync.Mutex
-	tproxyMux    sync.Mutex
-	mixedMux     sync.Mutex
+	recreateMux  sync.Mutex
 	tunMux       sync.Mutex
-	mitmMux      sync.Mutex
 	tcMux        sync.Mutex
 	autoRedirMux sync.Mutex
 	tunnelMux    sync.Mutex
+)
+
+var tcpListenerCreators = map[C.InboundType]tcpListenerCreator{
+	C.InboundTypeHTTP:   http.New,
+	C.InboundTypeSocks:  socks.New,
+	C.InboundTypeSocks4: socks.New4,
+	C.InboundTypeSocks5: socks.New5,
+	C.InboundTypeRedir:  redir.New,
+	C.InboundTypeTproxy: tproxy.New,
+	C.InboundTypeMixed:  mixed.New,
+	C.InboundTypeMitm:   mitm.New,
+}
+
+var udpListenerCreators = map[C.InboundType]udpListenerCreator{
+	C.InboundTypeSocks:  socks.NewUDP,
+	C.InboundTypeSocks5: socks.NewUDP,
+	C.InboundTypeRedir:  tproxy.NewUDP,
+	C.InboundTypeTproxy: tproxy.NewUDP,
+	C.InboundTypeMixed:  socks.NewUDP,
+}
+
+type (
+	tcpListenerCreator func(addr string, tcpIn chan<- C.ConnContext) (C.Listener, error)
+	udpListenerCreator func(addr string, udpIn chan<- *inbound.PacketAdapter) (C.Listener, error)
 )
 
 type Ports struct {
@@ -82,31 +86,6 @@ type Ports struct {
 	TProxyPort int `json:"tproxy-port"`
 	MixedPort  int `json:"mixed-port"`
 	MitmPort   int `json:"mitm-port"`
-}
-
-func GetTunConf() config.Tun {
-	if lastTunConf == nil {
-		addrPort := C.DNSAddrPort{
-			AddrPort: netip.MustParseAddrPort("0.0.0.0:53"),
-		}
-		return config.Tun{
-			Enable: false,
-			Stack:  C.TunGvisor,
-			DNSHijack: []C.DNSUrl{ // default hijack all dns query
-				{
-					Network:  "udp",
-					AddrPort: addrPort,
-				},
-				{
-					Network:  "tcp",
-					AddrPort: addrPort,
-				},
-			},
-			AutoRoute:           true,
-			AutoDetectInterface: false,
-		}
-	}
-	return *lastTunConf
 }
 
 func AllowLan() bool {
@@ -125,243 +104,122 @@ func SetBindAddress(host string) {
 	bindAddress = host
 }
 
-func ReCreateHTTP(port int, tcpIn chan<- C.ConnContext) {
-	httpMux.Lock()
-	defer httpMux.Unlock()
-
-	var err error
-	defer func() {
+func createListener(inbound C.Inbound, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
+	addr := inbound.BindAddress
+	if portIsZero(addr) {
+		log.Error().Str("addr", addr).Msgf("[Inbound] invalid %s address", inbound.Type)
+		return
+	}
+	tcpCreator := tcpListenerCreators[inbound.Type]
+	udpCreator := udpListenerCreators[inbound.Type]
+	if tcpCreator == nil && udpCreator == nil {
+		log.Error().Str("addr", addr).Msgf("[Inbound] server type %s not support", inbound.Type)
+		return
+	}
+	if tcpCreator != nil {
+		tcpListener, err := tcpCreator(addr, tcpIn)
 		if err != nil {
-			log.Error().Err(err).Msg("[Inbound] HTTP server start failed")
-		}
-	}()
-
-	addr := genAddr(bindAddress, port, allowLan)
-
-	if httpListener != nil {
-		if httpListener.RawAddress() == addr {
+			log.Error().Err(err).Str("addr", addr).Msgf("[Inbound] %s tcp server start failed", inbound.Type)
 			return
 		}
-		_ = httpListener.Close()
-		httpListener = nil
+		tcpListeners[inbound] = tcpListener
 	}
-
-	if portIsZero(addr) {
-		return
+	if udpCreator != nil {
+		udpListener, err := udpCreator(addr, udpIn)
+		if err != nil {
+			log.Error().Err(err).Str("addr", addr).Msgf("[Inbound] %s udp server start failed", inbound.Type)
+			return
+		}
+		udpListeners[inbound] = udpListener
 	}
-
-	httpListener, err = http.New(addr, tcpIn)
-	if err != nil {
-		return
-	}
-
-	log.Info().Str("addr", httpListener.Address()).Msg("[Inbound] HTTP proxy listening")
+	log.Info().Str("addr", addr).Msgf("[Inbound] %s proxy listening", inbound.Type)
 }
 
-func ReCreateSocks(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
-	socksMux.Lock()
-	defer socksMux.Unlock()
-
-	var err error
-	defer func() {
-		if err != nil {
-			log.Error().Err(err).Msg("[Inbound] SOCKS server start failed")
+func closeListener(inbound C.Inbound) {
+	listener := tcpListeners[inbound]
+	if listener != nil {
+		if err := listener.Close(); err != nil {
+			log.Error().Err(err).Msgf("[Inbound] close tcp server `%s` failed", inbound.ToAlias())
 		}
-	}()
-
-	addr := genAddr(bindAddress, port, allowLan)
-
-	shouldTCPIgnore := false
-	shouldUDPIgnore := false
-
-	if socksListener != nil {
-		if socksListener.RawAddress() != addr {
-			_ = socksListener.Close()
-			socksListener = nil
-		} else {
-			shouldTCPIgnore = true
+		delete(tcpListeners, inbound)
+	}
+	listener = udpListeners[inbound]
+	if listener != nil {
+		if err := listener.Close(); err != nil {
+			log.Error().Err(err).Msgf("[Inbound] close udp server `%s` failed", inbound.ToAlias())
 		}
+		delete(udpListeners, inbound)
 	}
-
-	if socksUDPListener != nil {
-		if socksUDPListener.RawAddress() != addr {
-			_ = socksUDPListener.Close()
-			socksUDPListener = nil
-		} else {
-			shouldUDPIgnore = true
-		}
-	}
-
-	if shouldTCPIgnore && shouldUDPIgnore {
-		return
-	}
-
-	if portIsZero(addr) {
-		return
-	}
-
-	tcpListener, err := socks.New(addr, tcpIn)
-	if err != nil {
-		return
-	}
-
-	udpListener, err := socks.NewUDP(addr, udpIn)
-	if err != nil {
-		_ = tcpListener.Close()
-		return
-	}
-
-	socksListener = tcpListener
-	socksUDPListener = udpListener
-
-	log.Info().Str("addr", socksListener.Address()).Msg("[Inbound] SOCKS proxy listening")
 }
 
-func ReCreateRedir(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
-	redirMux.Lock()
-	defer redirMux.Unlock()
+func getNeedCloseAndCreateInbound(originInbounds []C.Inbound, newInbounds []C.Inbound) ([]C.Inbound, []C.Inbound) {
+	needCloseMap := map[C.Inbound]bool{}
+	needClose := []C.Inbound{}
+	needCreate := []C.Inbound{}
 
-	var err error
-	defer func() {
-		if err != nil {
-			log.Error().Err(err).Msg("[Inbound] Redirect server start failed")
+	for _, m := range originInbounds {
+		needCloseMap[m] = true
+	}
+	for _, m := range newInbounds {
+		if needCloseMap[m] {
+			delete(needCloseMap, m)
+		} else {
+			needCreate = append(needCreate, m)
 		}
-	}()
-
-	addr := genAddr(bindAddress, port, allowLan)
-
-	if redirListener != nil {
-		if redirListener.RawAddress() == addr {
-			return
-		}
-		_ = redirListener.Close()
-		redirListener = nil
 	}
-
-	if redirUDPListener != nil {
-		if redirUDPListener.RawAddress() == addr {
-			return
-		}
-		_ = redirUDPListener.Close()
-		redirUDPListener = nil
+	for m := range needCloseMap {
+		needClose = append(needClose, m)
 	}
-
-	if portIsZero(addr) {
-		return
-	}
-
-	redirListener, err = redir.New(addr, tcpIn)
-	if err != nil {
-		return
-	}
-
-	redirUDPListener, err = tproxy.NewUDP(addr, udpIn)
-	if err != nil {
-		log.Error().Err(err).Msg("[Inbound] Redirect UDP Listener failed")
-	}
-
-	log.Info().Str("addr", redirListener.Address()).Msg("[Inbound] Redirect proxy listening")
+	return needClose, needCreate
 }
 
-func ReCreateTProxy(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
-	tproxyMux.Lock()
-	defer tproxyMux.Unlock()
-
-	var err error
-	defer func() {
-		if err != nil {
-			log.Error().Err(err).Msg("[Inbound] TProxy server start failed")
+// ReCreateListeners only recreate inbound config listener
+func ReCreateListeners(inbounds []C.Inbound, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
+	newInbounds := []C.Inbound{}
+	newInbounds = append(newInbounds, inbounds...)
+	for _, m := range getInbounds() {
+		if m.IsFromPortCfg {
+			newInbounds = append(newInbounds, m)
 		}
-	}()
-
-	addr := genAddr(bindAddress, port, allowLan)
-
-	if tproxyListener != nil {
-		if tproxyListener.RawAddress() == addr {
-			return
-		}
-		_ = tproxyListener.Close()
-		tproxyListener = nil
 	}
-
-	if tproxyUDPListener != nil {
-		if tproxyUDPListener.RawAddress() == addr {
-			return
-		}
-		_ = tproxyUDPListener.Close()
-		tproxyUDPListener = nil
-	}
-
-	if portIsZero(addr) {
-		return
-	}
-
-	tproxyListener, err = tproxy.New(addr, tcpIn)
-	if err != nil {
-		return
-	}
-
-	tproxyUDPListener, err = tproxy.NewUDP(addr, udpIn)
-	if err != nil {
-		log.Error().Err(err).Msg("[Inbound] TProxy UDP Listener failed")
-	}
-
-	log.Info().Str("addr", tproxyListener.Address()).Msg("[Inbound] TProxy proxy listening")
+	reCreateListeners(newInbounds, tcpIn, udpIn)
 }
 
-func ReCreateMixed(port int, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
-	mixedMux.Lock()
-	defer mixedMux.Unlock()
+// ReCreatePortsListeners only recreate ports config listener
+func ReCreatePortsListeners(ports Ports, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
+	newInbounds := []C.Inbound{}
+	newInbounds = addPortInbound(newInbounds, C.InboundTypeHTTP, ports.Port)
+	newInbounds = addPortInbound(newInbounds, C.InboundTypeSocks, ports.SocksPort)
+	newInbounds = addPortInbound(newInbounds, C.InboundTypeRedir, ports.RedirPort)
+	newInbounds = addPortInbound(newInbounds, C.InboundTypeTproxy, ports.TProxyPort)
+	newInbounds = addPortInbound(newInbounds, C.InboundTypeMixed, ports.MixedPort)
+	newInbounds = addPortInbound(newInbounds, C.InboundTypeMitm, ports.MitmPort)
+	newInbounds = append(newInbounds, GetInbounds()...)
+	reCreateListeners(newInbounds, tcpIn, udpIn)
+}
 
-	var err error
-	defer func() {
-		if err != nil {
-			log.Error().Err(err).Msg("[Inbound] Mixed(http+socks) server start failed")
-		}
-	}()
-
-	addr := genAddr(bindAddress, port, allowLan)
-
-	shouldTCPIgnore := false
-	shouldUDPIgnore := false
-
-	if mixedListener != nil {
-		if mixedListener.RawAddress() != addr {
-			_ = mixedListener.Close()
-			mixedListener = nil
-		} else {
-			shouldTCPIgnore = true
-		}
+func addPortInbound(inbounds []C.Inbound, inboundType C.InboundType, port int) []C.Inbound {
+	if port != 0 {
+		inbounds = append(inbounds, C.Inbound{
+			Type:          inboundType,
+			BindAddress:   genAddr(bindAddress, port, allowLan),
+			IsFromPortCfg: true,
+		})
 	}
-	if mixedUDPLister != nil {
-		if mixedUDPLister.RawAddress() != addr {
-			_ = mixedUDPLister.Close()
-			mixedUDPLister = nil
-		} else {
-			shouldUDPIgnore = true
-		}
-	}
+	return inbounds
+}
 
-	if shouldTCPIgnore && shouldUDPIgnore {
-		return
+func reCreateListeners(inbounds []C.Inbound, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
+	recreateMux.Lock()
+	defer recreateMux.Unlock()
+	needClose, needCreate := getNeedCloseAndCreateInbound(getInbounds(), inbounds)
+	for _, m := range needClose {
+		closeListener(m)
+		log.Info().Str("addr", m.BindAddress).Msgf("[Inbound] %s proxy is down", m.Type)
 	}
-
-	if portIsZero(addr) {
-		return
+	for _, m := range needCreate {
+		createListener(m, tcpIn, udpIn)
 	}
-
-	mixedListener, err = mixed.New(addr, tcpIn)
-	if err != nil {
-		return
-	}
-
-	mixedUDPLister, err = socks.NewUDP(addr, udpIn)
-	if err != nil {
-		_ = mixedListener.Close()
-		return
-	}
-
-	log.Info().Str("addr", mixedListener.Address()).Msg("[Inbound] Mixed(http+socks) proxy listening")
 }
 
 func ReCreateTun(tunConf *config.Tun, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
@@ -371,7 +229,7 @@ func ReCreateTun(tunConf *config.Tun, tcpIn chan<- C.ConnContext, udpIn chan<- *
 	var err error
 	defer func() {
 		if err != nil {
-			log.Error().Err(err).Msg("[Inbound] TUN server start failed")
+			log.Error().Err(err).Msg("[Inbound] tun server start failed")
 		}
 	}()
 
@@ -425,82 +283,6 @@ func ReCreateTun(tunConf *config.Tun, tcpIn chan<- C.ConnContext, udpIn chan<- *
 	}
 }
 
-func ReCreateMitm(port int, tcpIn chan<- C.ConnContext) {
-	mitmMux.Lock()
-	defer mitmMux.Unlock()
-
-	var err error
-	defer func() {
-		if err != nil {
-			log.Error().Err(err).Msg("[Inbound] MITM server start failed")
-		}
-	}()
-
-	addr := genAddr(bindAddress, port, allowLan)
-
-	if mitmListener != nil {
-		if mitmListener.RawAddress() == addr {
-			return
-		}
-		_ = mitmListener.Close()
-		mitmListener = nil
-		T.SetMitmOutbound(nil)
-	}
-
-	if portIsZero(addr) {
-		return
-	}
-
-	if err = initCert(); err != nil {
-		return
-	}
-
-	var (
-		rootCACert tls.Certificate
-		x509c      *x509.Certificate
-		certOption *cert.Config
-	)
-
-	rootCACert, err = tls.LoadX509KeyPair(C.Path.RootCA(), C.Path.CAKey())
-	if err != nil {
-		return
-	}
-
-	privateKey := rootCACert.PrivateKey.(*rsa.PrivateKey)
-
-	x509c, err = x509.ParseCertificate(rootCACert.Certificate[0])
-	if err != nil {
-		return
-	}
-
-	certOption, err = cert.NewConfig(
-		x509c,
-		privateKey,
-	)
-	if err != nil {
-		return
-	}
-
-	certOption.SetValidity(time.Hour * 24 * 365 * 2) // 2 years
-	certOption.SetOrganization("Clash ManInTheMiddle Proxy Services")
-
-	opt := &mitm.Option{
-		Addr:       addr,
-		ApiHost:    "mitm.clash",
-		CertConfig: certOption,
-		Handler:    &rewrites.RewriteHandler{},
-	}
-
-	mitmListener, err = mitm.New(opt, tcpIn)
-	if err != nil {
-		return
-	}
-
-	T.SetMitmOutbound(outbound.NewMitm(mitmListener.Address()))
-
-	log.Info().Str("addr", mitmListener.Address()).Msg("[Inbound] MITM proxy listening")
-}
-
 func ReCreateRedirToTun(ifaceNames []string) {
 	tcMux.Lock()
 	defer tcMux.Unlock()
@@ -522,12 +304,12 @@ func ReCreateRedirToTun(ifaceNames []string) {
 
 	program, err := ebpf.NewTcEBpfProgram(nicArr, lastTunConf.Device)
 	if err != nil {
-		log.Error().Err(err).Msg("[Inbound] Attached tc ebpf program failed")
+		log.Error().Err(err).Msg("[Inbound] attach tc ebpf program failed")
 		return
 	}
 	tcProgram = program
 
-	log.Info().Strs("interfaces", tcProgram.RawNICs()).Msg("[Inbound] Attached tc ebpf program")
+	log.Info().Strs("interfaces", tcProgram.RawNICs()).Msg("[Inbound] attached tc ebpf program")
 }
 
 func ReCreateAutoRedir(ifaceNames []string, defaultInterface string, tcpIn chan<- C.ConnContext, _ chan<- *inbound.PacketAdapter) {
@@ -545,7 +327,7 @@ func ReCreateAutoRedir(ifaceNames []string, defaultInterface string, tcpIn chan<
 				autoRedirProgram.Close()
 				autoRedirProgram = nil
 			}
-			log.Error().Err(err).Msg("[Inbound] Auto redirect server start failed")
+			log.Error().Err(err).Msg("[Inbound] auto redirect server start failed")
 		}
 	}()
 
@@ -597,7 +379,7 @@ func ReCreateAutoRedir(ifaceNames []string, defaultInterface string, tcpIn chan<
 	log.Info().
 		Str("addr", autoRedirListener.Address()).
 		Strs("interfaces", autoRedirProgram.RawNICs()).
-		Msg("[Inbound] Auto redirect proxy listening, attached tc ebpf program")
+		Msg("[Inbound] auto redirect proxy listening, attached tc ebpf program")
 }
 
 func PatchTunnel(tunnels []config.Tunnel, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
@@ -672,7 +454,7 @@ func PatchTunnel(tunnels []config.Tunnel, tcpIn chan<- C.ConnContext, udpIn chan
 		if elm.network == "tcp" {
 			l, err := tunnel.New(elm.addr, elm.target, elm.proxy, tcpIn)
 			if err != nil {
-				log.Error().Err(err).Str("target", elm.target).Msg("[Inbound] Tunnel server start failed")
+				log.Error().Err(err).Str("target", elm.target).Msg("[Inbound] tunnel server start failed")
 				continue
 			}
 			tunnelTCPListeners[key] = l
@@ -681,11 +463,11 @@ func PatchTunnel(tunnels []config.Tunnel, tcpIn chan<- C.ConnContext, udpIn chan
 				Str("network", elm.network).
 				Str("target", elm.target).
 				Str("proxy", elm.proxy).
-				Msg("[Inbound] Tunnel proxy listening")
+				Msg("[Inbound] tunnel proxy listening")
 		} else {
 			l, err := tunnel.NewUDP(elm.addr, elm.target, elm.proxy, udpIn)
 			if err != nil {
-				log.Error().Err(err).Str("target", elm.target).Msg("[Inbound] Tunnel server start failed")
+				log.Error().Err(err).Str("target", elm.target).Msg("[Inbound] tunnel server start failed")
 				continue
 			}
 			tunnelUDPListeners[key] = l
@@ -694,52 +476,60 @@ func PatchTunnel(tunnels []config.Tunnel, tcpIn chan<- C.ConnContext, udpIn chan
 				Str("network", elm.network).
 				Str("target", elm.target).
 				Str("proxy", elm.proxy).
-				Msg("[Inbound] Tunnel proxy listening")
+				Msg("[Inbound] tunnel proxy listening")
 		}
 	}
+}
+
+func GetInbounds() []C.Inbound {
+	return lo.Filter(getInbounds(), func(inbound C.Inbound, idx int) bool {
+		return !inbound.IsFromPortCfg
+	})
+}
+
+// GetInbounds return inbounds of proxy servers
+func getInbounds() []C.Inbound {
+	var inbounds []C.Inbound
+	for tcp := range tcpListeners {
+		inbounds = append(inbounds, tcp)
+	}
+	for udp := range udpListeners {
+		if _, ok := tcpListeners[udp]; !ok {
+			inbounds = append(inbounds, udp)
+		}
+	}
+	return inbounds
 }
 
 // GetPorts return the ports of proxy servers
 func GetPorts() *Ports {
 	ports := &Ports{}
-
-	if httpListener != nil {
-		_, portStr, _ := net.SplitHostPort(httpListener.Address())
-		port, _ := strconv.Atoi(portStr)
-		ports.Port = port
+	for _, m := range getInbounds() {
+		fillPort(m, ports)
 	}
-
-	if socksListener != nil {
-		_, portStr, _ := net.SplitHostPort(socksListener.Address())
-		port, _ := strconv.Atoi(portStr)
-		ports.SocksPort = port
-	}
-
-	if redirListener != nil {
-		_, portStr, _ := net.SplitHostPort(redirListener.Address())
-		port, _ := strconv.Atoi(portStr)
-		ports.RedirPort = port
-	}
-
-	if tproxyListener != nil {
-		_, portStr, _ := net.SplitHostPort(tproxyListener.Address())
-		port, _ := strconv.Atoi(portStr)
-		ports.TProxyPort = port
-	}
-
-	if mixedListener != nil {
-		_, portStr, _ := net.SplitHostPort(mixedListener.Address())
-		port, _ := strconv.Atoi(portStr)
-		ports.MixedPort = port
-	}
-
-	if mitmListener != nil {
-		_, portStr, _ := net.SplitHostPort(mitmListener.Address())
-		port, _ := strconv.Atoi(portStr)
-		ports.MitmPort = port
-	}
-
 	return ports
+}
+
+func fillPort(inbound C.Inbound, ports *Ports) {
+	if inbound.IsFromPortCfg {
+		port := getPort(inbound.BindAddress)
+		switch inbound.Type {
+		case C.InboundTypeHTTP:
+			ports.Port = port
+		case C.InboundTypeSocks:
+			ports.SocksPort = port
+		case C.InboundTypeTproxy:
+			ports.TProxyPort = port
+		case C.InboundTypeRedir:
+			ports.RedirPort = port
+		case C.InboundTypeMixed:
+			ports.MixedPort = port
+		case C.InboundTypeMitm:
+			ports.MitmPort = port
+		default:
+			// do nothing
+		}
+	}
 }
 
 func portIsZero(addr string) bool {
@@ -759,6 +549,44 @@ func genAddr(host string, port int, allowLan bool) string {
 	}
 
 	return fmt.Sprintf("127.0.0.1:%d", port)
+}
+
+func getPort(addr string) int {
+	_, portStr, err := net.SplitHostPort(addr)
+	if err != nil {
+		return 0
+	}
+	port, err := strconv.ParseUint(portStr, 10, 16)
+	if err != nil {
+		return 0
+	}
+	return int(port)
+}
+
+// GetTunConf return the last tun config
+func GetTunConf() config.Tun {
+	if lastTunConf == nil {
+		addrPort := C.DNSAddrPort{
+			AddrPort: netip.MustParseAddrPort("0.0.0.0:53"),
+		}
+		return config.Tun{
+			Enable: false,
+			Stack:  C.TunGvisor,
+			DNSHijack: []C.DNSUrl{ // default hijack all dns query
+				{
+					Network:  "udp",
+					AddrPort: addrPort,
+				},
+				{
+					Network:  "tcp",
+					AddrPort: addrPort,
+				},
+			},
+			AutoRoute:           true,
+			AutoDetectInterface: false,
+		}
+	}
+	return *lastTunConf
 }
 
 func hasTunConfigChange(tunConf *config.Tun) bool {
@@ -811,19 +639,6 @@ func (t *tunChangeCallback) Resume() {
 	ReCreateTun(&conf, t.tcpIn, t.udpIn)
 	ReCreateRedirToTun(conf.RedirectToTun)
 	statistic.DefaultManager.Cleanup()
-}
-
-func initCert() error {
-	if _, err := os.Stat(C.Path.RootCA()); os.IsNotExist(err) {
-		log.Info().Msg("[Config] Can't find mitm_ca.crt, start generate")
-		err = cert.GenerateAndSave(C.Path.RootCA(), C.Path.CAKey())
-		if err != nil {
-			return err
-		}
-		log.Info().Msg("[Config] Generated CA private key and CA certificate finish")
-	}
-
-	return nil
 }
 
 func Cleanup() {

@@ -65,7 +65,7 @@ func New(addr string, in chan<- C.ConnContext) (*Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	rl := &Listener{
+	al := &Listener{
 		listener: l,
 		addr:     addr,
 	}
@@ -74,14 +74,14 @@ func New(addr string, in chan<- C.ConnContext) (*Listener, error) {
 		for {
 			c, err := l.Accept()
 			if err != nil {
-				if rl.closed {
+				if al.closed {
 					break
 				}
 				continue
 			}
-			go rl.handleRedir(c, in)
+			go al.handleRedir(c, in)
 		}
 	}()
 
-	return rl, nil
+	return al, nil
 }

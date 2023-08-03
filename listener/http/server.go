@@ -29,11 +29,11 @@ func (l *Listener) Close() error {
 	return l.listener.Close()
 }
 
-func New(addr string, in chan<- C.ConnContext) (*Listener, error) {
+func New(addr string, in chan<- C.ConnContext) (C.Listener, error) {
 	return NewWithAuthenticate(addr, in, true)
 }
 
-func NewWithAuthenticate(addr string, in chan<- C.ConnContext, authenticate bool) (*Listener, error) {
+func NewWithAuthenticate(addr string, in chan<- C.ConnContext, authenticate bool) (C.Listener, error) {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err

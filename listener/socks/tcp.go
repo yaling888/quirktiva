@@ -34,7 +34,7 @@ func (l *Listener) Close() error {
 	return l.listener.Close()
 }
 
-func New(addr string, in chan<- C.ConnContext) (*Listener, error) {
+func New(addr string, in chan<- C.ConnContext) (C.Listener, error) {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
@@ -60,12 +60,66 @@ func New(addr string, in chan<- C.ConnContext) (*Listener, error) {
 	return sl, nil
 }
 
+func New4(addr string, in chan<- C.ConnContext) (C.Listener, error) {
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+
+	sl := &Listener{
+		listener: l,
+		addr:     addr,
+	}
+	go func() {
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				if sl.closed {
+					break
+				}
+				continue
+			}
+			_ = c.(*net.TCPConn).SetKeepAlive(true)
+			go HandleSocks4(c, in)
+		}
+	}()
+
+	return sl, nil
+}
+
+func New5(addr string, in chan<- C.ConnContext) (C.Listener, error) {
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+
+	sl := &Listener{
+		listener: l,
+		addr:     addr,
+	}
+	go func() {
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				if sl.closed {
+					break
+				}
+				continue
+			}
+			_ = c.(*net.TCPConn).SetKeepAlive(true)
+			go HandleSocks5(c, in)
+		}
+	}()
+
+	return sl, nil
+}
+
 func handleSocks(conn net.Conn, in chan<- C.ConnContext) {
-	conn.(*net.TCPConn).SetKeepAlive(true)
+	_ = conn.(*net.TCPConn).SetKeepAlive(true)
 	bufConn := N.NewBufferedConn(conn)
 	head, err := bufConn.Peek(1)
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 
@@ -75,14 +129,14 @@ func handleSocks(conn net.Conn, in chan<- C.ConnContext) {
 	case socks5.Version:
 		HandleSocks5(bufConn, in)
 	default:
-		conn.Close()
+		_ = conn.Close()
 	}
 }
 
 func HandleSocks4(conn net.Conn, in chan<- C.ConnContext) {
 	addr, _, err := socks4.ServerHandshake(conn, authStore.Authenticator())
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 	in <- inbound.NewSocket(socks5.ParseAddr(addr), conn, C.SOCKS4)
@@ -91,12 +145,12 @@ func HandleSocks4(conn net.Conn, in chan<- C.ConnContext) {
 func HandleSocks5(conn net.Conn, in chan<- C.ConnContext) {
 	target, command, err := socks5.ServerHandshake(conn, authStore.Authenticator())
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 	if command == socks5.CmdUDPAssociate {
-		defer conn.Close()
-		io.Copy(io.Discard, conn)
+		_, _ = io.Copy(io.Discard, conn)
+		_ = conn.Close()
 		return
 	}
 	in <- inbound.NewSocket(target, conn, C.SOCKS5)

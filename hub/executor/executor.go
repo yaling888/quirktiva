@@ -80,6 +80,7 @@ func ApplyConfig(cfg *config.Config, force bool) {
 	updateProfile(cfg)
 	updateDNS(cfg.DNS, &cfg.General.Tun)
 	updateGeneral(cfg.General, force)
+	updateInbounds(cfg.Inbounds, force)
 	updateExperimental(cfg)
 	updateTunnels(cfg.Tunnels)
 
@@ -88,28 +89,23 @@ func ApplyConfig(cfg *config.Config, force bool) {
 
 func GetGeneral() *config.General {
 	ports := listener.GetPorts()
-	authenticator := make([]string, 0)
-	if authM := authStore.Authenticator(); authM != nil {
-		authenticator = authM.Users()
-	}
-
 	general := &config.General{
-		Inbound: config.Inbound{
-			Port:           ports.Port,
-			SocksPort:      ports.SocksPort,
-			RedirPort:      ports.RedirPort,
-			TProxyPort:     ports.TProxyPort,
-			MixedPort:      ports.MixedPort,
-			MitmPort:       ports.MitmPort,
-			Authentication: authenticator,
-			AllowLan:       listener.AllowLan(),
-			BindAddress:    listener.BindAddress(),
+		LegacyInbound: config.LegacyInbound{
+			Port:        ports.Port,
+			SocksPort:   ports.SocksPort,
+			RedirPort:   ports.RedirPort,
+			TProxyPort:  ports.TProxyPort,
+			MixedPort:   ports.MixedPort,
+			MitmPort:    ports.MitmPort,
+			AllowLan:    listener.AllowLan(),
+			BindAddress: listener.BindAddress(),
 		},
-		Mode:     tunnel.Mode(),
-		LogLevel: L.Level(),
-		IPv6:     !resolver.DisableIPv6,
-		Sniffing: tunnel.Sniffing(),
-		Tun:      listener.GetTunConf(),
+		Authentication: []string{},
+		Mode:           tunnel.Mode(),
+		LogLevel:       L.Level(),
+		IPv6:           !resolver.DisableIPv6,
+		Sniffing:       tunnel.Sniffing(),
+		Tun:            listener.GetTunConf(),
 	}
 
 	return general
@@ -201,6 +197,16 @@ func updateTunnels(tunnels []config.Tunnel) {
 	listener.PatchTunnel(tunnels, tunnel.TCPIn(), tunnel.UDPIn())
 }
 
+func updateInbounds(inbounds []C.Inbound, force bool) {
+	if !force {
+		return
+	}
+	tcpIn := tunnel.TCPIn()
+	udpIn := tunnel.UDPIn()
+
+	listener.ReCreateListeners(inbounds, tcpIn, udpIn)
+}
+
 func updateGeneral(general *config.General, force bool) {
 	tunnel.SetMode(general.Mode)
 	resolver.DisableIPv6 = !general.IPv6
@@ -237,18 +243,21 @@ func updateGeneral(general *config.General, force bool) {
 
 	log.Info().Bool("sniffing", sniffing).Msg("[Config] tls")
 
-	tcpIn := tunnel.TCPIn()
-	udpIn := tunnel.UDPIn()
-
 	general.Tun.StopRouteListener = true
 
-	listener.ReCreateHTTP(general.Port, tcpIn)
-	listener.ReCreateSocks(general.SocksPort, tcpIn, udpIn)
-	listener.ReCreateRedir(general.RedirPort, tcpIn, udpIn)
+	tcpIn := tunnel.TCPIn()
+	udpIn := tunnel.UDPIn()
+	ports := listener.Ports{
+		Port:       general.Port,
+		SocksPort:  general.SocksPort,
+		RedirPort:  general.RedirPort,
+		TProxyPort: general.TProxyPort,
+		MixedPort:  general.MixedPort,
+		MitmPort:   general.MitmPort,
+	}
+
+	listener.ReCreatePortsListeners(ports, tcpIn, udpIn)
 	listener.ReCreateAutoRedir(general.EBpf.AutoRedir, defaultInterface, tcpIn, udpIn)
-	listener.ReCreateTProxy(general.TProxyPort, tcpIn, udpIn)
-	listener.ReCreateMixed(general.MixedPort, tcpIn, udpIn)
-	listener.ReCreateMitm(general.MitmPort, tcpIn)
 	listener.ReCreateTun(&general.Tun, tcpIn, udpIn)
 	listener.ReCreateRedirToTun(general.EBpf.RedirectToTun)
 }
