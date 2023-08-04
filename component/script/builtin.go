@@ -2,7 +2,6 @@ package script
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/phuslu/log"
 	"go.starlark.net/lib/time"
@@ -187,15 +186,6 @@ func matchRuleProviderByShortcut(thread *starlark.Thread, b *starlark.Builtin, a
 }
 
 func metadataToStringDict(mtd *C.Metadata, dict starlark.StringDict) (starlark.StringDict, error) {
-	srcPort, err := strconv.ParseUint(mtd.SrcPort, 10, 16)
-	if err != nil {
-		return nil, err
-	}
-	dstPort, err := strconv.ParseUint(mtd.DstPort, 10, 16)
-	if err != nil {
-		return nil, err
-	}
-
 	if dict == nil {
 		dict = make(starlark.StringDict)
 	}
@@ -205,14 +195,14 @@ func metadataToStringDict(mtd *C.Metadata, dict starlark.StringDict) (starlark.S
 	dict["process_name"] = starlark.String(mtd.Process)
 	dict["process_path"] = starlark.String(mtd.ProcessPath)
 	dict["src_ip"] = starlark.String(mtd.SrcIP.String())
-	dict["src_port"] = starlark.MakeUint64(srcPort)
+	dict["src_port"] = starlark.MakeUint64(uint64(mtd.SrcPort))
 
 	var dstIP string
 	if mtd.Resolved() {
 		dstIP = mtd.DstIP.String()
 	}
 	dict["dst_ip"] = starlark.String(dstIP)
-	dict["dst_port"] = starlark.MakeUint64(dstPort)
+	dict["dst_port"] = starlark.MakeUint64(uint64(mtd.DstPort))
 	dict["user_agent"] = starlark.String(mtd.UserAgent)
 	dict["special_proxy"] = starlark.String(mtd.SpecialProxy)
 
@@ -237,7 +227,7 @@ func metadataToDict(mtd *C.Metadata) (val *starlark.Dict, err error) {
 	if err != nil {
 		return
 	}
-	err = dict.SetKey(starlark.String("src_port"), starlark.String(mtd.SrcPort))
+	err = dict.SetKey(starlark.String("src_port"), starlark.String(mtd.SrcPort.String()))
 	if err != nil {
 		return
 	}
@@ -250,7 +240,7 @@ func metadataToDict(mtd *C.Metadata) (val *starlark.Dict, err error) {
 	if err != nil {
 		return
 	}
-	err = dict.SetKey(starlark.String("dst_port"), starlark.String(mtd.DstPort))
+	err = dict.SetKey(starlark.String("dst_port"), starlark.String(mtd.DstPort.String()))
 	if err != nil {
 		return
 	}

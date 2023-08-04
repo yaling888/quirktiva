@@ -2,11 +2,13 @@ package adapter
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/phuslu/log"
 
 	"github.com/Dreamacro/clash/adapter/outbound"
 	"github.com/Dreamacro/clash/common/structure"
+	"github.com/Dreamacro/clash/common/util"
 	C "github.com/Dreamacro/clash/constant"
 )
 
@@ -83,6 +85,7 @@ func ParseProxy(mapping map[string]any, forceCertVerify, udp, autoCipher, random
 		if err != nil {
 			break
 		}
+		vmessOption.HTTPOpts.Method = util.EmptyOr(strings.ToUpper(vmessOption.HTTPOpts.Method), "GET")
 		if forceCertVerify {
 			vmessOption.SkipCertVerify = false
 		}

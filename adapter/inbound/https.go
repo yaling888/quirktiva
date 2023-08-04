@@ -13,12 +13,12 @@ import (
 func NewHTTPS(request *http.Request, conn net.Conn) *context.ConnContext {
 	metadata := parseHTTPAddr(request)
 	metadata.Type = C.HTTPCONNECT
-	if ip, port, err := parseAddr(conn.RemoteAddr().String()); err == nil {
+	if ip, port, err := parseAddr(conn.RemoteAddr()); err == nil {
 		metadata.SrcIP = ip
-		metadata.SrcPort = port
+		metadata.SrcPort = C.Port(port)
 	}
-	if addrPort, err := netip.ParseAddrPort(conn.LocalAddr().String()); err == nil {
-		metadata.OriginDst = addrPort
+	if ip, port, err := parseAddr(conn.LocalAddr()); err == nil {
+		metadata.OriginDst = netip.AddrPortFrom(ip, uint16(port))
 	}
 	return context.NewConnContext(conn, metadata)
 }

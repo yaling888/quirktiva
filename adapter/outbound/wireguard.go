@@ -92,9 +92,7 @@ func (w *WireGuard) DialContext(ctx context.Context, metadata *C.Metadata, _ ...
 		return nil, fmt.Errorf("resolve DNS failed: %w", err)
 	}
 
-	port, _ := strconv.ParseUint(metadata.DstPort, 10, 16)
-
-	c, err := w.netStack.DialContextTCPAddrPort(dialCtx, netip.AddrPortFrom(metadata.DstIP, uint16(port)))
+	c, err := w.netStack.DialContextTCPAddrPort(dialCtx, netip.AddrPortFrom(metadata.DstIP, uint16(metadata.DstPort)))
 	if err != nil {
 		return nil, err
 	}

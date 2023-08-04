@@ -1,7 +1,6 @@
 package script
 
 import (
-	"strconv"
 	"time"
 
 	"github.com/antonmedv/expr/ast"
@@ -93,15 +92,8 @@ func parseEnv(mtd *C.Metadata) shortcutEnvironment {
 		env.DstIP = mtd.DstIP.String()
 	}
 
-	srcPort, err := strconv.ParseUint(mtd.SrcPort, 10, 16)
-	if err == nil {
-		env.SrcPort = uint16(srcPort)
-	}
-
-	dstPort, err := strconv.ParseUint(mtd.DstPort, 10, 16)
-	if err == nil {
-		env.DstPort = uint16(dstPort)
-	}
+	env.SrcPort = uint16(mtd.SrcPort)
+	env.DstPort = uint16(mtd.DstPort)
 
 	env.InCidr = uInCidr
 	env.InIPSet = uInIPSet

@@ -1,12 +1,14 @@
 package inbound
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"net/netip"
 	"strconv"
 	"strings"
 
+	"github.com/Dreamacro/clash/common/util"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/transport/socks5"
 )
@@ -18,14 +20,14 @@ func parseSocksAddr(target socks5.Addr) *C.Metadata {
 	case socks5.AtypDomainName:
 		// trim for FQDN
 		metadata.Host = strings.TrimRight(string(target[2:2+target[1]]), ".")
-		metadata.DstPort = strconv.Itoa((int(target[2+target[1]]) << 8) | int(target[2+target[1]+1]))
+		metadata.DstPort = C.Port((int(target[2+target[1]]) << 8) | int(target[2+target[1]+1]))
 	case socks5.AtypIPv4:
 		metadata.DstIP, _ = netip.AddrFromSlice(target[1 : 1+net.IPv4len])
-		metadata.DstPort = strconv.Itoa((int(target[1+net.IPv4len]) << 8) | int(target[1+net.IPv4len+1]))
+		metadata.DstPort = C.Port((int(target[1+net.IPv4len]) << 8) | int(target[1+net.IPv4len+1]))
 	case socks5.AtypIPv6:
 		ip6, _ := netip.AddrFromSlice(target[1 : 1+net.IPv6len])
 		metadata.DstIP = ip6.Unmap()
-		metadata.DstPort = strconv.Itoa((int(target[1+net.IPv6len]) << 8) | int(target[1+net.IPv6len+1]))
+		metadata.DstPort = C.Port((int(target[1+net.IPv6len]) << 8) | int(target[1+net.IPv6len+1]))
 	}
 
 	return metadata
@@ -33,10 +35,7 @@ func parseSocksAddr(target socks5.Addr) *C.Metadata {
 
 func parseHTTPAddr(request *http.Request) *C.Metadata {
 	host := request.URL.Hostname()
-	port := request.URL.Port()
-	if port == "" {
-		port = "80"
-	}
+	port, _ := strconv.ParseUint(util.EmptyOr(request.URL.Port(), "80"), 10, 16)
 
 	// trim FQDN (#737)
 	host = strings.TrimRight(host, ".")
@@ -45,7 +44,7 @@ func parseHTTPAddr(request *http.Request) *C.Metadata {
 		NetWork: C.TCP,
 		Host:    host,
 		DstIP:   netip.Addr{},
-		DstPort: port,
+		DstPort: C.Port(port),
 	}
 
 	if ip, err := netip.ParseAddr(host); err == nil {
@@ -55,12 +54,15 @@ func parseHTTPAddr(request *http.Request) *C.Metadata {
 	return metadata
 }
 
-func parseAddr(addr string) (netip.Addr, string, error) {
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		return netip.Addr{}, "", err
+func parseAddr(addr net.Addr) (netip.Addr, int, error) {
+	switch a := addr.(type) {
+	case *net.TCPAddr:
+		ip, _ := netip.AddrFromSlice(a.IP)
+		return ip.Unmap(), a.Port, nil
+	case *net.UDPAddr:
+		ip, _ := netip.AddrFromSlice(a.IP)
+		return ip.Unmap(), a.Port, nil
+	default:
+		return netip.Addr{}, 0, fmt.Errorf("unknown address type %T", addr)
 	}
-
-	ip, err := netip.ParseAddr(host)
-	return ip, port, err
 }

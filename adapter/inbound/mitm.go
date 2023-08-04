@@ -17,14 +17,12 @@ func NewMitm(target socks5.Addr, source net.Addr, originTarget net.Addr, userAge
 	metadata.UserAgent = userAgent
 	metadata.SpecialProxy = specialProxy
 
-	if ip, port, err := parseAddr(source.String()); err == nil {
+	if ip, port, err := parseAddr(source); err == nil {
 		metadata.SrcIP = ip
-		metadata.SrcPort = port
+		metadata.SrcPort = C.Port(port)
 	}
-	if originTarget != nil {
-		if addrPort, err := netip.ParseAddrPort(originTarget.String()); err == nil {
-			metadata.OriginDst = addrPort
-		}
+	if ip, port, err := parseAddr(originTarget); err == nil {
+		metadata.OriginDst = netip.AddrPortFrom(ip, uint16(port))
 	}
 	return context.NewConnContext(conn, metadata)
 }

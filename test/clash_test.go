@@ -571,7 +571,7 @@ func testSuit(t *testing.T, proxy C.ProxyAdapter) {
 		defer cancel()
 		return proxy.DialContext(ctx, &C.Metadata{
 			Host:    dest.String(),
-			DstPort: "10001",
+			DstPort: 10001,
 		})
 	}
 
@@ -590,7 +590,7 @@ func testSuit(t *testing.T, proxy C.ProxyAdapter) {
 	pc, err := proxy.ListenPacketContext(context.Background(), &C.Metadata{
 		NetWork: C.UDP,
 		DstIP:   dest,
-		DstPort: "10001",
+		DstPort: 10001,
 	})
 	require.NoError(t, err)
 
@@ -600,7 +600,7 @@ func testSuit(t *testing.T, proxy C.ProxyAdapter) {
 	pc, err = proxy.ListenPacketContext(context.Background(), &C.Metadata{
 		NetWork: C.UDP,
 		DstIP:   dest,
-		DstPort: "10001",
+		DstPort: 10001,
 	})
 	require.NoError(t, err)
 
@@ -610,7 +610,7 @@ func testSuit(t *testing.T, proxy C.ProxyAdapter) {
 	pc, err = proxy.ListenPacketContext(context.Background(), &C.Metadata{
 		NetWork: C.UDP,
 		DstIP:   dest,
-		DstPort: "10001",
+		DstPort: 10001,
 	})
 	require.NoError(t, err)
 
@@ -647,7 +647,7 @@ func benchmarkProxy(b *testing.B, proxy C.ProxyAdapter) {
 
 	conn, err := proxy.DialContext(context.Background(), &C.Metadata{
 		Host:    localIP.String(),
-		DstPort: "10001",
+		DstPort: 10001,
 	})
 	require.NoError(b, err)
 

@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"net/netip"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/Dreamacro/clash/component/ipset"
@@ -100,11 +99,9 @@ func uResolveProcess(mtd *C.Metadata) {
 		return
 	}
 
-	if srcPort, err := strconv.ParseUint(mtd.SrcPort, 10, 16); err == nil {
-		path, err1 := P.FindProcessPath(mtd.NetWork.String(), netip.AddrPortFrom(mtd.SrcIP, uint16(srcPort)), mtd.OriginDst)
-		if err1 == nil {
-			mtd.Process = filepath.Base(path)
-			mtd.ProcessPath = path
-		}
+	path, err := P.FindProcessPath(mtd.NetWork.String(), netip.AddrPortFrom(mtd.SrcIP, uint16(mtd.SrcPort)), mtd.OriginDst)
+	if err == nil {
+		mtd.Process = filepath.Base(path)
+		mtd.ProcessPath = path
 	}
 }

@@ -95,8 +95,8 @@ type Metadata struct {
 	Type         Type       `json:"type"`
 	SrcIP        netip.Addr `json:"sourceIP"`
 	DstIP        netip.Addr `json:"destinationIP"`
-	SrcPort      string     `json:"sourcePort"`
-	DstPort      string     `json:"destinationPort"`
+	SrcPort      Port       `json:"sourcePort"`
+	DstPort      Port       `json:"destinationPort"`
 	Host         string     `json:"host"`
 	DNSMode      DNSMode    `json:"dnsMode"`
 	Process      string     `json:"process"`
@@ -108,11 +108,11 @@ type Metadata struct {
 }
 
 func (m *Metadata) RemoteAddress() string {
-	return net.JoinHostPort(m.String(), m.DstPort)
+	return net.JoinHostPort(m.String(), m.DstPort.String())
 }
 
 func (m *Metadata) SourceAddress() string {
-	return net.JoinHostPort(m.SrcIP.String(), m.SrcPort)
+	return net.JoinHostPort(m.SrcIP.String(), m.SrcPort.String())
 }
 
 func (m *Metadata) AddrType() int {
@@ -134,10 +134,9 @@ func (m *Metadata) UDPAddr() *net.UDPAddr {
 	if m.NetWork != UDP || !m.DstIP.IsValid() {
 		return nil
 	}
-	port, _ := strconv.ParseUint(m.DstPort, 10, 16)
 	return &net.UDPAddr{
 		IP:   m.DstIP.AsSlice(),
-		Port: int(port),
+		Port: int(m.DstPort),
 	}
 }
 
@@ -184,4 +183,15 @@ func (m *Metadata) MarshalObject(e *log.Entry) {
 	if m.UserAgent != "" {
 		e.Str("userAgent", m.UserAgent)
 	}
+}
+
+// Port is used to compatible with old version
+type Port uint16
+
+func (n Port) MarshalJSON() ([]byte, error) {
+	return json.Marshal(n.String())
+}
+
+func (n Port) String() string {
+	return strconv.FormatUint(uint64(n), 10)
 }

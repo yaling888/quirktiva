@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -293,10 +294,12 @@ func urlToMetadata(rawURL string) (addr C.Metadata, err error) {
 		}
 	}
 
+	p, _ := strconv.ParseUint(port, 10, 16)
+
 	addr = C.Metadata{
 		Host:    u.Hostname(),
 		DstIP:   netip.Addr{},
-		DstPort: port,
+		DstPort: C.Port(p),
 	}
 	return
 }

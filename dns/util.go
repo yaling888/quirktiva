@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"strconv"
 	"time"
 
 	D "github.com/miekg/dns"
@@ -195,11 +196,12 @@ func dialContextByProxyOrInterface(
 		networkType = C.UDP
 	}
 
+	p, _ := strconv.ParseUint(port, 10, 16)
 	metadata := &C.Metadata{
 		NetWork: networkType,
 		Host:    "",
 		DstIP:   dstIP,
-		DstPort: port,
+		DstPort: C.Port(p),
 	}
 
 	if networkType == C.UDP {

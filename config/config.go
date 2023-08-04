@@ -1317,8 +1317,8 @@ func verifyScriptMatcher(config *Config, matchers map[string]C.Matcher) (err err
 		NetWork: C.TCP,
 		Host:    "www.example.com",
 		SrcIP:   netip.MustParseAddr("198.18.0.8"),
-		SrcPort: "12345",
-		DstPort: "443",
+		SrcPort: 12345,
+		DstPort: 443,
 	}
 
 	metadata1 := &C.Metadata{
@@ -1326,8 +1326,8 @@ func verifyScriptMatcher(config *Config, matchers map[string]C.Matcher) (err err
 		NetWork: C.UDP,
 		Host:    "8.8.8.8",
 		SrcIP:   netip.MustParseAddr("192.168.1.123"),
-		SrcPort: "6789",
-		DstPort: "2023",
+		SrcPort: 6789,
+		DstPort: 2023,
 	}
 
 	cases := []*C.Metadata{metadata, metadata1}

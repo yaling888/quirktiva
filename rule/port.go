@@ -45,11 +45,11 @@ func (p *Port) RuleType() C.RuleType {
 func (p *Port) Match(metadata *C.Metadata) bool {
 	switch p.portType {
 	case PortTypeSrc:
-		return p.matchPortReal(metadata.SrcPort)
+		return p.matchPortReal(int(metadata.SrcPort))
 	case PortTypeDest:
-		return p.matchPortReal(metadata.DstPort)
+		return p.matchPortReal(int(metadata.DstPort))
 	case PortTypeInbound:
-		return p.matchPortReal(strconv.FormatUint(uint64(metadata.OriginDst.Port()), 10))
+		return p.matchPortReal(int(metadata.OriginDst.Port()))
 	default:
 		panic(fmt.Errorf("unknown port type: %v", p.portType))
 	}
@@ -67,8 +67,7 @@ func (p *Port) ShouldResolveIP() bool {
 	return false
 }
 
-func (p *Port) matchPortReal(portRef string) bool {
-	port, _ := strconv.Atoi(portRef)
+func (p *Port) matchPortReal(port int) bool {
 	var rs bool
 	for _, pr := range p.portList {
 		if pr.portEnd == -1 {

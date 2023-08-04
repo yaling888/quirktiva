@@ -3,7 +3,6 @@ package inbound
 import (
 	"net"
 	"net/netip"
-	"strconv"
 
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/transport/socks5"
@@ -25,14 +24,12 @@ func NewPacket(target socks5.Addr, originTarget net.Addr, packet C.UDPPacket, so
 	metadata := parseSocksAddr(target)
 	metadata.NetWork = C.UDP
 	metadata.Type = source
-	if ip, port, err := parseAddr(packet.LocalAddr().String()); err == nil {
+	if ip, port, err := parseAddr(packet.LocalAddr()); err == nil {
 		metadata.SrcIP = ip
-		metadata.SrcPort = port
+		metadata.SrcPort = C.Port(port)
 	}
-	if originTarget != nil {
-		if addrPort, err := netip.ParseAddrPort(originTarget.String()); err == nil {
-			metadata.OriginDst = addrPort
-		}
+	if ip, port, err := parseAddr(originTarget); err == nil {
+		metadata.OriginDst = netip.AddrPortFrom(ip, uint16(port))
 	}
 	return &PacketAdapter{
 		UDPPacket: packet,
@@ -46,9 +43,9 @@ func NewPacketBy(packet C.UDPPacket, src, dst netip.AddrPort, tp C.Type) *Packet
 	metadata.NetWork = C.UDP
 	metadata.Type = tp
 	metadata.SrcIP = src.Addr()
-	metadata.SrcPort = strconv.FormatUint(uint64(src.Port()), 10)
+	metadata.SrcPort = C.Port(src.Port())
 	metadata.DstIP = dst.Addr()
-	metadata.DstPort = strconv.FormatUint(uint64(dst.Port()), 10)
+	metadata.DstPort = C.Port(dst.Port())
 	metadata.OriginDst = dst
 
 	return &PacketAdapter{

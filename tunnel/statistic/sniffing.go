@@ -26,8 +26,8 @@ func (r *sniffing) Read(b []byte) (int, error) {
 
 func (r *sniffing) Write(b []byte) (int, error) {
 	if r.totalWrite.Load() < 128 && r.metadata.Host == "" &&
-		(r.metadata.DstPort == "443" || r.metadata.DstPort == "8443" || r.metadata.DstPort == "993" ||
-			r.metadata.DstPort == "465" || r.metadata.DstPort == "995") {
+		(r.metadata.DstPort == 443 || r.metadata.DstPort == 8443 || r.metadata.DstPort == 993 ||
+			r.metadata.DstPort == 465 || r.metadata.DstPort == 995) {
 		header, err := tls.SniffTLS(b)
 		if err == nil && strings.Index(header.Domain(), ".") > 0 {
 			log.Debug().

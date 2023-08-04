@@ -8,7 +8,6 @@ import (
 	"net/netip"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"sync"
 	"time"
 
@@ -256,7 +255,7 @@ func preHandleMetadata(metadata *C.Metadata) error {
 
 func resolveMetadata(_ C.PlainContext, metadata *C.Metadata) (proxy C.Proxy, rule C.Rule, err error) {
 	if metadata.NetWork == C.TCP && mitmProxy != nil && metadata.Type != C.MITM &&
-		((rewriteHosts != nil && rewriteHosts.Search(metadata.String()) != nil) || metadata.DstPort == "80") {
+		((rewriteHosts != nil && rewriteHosts.Search(metadata.String()) != nil) || metadata.DstPort == 80) {
 		proxy = mitmProxy
 		return
 	}
@@ -365,7 +364,7 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 
 	if resolver.IsExistFakeIP(metadata.DstIP) {
 		fAddr = metadata.DstIP
-		rKey = key + fAddr.String() + metadata.DstPort
+		rKey = key + fAddr.String() + metadata.DstPort.String()
 	}
 
 	if err := preHandleMetadata(metadata); err != nil {
@@ -670,11 +669,10 @@ func matchRule(subRules []C.Rule, metadata *C.Metadata, resolved, processFound *
 		if !*processFound && rule.ShouldFindProcess() {
 			*processFound = true
 
-			srcPort, err := strconv.ParseUint(metadata.SrcPort, 10, 16)
-			if err == nil && metadata.OriginDst.IsValid() {
+			if metadata.OriginDst.IsValid() {
 				path, err2 := P.FindProcessPath(
 					metadata.NetWork.String(),
-					netip.AddrPortFrom(metadata.SrcIP, uint16(srcPort)),
+					netip.AddrPortFrom(metadata.SrcIP, uint16(metadata.SrcPort)),
 					metadata.OriginDst,
 				)
 

@@ -391,12 +391,11 @@ func parseVmessAddr(metadata *C.Metadata) *vmess.DstAddr {
 		copy(addr[1:], metadata.Host)
 	}
 
-	port, _ := strconv.ParseUint(metadata.DstPort, 10, 16)
 	return &vmess.DstAddr{
 		UDP:      metadata.NetWork == C.UDP,
 		AddrType: addrType,
 		Addr:     addr,
-		Port:     uint(port),
+		Port:     uint(metadata.DstPort),
 	}
 }
 
