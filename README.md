@@ -265,9 +265,10 @@ process_path:    string
 user_agent:      string
 special_proxy:   string
 src_ip:          string
-src_port:        int
+src_port:        uint16
 dst_ip:          string // call resolve_ip(host) if empty
-dst_port:        int
+dst_port:        uint16
+inbound_port:    uint16
 ```
 Script shortcut functions
 ```ts
@@ -347,6 +348,7 @@ interface Metadata {
   src_port: string
   dst_ip: string
   dst_port: string
+  inbound_port: number
 }
 
 interface Context {

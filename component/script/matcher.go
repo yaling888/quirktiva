@@ -28,6 +28,7 @@ var keywordAllow = map[string]bool{
 	"dst_port":      true,
 	"user_agent":    true,
 	"special_proxy": true,
+	"inbound_port":  true,
 }
 
 var _ C.Matcher = (*Matcher)(nil)

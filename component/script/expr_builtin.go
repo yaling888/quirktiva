@@ -23,6 +23,7 @@ type shortcutEnvironment struct {
 	DstIP        string   `expr:"dst_ip"`
 	SrcPort      uint16   `expr:"src_port"`
 	DstPort      uint16   `expr:"dst_port"`
+	InboundPort  uint16   `expr:"inbound_port"`
 	Host         string   `expr:"host"`
 	ProcessName  string   `expr:"process_name"`
 	ProcessPath  string   `expr:"process_path"`
@@ -76,12 +77,19 @@ func parseEnv(mtd *C.Metadata) shortcutEnvironment {
 	env := shortcutEnvironment{
 		Network:      mtd.NetWork.String(),
 		Type:         mtd.Type.String(),
+		SrcPort:      uint16(mtd.SrcPort),
+		DstPort:      uint16(mtd.DstPort),
+		InboundPort:  mtd.OriginDst.Port(),
 		Host:         mtd.Host,
 		ProcessName:  mtd.Process,
 		ProcessPath:  mtd.ProcessPath,
 		UserAgent:    mtd.UserAgent,
 		SpecialProxy: mtd.SpecialProxy,
 		Now:          parseTimeExpr(),
+
+		InCidr:  uInCidr,
+		InIPSet: uInIPSet,
+		GeoIP:   uGeoIP,
 	}
 
 	if mtd.SrcIP.IsValid() {
@@ -91,13 +99,6 @@ func parseEnv(mtd *C.Metadata) shortcutEnvironment {
 	if mtd.DstIP.IsValid() {
 		env.DstIP = mtd.DstIP.String()
 	}
-
-	env.SrcPort = uint16(mtd.SrcPort)
-	env.DstPort = uint16(mtd.DstPort)
-
-	env.InCidr = uInCidr
-	env.InIPSet = uInIPSet
-	env.GeoIP = uGeoIP
 
 	env.ResolveIP = func(host string) string {
 		return uResolveIP(mtd, host)
