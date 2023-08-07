@@ -199,13 +199,13 @@ func (a *authAES128) packData(poolBuf *bytes.Buffer, data []byte, fullDataLength
 	poolBuf.Write(a.hmac(macKey, poolBuf.Bytes()[poolBuf.Len()-packedDataLength+4:])[:4])
 }
 
-func trapezoidRandom(max int, d float64) int {
+func trapezoidRandom(maxVal int, d float64) int {
 	base := rand.Float64()
 	if d-0 > 1e-6 {
 		a := 1 - d
 		base = (math.Sqrt(a*a+4*d*base) - a) / (2 * d)
 	}
-	return int(base * float64(max))
+	return int(base * float64(maxVal))
 }
 
 func (a *authAES128) getRandDataLengthForPackData(dataLength, fullDataLength int) int {

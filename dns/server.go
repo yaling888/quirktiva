@@ -49,8 +49,8 @@ func (s *Server) SetHandler(handler handler) {
 
 func ReCreateServer(addr string, resolver *Resolver, mapper *ResolverEnhancer) {
 	if addr == address && resolver != nil {
-		handler := NewHandler(resolver, mapper)
-		server.SetHandler(handler)
+		mHandler := newHandler(resolver, mapper)
+		server.SetHandler(mHandler)
 		return
 	}
 
@@ -94,8 +94,8 @@ func ReCreateServer(addr string, resolver *Resolver, mapper *ResolverEnhancer) {
 	}
 
 	address = addr
-	handler := NewHandler(resolver, mapper)
-	server = &Server{handler: handler}
+	mHandler := newHandler(resolver, mapper)
+	server = &Server{handler: mHandler}
 	server.Server = &D.Server{Addr: addr, PacketConn: p, Handler: server}
 
 	go func() {

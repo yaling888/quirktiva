@@ -106,9 +106,7 @@ func withMapping(mapping *cache.LruCache[netip.Addr, string]) middleware {
 					continue
 				}
 
-				if ttl < 1 {
-					ttl = 1
-				}
+				ttl = max(ttl, 1)
 				mapping.SetWithExpire(ip, host, time.Now().Add(time.Second*time.Duration(ttl)))
 			}
 
@@ -184,14 +182,14 @@ func compose(middlewares []middleware, endpoint handler) handler {
 	length := len(middlewares)
 	h := endpoint
 	for i := length - 1; i >= 0; i-- {
-		middleware := middlewares[i]
-		h = middleware(h)
+		mMiddleware := middlewares[i]
+		h = mMiddleware(h)
 	}
 
 	return h
 }
 
-func NewHandler(resolver *Resolver, mapper *ResolverEnhancer) handler {
+func newHandler(resolver *Resolver, mapper *ResolverEnhancer) handler {
 	middlewares := []middleware{}
 
 	if resolver.hosts != nil {

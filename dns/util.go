@@ -65,7 +65,7 @@ func setTTL(records []D.RR, ttl uint32, force bool) {
 
 	delta := minTTL(records) - ttl
 	for i := range records {
-		records[i].Header().Ttl = lo.Clamp(records[i].Header().Ttl-delta, 1, records[i].Header().Ttl)
+		records[i].Header().Ttl = min(max(records[i].Header().Ttl-delta, 1), records[i].Header().Ttl)
 	}
 }
 

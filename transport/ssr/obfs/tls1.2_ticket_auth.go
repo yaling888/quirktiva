@@ -187,12 +187,12 @@ func (t *tls12Ticket) packAuthData(buf *bytes.Buffer) {
 }
 
 func packSNIData(buf *bytes.Buffer, u string) {
-	len := uint16(len(u))
+	l := uint16(len(u))
 	buf.Write([]byte{0, 0})
-	binary.Write(buf, binary.BigEndian, len+5)
-	binary.Write(buf, binary.BigEndian, len+3)
+	binary.Write(buf, binary.BigEndian, l+5)
+	binary.Write(buf, binary.BigEndian, l+3)
 	buf.WriteByte(0)
-	binary.Write(buf, binary.BigEndian, len)
+	binary.Write(buf, binary.BigEndian, l)
 	buf.WriteString(u)
 }
 

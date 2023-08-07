@@ -34,6 +34,7 @@ func loadGeoSiteMatcher(countryCode string, not bool) (*router.DomainMatcher, in
 var ruleProviders map[string]*router.DomainMatcher
 
 func CleanGeoSiteCache() {
+	clear(ruleProviders)
 	ruleProviders = nil
 }
 

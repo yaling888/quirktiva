@@ -179,10 +179,7 @@ func (r *Resolver) exchangeWithoutCache(ctx context.Context, m *D.Msg, q D.Quest
 			msg1 := result.(*D.Msg)
 			if resolver.IsProxyServer(ctx) {
 				// reset proxy server ip cache expire time to at least 2 hours
-				ttl := minTTL(msg1.Answer)
-				if ttl < 7200 {
-					ttl = 7200
-				}
+				ttl := max(minTTL(msg1.Answer), 7200)
 				setMsgMaxTTL(msg1, ttl)
 				putMsgToCacheWithExpire(r.lruCache, key, msg1, ttl)
 				return
