@@ -1,17 +1,26 @@
 package constant
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/samber/lo"
+
+	"github.com/Dreamacro/clash/component/auth"
 )
 
 type Listener interface {
 	RawAddress() string
 	Address() string
 	Close() error
+}
+
+type AuthenticatorListener interface {
+	SetAuthenticator([]auth.AuthUser)
 }
 
 type InboundType string
@@ -39,9 +48,10 @@ var supportInboundTypes = map[InboundType]bool{
 }
 
 type inbound struct {
-	Type          InboundType `json:"type" yaml:"type"`
-	BindAddress   string      `json:"bind-address" yaml:"bind-address"`
-	IsFromPortCfg bool        `json:"-" yaml:"-"`
+	Type           InboundType `json:"type" yaml:"type"`
+	BindAddress    string      `json:"bind-address" yaml:"bind-address"`
+	Authentication *[]string   `json:"authentication" yaml:"authentication"`
+	IsFromPortCfg  bool        `json:"-" yaml:"-"`
 }
 
 type Inbound inbound
@@ -62,7 +72,82 @@ func (i *Inbound) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		*i = Inbound(*inner)
 	}
+	return verifyInbound(i)
+}
 
+// UnmarshalJSON implements encoding/json.Unmarshaler
+func (i *Inbound) UnmarshalJSON(data []byte) error {
+	var tp string
+	if err := json.Unmarshal(data, &tp); err != nil {
+		var inner inbound
+		if err := json.Unmarshal(data, &inner); err != nil {
+			return err
+		}
+		*i = Inbound(inner)
+	} else {
+		inner, err := parseInbound(tp)
+		if err != nil {
+			return err
+		}
+		*i = Inbound(*inner)
+	}
+	return verifyInbound(i)
+}
+
+// MarshalJSON implements encoding/json.Marshaler
+func (i *Inbound) MarshalJSON() ([]byte, error) {
+	auths := make([]string, 0)
+	if i.Authentication != nil {
+		auths = lo.Map(*i.Authentication, func(s string, _ int) string {
+			l := len(s)
+			if l == 0 {
+				return ""
+			}
+			return fmt.Sprintf("%s****%s", s[0:1], s[l-1:l])
+		})
+	}
+	return json.Marshal(map[string]any{
+		"type":           string(i.Type),
+		"bind-address":   i.BindAddress,
+		"authentication": auths,
+	})
+}
+
+func (i *Inbound) Key() string {
+	if i == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s:%s:%v", i.Type, i.BindAddress, i.IsFromPortCfg)
+}
+
+func (i *Inbound) ToAlias() string {
+	if i == nil {
+		return "<nil>"
+	}
+	return string(i.Type) + "://" + i.BindAddress
+}
+
+func parseInbound(alias string) (*inbound, error) {
+	u, err := url.Parse(alias)
+	if err != nil {
+		return nil, err
+	}
+	listenerType := InboundType(u.Scheme)
+	i := &inbound{
+		Type:        listenerType,
+		BindAddress: u.Host,
+	}
+	if u.User != nil {
+		au := u.User.String()
+		if !strings.Contains(au, ":") {
+			au += ":"
+		}
+		i.Authentication = &[]string{au}
+	}
+	return i, nil
+}
+
+func verifyInbound(i *Inbound) error {
 	typeStr := strings.ToLower(string(i.Type))
 	switch typeStr {
 	case "https":
@@ -80,27 +165,11 @@ func (i *Inbound) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 	_, portStr, err := net.SplitHostPort(i.BindAddress)
 	if err != nil {
-		return fmt.Errorf("bind address parse error, addr: %s, error: %v", i.ToAlias(), err)
+		return fmt.Errorf("bind address parse error, address: %s, error: %w", i.ToAlias(), err)
 	}
 	port, err := strconv.ParseUint(portStr, 10, 16)
 	if err != nil || port == 0 {
-		return fmt.Errorf("invalid bind port, addr: %s", i.ToAlias())
+		return fmt.Errorf("invalid bind port, address: %s", i.ToAlias())
 	}
 	return nil
-}
-
-func parseInbound(alias string) (*inbound, error) {
-	u, err := url.Parse(alias)
-	if err != nil {
-		return nil, err
-	}
-	listenerType := InboundType(u.Scheme)
-	return &inbound{
-		Type:        listenerType,
-		BindAddress: u.Host,
-	}, nil
-}
-
-func (i *Inbound) ToAlias() string {
-	return string(i.Type) + "://" + i.BindAddress
 }

@@ -13,9 +13,7 @@ import (
 )
 
 var (
-	initOnce     sync.Once
-	fileMode     os.FileMode = 0o666
-	defaultCache *CacheFile
+	fileMode os.FileMode = 0o666
 
 	bucketSelected = []byte("selected")
 	bucketFakeip   = []byte("fakeip")
@@ -149,7 +147,8 @@ func (c *CacheFile) Close() error {
 	return c.DB.Close()
 }
 
-func initCache() {
+// Cache return singleton of CacheFile
+var Cache = sync.OnceValue(func() *CacheFile {
 	options := bbolt.Options{Timeout: time.Second}
 	db, err := bbolt.Open(C.Path.Cache(), fileMode, &options)
 	switch err {
@@ -165,14 +164,7 @@ func initCache() {
 		log.Warn().Err(err).Msg("[CacheFile] open cache file failed")
 	}
 
-	defaultCache = &CacheFile{
+	return &CacheFile{
 		DB: db,
 	}
-}
-
-// Cache return singleton of CacheFile
-func Cache() *CacheFile {
-	initOnce.Do(initCache)
-
-	return defaultCache
-}
+})

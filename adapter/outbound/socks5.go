@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"strconv"
 
 	"github.com/Dreamacro/clash/component/dialer"
@@ -104,7 +105,8 @@ func (ss *Socks5) streamConn(c net.Conn, metadata *C.Metadata) (_ net.Conn, bind
 	}
 
 	if metadata.NetWork == C.UDP {
-		bindAddr, err = socks5.ClientHandshake(c, serializesSocksAddr(metadata), socks5.CmdUDPAssociate, user)
+		udpAssocateAddr := socks5.AddrFromStdAddrPort(netip.AddrPortFrom(netip.IPv4Unspecified(), 0))
+		bindAddr, err = socks5.ClientHandshake(c, udpAssocateAddr, socks5.CmdUDPAssociate, user)
 	} else {
 		bindAddr, err = socks5.ClientHandshake(c, serializesSocksAddr(metadata), socks5.CmdConnect, user)
 	}

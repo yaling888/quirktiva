@@ -501,7 +501,7 @@ func ParseRawConfig(rawCfg *RawConfig) (config *Config, err error) {
 	}
 	config.Mitm = mitm
 
-	config.Users = parseAuthentication(rawCfg.Authentication)
+	config.Users = ParseAuthentication(rawCfg.Authentication)
 
 	config.Tunnels = rawCfg.Tunnels
 	// verify tunnels
@@ -1141,7 +1141,7 @@ func parseDNS(rawCfg *RawConfig, hosts *trie.DomainTrie[netip.Addr]) (*DNS, erro
 	return dnsCfg, nil
 }
 
-func parseAuthentication(rawRecords []string) []auth.AuthUser {
+func ParseAuthentication(rawRecords []string) []auth.AuthUser {
 	var users []auth.AuthUser
 	for _, line := range rawRecords {
 		if user, pass, found := strings.Cut(line, ":"); found {

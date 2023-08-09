@@ -45,6 +45,7 @@ func ConfigInterfaceAddress(dev device.Device, prefix netip.Prefix, _ int, autoR
 		return err
 	}
 	defer func() {
+		_ = unix.Shutdown(fd, unix.SHUT_RDWR)
 		_ = unix.Close(fd)
 	}()
 

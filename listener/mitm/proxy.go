@@ -17,11 +17,12 @@ import (
 
 	"github.com/Dreamacro/clash/common/cache"
 	N "github.com/Dreamacro/clash/common/net"
+	"github.com/Dreamacro/clash/component/auth"
 	C "github.com/Dreamacro/clash/constant"
 	H "github.com/Dreamacro/clash/listener/http"
 )
 
-func HandleConn(c net.Conn, opt *C.MitmOption, in chan<- C.ConnContext, cache *cache.LruCache[string, bool]) {
+func HandleConn(c net.Conn, opt *C.MitmOption, in chan<- C.ConnContext, cache *cache.LruCache[string, bool], auth auth.Authenticator) {
 	var (
 		clientIP   = netip.MustParseAddrPort(c.RemoteAddr().String()).Addr()
 		sourceAddr net.Addr
@@ -62,7 +63,7 @@ readLoop:
 		session.Request.RemoteAddr = sourceAddr.String()
 
 		if !trusted {
-			session.Response = H.Authenticate(session.Request, cache)
+			session.Response = H.Authenticate(session.Request, cache, auth)
 
 			trusted = session.Response == nil
 		}

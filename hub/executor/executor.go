@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/phuslu/log"
+	"github.com/samber/lo"
 
 	"github.com/Dreamacro/clash/adapter"
 	"github.com/Dreamacro/clash/adapter/outboundgroup"
@@ -89,6 +90,17 @@ func ApplyConfig(cfg *config.Config, force bool) {
 
 func GetGeneral() *config.General {
 	ports := listener.GetPorts()
+	auths := make([]string, 0)
+	if authM := authStore.Authenticator(); authM != nil {
+		auths = lo.Map(authM.Users(), func(s string, _ int) string {
+			l := len(s)
+			if l == 0 {
+				return ""
+			}
+			return fmt.Sprintf("%s****%s", s[0:1], s[l-1:l])
+		})
+	}
+
 	general := &config.General{
 		LegacyInbound: config.LegacyInbound{
 			Port:        ports.Port,
@@ -100,7 +112,7 @@ func GetGeneral() *config.General {
 			AllowLan:    listener.AllowLan(),
 			BindAddress: listener.BindAddress(),
 		},
-		Authentication: []string{},
+		Authentication: auths,
 		Mode:           tunnel.Mode(),
 		LogLevel:       L.Level(),
 		IPv6:           !resolver.DisableIPv6,

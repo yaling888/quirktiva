@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,6 +18,7 @@ import (
 	"github.com/Dreamacro/clash/component/iface"
 	"github.com/Dreamacro/clash/config"
 	C "github.com/Dreamacro/clash/constant"
+	A "github.com/Dreamacro/clash/listener/auth"
 	"github.com/Dreamacro/clash/listener/autoredir"
 	"github.com/Dreamacro/clash/listener/http"
 	"github.com/Dreamacro/clash/listener/mitm"
@@ -36,8 +38,10 @@ var (
 	bindAddress = "*"
 	lastTunConf *config.Tun
 
-	tcpListeners = map[C.Inbound]C.Listener{}
-	udpListeners = map[C.Inbound]C.Listener{}
+	tcpInbounds  = map[string]C.Inbound{}
+	udpInbounds  = map[string]C.Inbound{}
+	tcpListeners = map[string]C.Listener{}
+	udpListeners = map[string]C.Listener{}
 
 	tunStackListener  ipstack.Stack
 	tcProgram         *ebpf.TcEBpfProgram
@@ -48,7 +52,7 @@ var (
 	tunnelUDPListeners = map[string]*tunnel.PacketConn{}
 
 	// lock for recreate function
-	recreateMux  sync.Mutex
+	inboundsMux  sync.Mutex
 	tunMux       sync.Mutex
 	tcMux        sync.Mutex
 	autoRedirMux sync.Mutex
@@ -110,64 +114,103 @@ func createListener(inbound C.Inbound, tcpIn chan<- C.ConnContext, udpIn chan<- 
 		log.Error().Str("addr", addr).Msgf("[Inbound] invalid %s address", inbound.Type)
 		return
 	}
+
+	inboundKey := inbound.Key()
 	tcpCreator := tcpListenerCreators[inbound.Type]
 	udpCreator := udpListenerCreators[inbound.Type]
+
 	if tcpCreator == nil && udpCreator == nil {
-		log.Error().Str("addr", addr).Msgf("[Inbound] server type %s not support", inbound.Type)
+		log.Error().Str("addr", addr).Msgf("[Inbound] server type %s is not supported", inbound.Type)
 		return
 	}
+
 	if tcpCreator != nil {
 		tcpListener, err := tcpCreator(addr, tcpIn)
 		if err != nil {
 			log.Error().Err(err).Str("addr", addr).Msgf("[Inbound] %s tcp server start failed", inbound.Type)
 			return
 		}
-		tcpListeners[inbound] = tcpListener
+
+		if !inbound.IsFromPortCfg && inbound.Authentication != nil {
+			if tl, ok := tcpListener.(C.AuthenticatorListener); ok {
+				authUsers := config.ParseAuthentication(*inbound.Authentication)
+				tl.SetAuthenticator(authUsers)
+			}
+		}
+
+		tcpInbounds[inboundKey] = inbound
+		tcpListeners[inboundKey] = tcpListener
 	}
+
 	if udpCreator != nil {
 		udpListener, err := udpCreator(addr, udpIn)
 		if err != nil {
 			log.Error().Err(err).Str("addr", addr).Msgf("[Inbound] %s udp server start failed", inbound.Type)
 			return
 		}
-		udpListeners[inbound] = udpListener
+
+		udpInbounds[inboundKey] = inbound
+		udpListeners[inboundKey] = udpListener
 	}
-	log.Info().Str("addr", addr).Msgf("[Inbound] %s proxy listening", inbound.Type)
+
+	au := "none"
+	if inbound.Authentication != nil {
+		au = "local"
+	} else if A.Authenticator() != nil {
+		au = "global"
+	}
+	if inbound.Type == C.InboundTypeRedir || inbound.Type == C.InboundTypeTproxy {
+		au = "none"
+	}
+
+	log.Info().
+		Str("addr", addr).
+		Str("auth", au).
+		Bool("legacy", inbound.IsFromPortCfg).
+		Msgf("[Inbound] %s proxy listening", inbound.Type)
 }
 
 func closeListener(inbound C.Inbound) {
-	listener := tcpListeners[inbound]
+	inboundKey := inbound.Key()
+	listener := tcpListeners[inboundKey]
 	if listener != nil {
 		if err := listener.Close(); err != nil {
 			log.Error().Err(err).Msgf("[Inbound] close tcp server `%s` failed", inbound.ToAlias())
 		}
-		delete(tcpListeners, inbound)
+		delete(tcpInbounds, inboundKey)
+		delete(tcpListeners, inboundKey)
 	}
-	listener = udpListeners[inbound]
+	listener = udpListeners[inboundKey]
 	if listener != nil {
 		if err := listener.Close(); err != nil {
 			log.Error().Err(err).Msgf("[Inbound] close udp server `%s` failed", inbound.ToAlias())
 		}
-		delete(udpListeners, inbound)
+		delete(udpInbounds, inboundKey)
+		delete(udpListeners, inboundKey)
 	}
 }
 
 func getNeedCloseAndCreateInbound(originInbounds []C.Inbound, newInbounds []C.Inbound) ([]C.Inbound, []C.Inbound) {
-	needCloseMap := map[C.Inbound]bool{}
+	needCloseMap := map[string]C.Inbound{}
 	needClose := []C.Inbound{}
 	needCreate := []C.Inbound{}
 
 	for _, m := range originInbounds {
-		needCloseMap[m] = true
+		needCloseMap[m.Key()] = m
 	}
 	for _, m := range newInbounds {
-		if needCloseMap[m] {
-			delete(needCloseMap, m)
+		key := m.Key()
+		if c, ok := needCloseMap[key]; ok {
+			if !reflect.DeepEqual(m.Authentication, c.Authentication) {
+				needCreate = append(needCreate, m)
+			} else {
+				delete(needCloseMap, key)
+			}
 		} else {
 			needCreate = append(needCreate, m)
 		}
 	}
-	for m := range needCloseMap {
+	for _, m := range needCloseMap {
 		needClose = append(needClose, m)
 	}
 	return needClose, needCreate
@@ -175,6 +218,8 @@ func getNeedCloseAndCreateInbound(originInbounds []C.Inbound, newInbounds []C.In
 
 // ReCreateListeners only recreate inbound config listener
 func ReCreateListeners(inbounds []C.Inbound, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
+	inboundsMux.Lock()
+	defer inboundsMux.Unlock()
 	newInbounds := []C.Inbound{}
 	newInbounds = append(newInbounds, inbounds...)
 	for _, m := range getInbounds() {
@@ -187,6 +232,8 @@ func ReCreateListeners(inbounds []C.Inbound, tcpIn chan<- C.ConnContext, udpIn c
 
 // ReCreatePortsListeners only recreate ports config listener
 func ReCreatePortsListeners(ports Ports, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
+	inboundsMux.Lock()
+	defer inboundsMux.Unlock()
 	newInbounds := []C.Inbound{}
 	newInbounds = addPortInbound(newInbounds, C.InboundTypeHTTP, ports.Port)
 	newInbounds = addPortInbound(newInbounds, C.InboundTypeSocks, ports.SocksPort)
@@ -210,8 +257,6 @@ func addPortInbound(inbounds []C.Inbound, inboundType C.InboundType, port int) [
 }
 
 func reCreateListeners(inbounds []C.Inbound, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
-	recreateMux.Lock()
-	defer recreateMux.Unlock()
 	needClose, needCreate := getNeedCloseAndCreateInbound(getInbounds(), inbounds)
 	for _, m := range needClose {
 		closeListener(m)
@@ -490,11 +535,11 @@ func GetInbounds() []C.Inbound {
 // GetInbounds return inbounds of proxy servers
 func getInbounds() []C.Inbound {
 	var inbounds []C.Inbound
-	for tcp := range tcpListeners {
+	for _, tcp := range tcpInbounds {
 		inbounds = append(inbounds, tcp)
 	}
-	for udp := range udpListeners {
-		if _, ok := tcpListeners[udp]; !ok {
+	for _, udp := range udpInbounds {
+		if _, ok := tcpInbounds[udp.Key()]; !ok {
 			inbounds = append(inbounds, udp)
 		}
 	}
@@ -594,24 +639,12 @@ func hasTunConfigChange(tunConf *config.Tun) bool {
 		return true
 	}
 
-	if len(lastTunConf.DNSHijack) != len(tunConf.DNSHijack) || !lo.Every(lastTunConf.DNSHijack, tunConf.DNSHijack) {
-		return true
-	}
-
 	if lastTunConf.Enable != tunConf.Enable ||
 		lastTunConf.Stack != tunConf.Stack ||
+		!lo.Every(lastTunConf.DNSHijack, tunConf.DNSHijack) ||
 		lastTunConf.AutoRoute != tunConf.AutoRoute ||
-		lastTunConf.AutoDetectInterface != tunConf.AutoDetectInterface {
-		return true
-	}
-
-	if (lastTunConf.TunAddressPrefix != nil && tunConf.TunAddressPrefix == nil) ||
-		(lastTunConf.TunAddressPrefix == nil && tunConf.TunAddressPrefix != nil) {
-		return true
-	}
-
-	if lastTunConf.TunAddressPrefix != nil && tunConf.TunAddressPrefix != nil &&
-		*lastTunConf.TunAddressPrefix != *tunConf.TunAddressPrefix {
+		lastTunConf.AutoDetectInterface != tunConf.AutoDetectInterface ||
+		!reflect.DeepEqual(lastTunConf.TunAddressPrefix, tunConf.TunAddressPrefix) {
 		return true
 	}
 

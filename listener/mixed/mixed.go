@@ -5,6 +5,7 @@ import (
 
 	"github.com/Dreamacro/clash/common/cache"
 	N "github.com/Dreamacro/clash/common/net"
+	"github.com/Dreamacro/clash/component/auth"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/listener/http"
 	"github.com/Dreamacro/clash/listener/socks"
@@ -16,6 +17,7 @@ type Listener struct {
 	listener net.Listener
 	addr     string
 	cache    *cache.LruCache[string, bool]
+	auth     auth.Authenticator
 	closed   bool
 }
 
@@ -33,6 +35,11 @@ func (l *Listener) Address() string {
 func (l *Listener) Close() error {
 	l.closed = true
 	return l.listener.Close()
+}
+
+// SetAuthenticator implements C.AuthenticatorListener
+func (l *Listener) SetAuthenticator(users []auth.AuthUser) {
+	l.auth = auth.NewAuthenticator(users)
 }
 
 func New(addr string, in chan<- C.ConnContext) (C.Listener, error) {
@@ -55,14 +62,14 @@ func New(addr string, in chan<- C.ConnContext) (C.Listener, error) {
 				}
 				continue
 			}
-			go handleConn(c, in, ml.cache)
+			go handleConn(c, in, ml.cache, ml.auth)
 		}
 	}()
 
 	return ml, nil
 }
 
-func handleConn(conn net.Conn, in chan<- C.ConnContext, cache *cache.LruCache[string, bool]) {
+func handleConn(conn net.Conn, in chan<- C.ConnContext, cache *cache.LruCache[string, bool], auth auth.Authenticator) {
 	_ = conn.(*net.TCPConn).SetKeepAlive(true)
 
 	bufConn := N.NewBufferedConn(conn)
@@ -73,10 +80,10 @@ func handleConn(conn net.Conn, in chan<- C.ConnContext, cache *cache.LruCache[st
 
 	switch head[0] {
 	case socks4.Version:
-		socks.HandleSocks4(bufConn, in)
+		socks.HandleSocks4(bufConn, in, auth)
 	case socks5.Version:
-		socks.HandleSocks5(bufConn, in)
+		socks.HandleSocks5(bufConn, in, auth)
 	default:
-		http.HandleConn(bufConn, in, cache)
+		http.HandleConn(bufConn, in, cache, auth)
 	}
 }

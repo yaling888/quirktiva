@@ -7,28 +7,26 @@ import (
 	"net"
 	"os"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/phuslu/log"
+	"go.uber.org/atomic"
 
 	"github.com/Dreamacro/clash/adapter/outbound"
 	"github.com/Dreamacro/clash/common/cache"
 	"github.com/Dreamacro/clash/common/cert"
+	"github.com/Dreamacro/clash/component/auth"
 	C "github.com/Dreamacro/clash/constant"
 	rewrites "github.com/Dreamacro/clash/rewrite"
 	"github.com/Dreamacro/clash/tunnel"
 )
 
-var (
-	mitmOption *C.MitmOption
-	optionOnce sync.Once
-	proxyDone  uint32
-)
+var proxyDone = atomic.NewUint32(0)
 
 type Listener struct {
 	listener net.Listener
 	addr     string
+	auth     auth.Authenticator
 	closed   bool
 	asProxy  bool
 }
@@ -48,18 +46,19 @@ func (l *Listener) Close() error {
 	if l.asProxy {
 		l.asProxy = false
 		tunnel.SetMitmOutbound(nil)
-		atomic.StoreUint32(&proxyDone, 0)
+		proxyDone.Store(0)
 	}
 	l.closed = true
 	return l.listener.Close()
 }
 
-// New the MITM proxy actually is a type of HTTP proxy
+// SetAuthenticator implements C.AuthenticatorListener
+func (l *Listener) SetAuthenticator(users []auth.AuthUser) {
+	l.auth = auth.NewAuthenticator(users)
+}
+
 func New(addr string, in chan<- C.ConnContext) (C.Listener, error) {
-	var err error
-	optionOnce.Do(func() {
-		mitmOption, err = initOption()
-	})
+	mitmOption, err := initOption()
 	if err != nil {
 		return nil, err
 	}
@@ -69,9 +68,9 @@ func New(addr string, in chan<- C.ConnContext) (C.Listener, error) {
 		return nil, err
 	}
 
-	if atomic.LoadUint32(&proxyDone) == 0 {
+	if proxyDone.Load() == 0 {
 		ml.asProxy = true
-		atomic.StoreUint32(&proxyDone, 1)
+		proxyDone.Store(1)
 		tunnel.SetMitmOutbound(outbound.NewMitm(ml.Address()))
 	}
 
@@ -102,14 +101,14 @@ func NewWithAuthenticate(addr string, option *C.MitmOption, in chan<- C.ConnCont
 				}
 				continue
 			}
-			go HandleConn(conn, option, in, c)
+			go HandleConn(conn, option, in, c, ml.auth)
 		}
 	}()
 
 	return ml, nil
 }
 
-func initOption() (*C.MitmOption, error) {
+var initOption = sync.OnceValues(func() (*C.MitmOption, error) {
 	if err := initCert(); err != nil {
 		return nil, err
 	}
@@ -144,7 +143,7 @@ func initOption() (*C.MitmOption, error) {
 	}
 
 	return option, nil
-}
+})
 
 func initCert() error {
 	if _, err := os.Stat(C.Path.RootCA()); os.IsNotExist(err) {

@@ -11,11 +11,12 @@ import (
 	"github.com/Dreamacro/clash/adapter/inbound"
 	"github.com/Dreamacro/clash/common/cache"
 	N "github.com/Dreamacro/clash/common/net"
+	"github.com/Dreamacro/clash/component/auth"
 	C "github.com/Dreamacro/clash/constant"
 	authStore "github.com/Dreamacro/clash/listener/auth"
 )
 
-func HandleConn(c net.Conn, in chan<- C.ConnContext, cache *cache.LruCache[string, bool]) {
+func HandleConn(c net.Conn, in chan<- C.ConnContext, cache *cache.LruCache[string, bool], auth auth.Authenticator) {
 	client := newClient(c.RemoteAddr(), c.LocalAddr(), in)
 	defer client.CloseIdleConnections()
 
@@ -37,7 +38,7 @@ func HandleConn(c net.Conn, in chan<- C.ConnContext, cache *cache.LruCache[strin
 		var resp *http.Response
 
 		if !trusted {
-			resp = Authenticate(request, cache)
+			resp = Authenticate(request, cache, auth)
 
 			trusted = resp == nil
 		}
@@ -101,8 +102,11 @@ func HandleConn(c net.Conn, in chan<- C.ConnContext, cache *cache.LruCache[strin
 	_ = conn.Close()
 }
 
-func Authenticate(request *http.Request, cache *cache.LruCache[string, bool]) *http.Response {
-	authenticator := authStore.Authenticator()
+func Authenticate(request *http.Request, cache *cache.LruCache[string, bool], auth auth.Authenticator) *http.Response {
+	authenticator := auth
+	if authenticator == nil {
+		authenticator = authStore.Authenticator()
+	}
 	if authenticator != nil {
 		credential := parseBasicProxyAuthorization(request)
 		if credential == "" {

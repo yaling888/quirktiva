@@ -6,6 +6,7 @@ import (
 
 	"github.com/Dreamacro/clash/adapter/inbound"
 	N "github.com/Dreamacro/clash/common/net"
+	"github.com/Dreamacro/clash/component/auth"
 	C "github.com/Dreamacro/clash/constant"
 	authStore "github.com/Dreamacro/clash/listener/auth"
 	"github.com/Dreamacro/clash/transport/socks4"
@@ -15,6 +16,7 @@ import (
 type Listener struct {
 	listener net.Listener
 	addr     string
+	auth     auth.Authenticator
 	closed   bool
 }
 
@@ -32,6 +34,11 @@ func (l *Listener) Address() string {
 func (l *Listener) Close() error {
 	l.closed = true
 	return l.listener.Close()
+}
+
+// SetAuthenticator implements C.AuthenticatorListener
+func (l *Listener) SetAuthenticator(users []auth.AuthUser) {
+	l.auth = auth.NewAuthenticator(users)
 }
 
 func New(addr string, in chan<- C.ConnContext) (C.Listener, error) {
@@ -53,7 +60,7 @@ func New(addr string, in chan<- C.ConnContext) (C.Listener, error) {
 				}
 				continue
 			}
-			go handleSocks(c, in)
+			go handleSocks(c, in, sl.auth)
 		}
 	}()
 
@@ -80,7 +87,7 @@ func New4(addr string, in chan<- C.ConnContext) (C.Listener, error) {
 				continue
 			}
 			_ = c.(*net.TCPConn).SetKeepAlive(true)
-			go HandleSocks4(c, in)
+			go HandleSocks4(c, in, sl.auth)
 		}
 	}()
 
@@ -107,14 +114,14 @@ func New5(addr string, in chan<- C.ConnContext) (C.Listener, error) {
 				continue
 			}
 			_ = c.(*net.TCPConn).SetKeepAlive(true)
-			go HandleSocks5(c, in)
+			go HandleSocks5(c, in, sl.auth)
 		}
 	}()
 
 	return sl, nil
 }
 
-func handleSocks(conn net.Conn, in chan<- C.ConnContext) {
+func handleSocks(conn net.Conn, in chan<- C.ConnContext, auth auth.Authenticator) {
 	_ = conn.(*net.TCPConn).SetKeepAlive(true)
 	bufConn := N.NewBufferedConn(conn)
 	head, err := bufConn.Peek(1)
@@ -125,16 +132,20 @@ func handleSocks(conn net.Conn, in chan<- C.ConnContext) {
 
 	switch head[0] {
 	case socks4.Version:
-		HandleSocks4(bufConn, in)
+		HandleSocks4(bufConn, in, auth)
 	case socks5.Version:
-		HandleSocks5(bufConn, in)
+		HandleSocks5(bufConn, in, auth)
 	default:
 		_ = conn.Close()
 	}
 }
 
-func HandleSocks4(conn net.Conn, in chan<- C.ConnContext) {
-	addr, _, err := socks4.ServerHandshake(conn, authStore.Authenticator())
+func HandleSocks4(conn net.Conn, in chan<- C.ConnContext, auth auth.Authenticator) {
+	authenticator := auth
+	if authenticator == nil {
+		authenticator = authStore.Authenticator()
+	}
+	addr, _, err := socks4.ServerHandshake(conn, authenticator)
 	if err != nil {
 		_ = conn.Close()
 		return
@@ -142,8 +153,12 @@ func HandleSocks4(conn net.Conn, in chan<- C.ConnContext) {
 	in <- inbound.NewSocket(socks5.ParseAddr(addr), conn, C.SOCKS4)
 }
 
-func HandleSocks5(conn net.Conn, in chan<- C.ConnContext) {
-	target, command, err := socks5.ServerHandshake(conn, authStore.Authenticator())
+func HandleSocks5(conn net.Conn, in chan<- C.ConnContext, auth auth.Authenticator) {
+	authenticator := auth
+	if authenticator == nil {
+		authenticator = authStore.Authenticator()
+	}
+	target, command, err := socks5.ServerHandshake(conn, authenticator)
 	if err != nil {
 		_ = conn.Close()
 		return
