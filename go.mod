@@ -3,7 +3,7 @@ module github.com/Dreamacro/clash
 go 1.21
 
 require (
-	github.com/antonmedv/expr v1.12.7
+	github.com/antonmedv/expr v1.14.0
 	github.com/cilium/ebpf v0.11.0
 	github.com/dlclark/regexp2 v1.10.0
 	github.com/go-chi/chi/v5 v5.0.10

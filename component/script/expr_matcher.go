@@ -2,6 +2,7 @@ package script
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/antonmedv/expr"
 	"github.com/antonmedv/expr/vm"
@@ -48,6 +49,10 @@ func NewExprMatcher(name, code string) (*ExprMatcher, error) {
 		expr.Env(shortcutEnvironment{}),
 		expr.Patch(inStringPatch),
 		expr.AsBool(),
+	}
+
+	if strings.Contains(code, " | ") {
+		options = append(options, expr.ExperimentalPipes())
 	}
 
 	program, err := expr.Compile(code, options...)

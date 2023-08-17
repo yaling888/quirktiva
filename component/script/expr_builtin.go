@@ -17,19 +17,19 @@ type (
 )
 
 type shortcutEnvironment struct {
-	Network      string   `expr:"network"`
-	Type         string   `expr:"type"`
-	SrcIP        string   `expr:"src_ip"`
-	DstIP        string   `expr:"dst_ip"`
-	SrcPort      uint16   `expr:"src_port"`
-	DstPort      uint16   `expr:"dst_port"`
-	InboundPort  uint16   `expr:"inbound_port"`
-	Host         string   `expr:"host"`
-	ProcessName  string   `expr:"process_name"`
-	ProcessPath  string   `expr:"process_path"`
-	UserAgent    string   `expr:"user_agent"`
-	SpecialProxy string   `expr:"special_proxy"`
-	Now          timeExpr `expr:"now"`
+	Network      string  `expr:"network"`
+	Type         string  `expr:"type"`
+	SrcIP        string  `expr:"src_ip"`
+	DstIP        string  `expr:"dst_ip"`
+	SrcPort      uint16  `expr:"src_port"`
+	DstPort      uint16  `expr:"dst_port"`
+	InboundPort  uint16  `expr:"inbound_port"`
+	Host         string  `expr:"host"`
+	ProcessName  string  `expr:"process_name"`
+	ProcessPath  string  `expr:"process_path"`
+	UserAgent    string  `expr:"user_agent"`
+	SpecialProxy string  `expr:"special_proxy"`
+	Now          nowExpr `expr:"now"`
 
 	ResolveIP          scStringFunc          `expr:"resolve_ip"`
 	InCidr             scStringStringErrFunc `expr:"in_cidr"`
@@ -40,7 +40,7 @@ type shortcutEnvironment struct {
 	ResolveProcessPath scEmptyFunc           `expr:"resolve_process_path"`
 }
 
-type timeExpr struct {
+type nowExpr struct {
 	Year       int   `expr:"year"`
 	Month      int   `expr:"month"`
 	Day        int   `expr:"day"`
@@ -85,7 +85,7 @@ func parseEnv(mtd *C.Metadata) shortcutEnvironment {
 		ProcessPath:  mtd.ProcessPath,
 		UserAgent:    mtd.UserAgent,
 		SpecialProxy: mtd.SpecialProxy,
-		Now:          parseTimeExpr(),
+		Now:          newNowExpr(),
 
 		InCidr:  uInCidr,
 		InIPSet: uInIPSet,
@@ -121,9 +121,9 @@ func parseEnv(mtd *C.Metadata) shortcutEnvironment {
 	return env
 }
 
-func parseTimeExpr() timeExpr {
+func newNowExpr() nowExpr {
 	t := time.Now()
-	return timeExpr{
+	return nowExpr{
 		Year:       t.Year(),
 		Month:      int(t.Month()),
 		Day:        t.Day(),
