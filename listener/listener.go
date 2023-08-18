@@ -124,6 +124,16 @@ func createListener(inbound C.Inbound, tcpIn chan<- C.ConnContext, udpIn chan<- 
 		return
 	}
 
+	au := "none"
+	if inbound.Authentication != nil {
+		au = "local"
+	} else if A.Authenticator() != nil {
+		au = "global"
+	}
+	if inbound.Type == C.InboundTypeRedir || inbound.Type == C.InboundTypeTproxy {
+		au = "none"
+	}
+
 	if tcpCreator != nil {
 		tcpListener, err := tcpCreator(addr, tcpIn)
 		if err != nil {
@@ -140,6 +150,12 @@ func createListener(inbound C.Inbound, tcpIn chan<- C.ConnContext, udpIn chan<- 
 
 		tcpInbounds[inboundKey] = inbound
 		tcpListeners[inboundKey] = tcpListener
+
+		log.Info().
+			Str("addr", addr).
+			Str("network", "tcp").
+			Str("auth", au).
+			Msgf("[Inbound] %s proxy listening", inbound.Type)
 	}
 
 	if udpCreator != nil {
@@ -151,23 +167,13 @@ func createListener(inbound C.Inbound, tcpIn chan<- C.ConnContext, udpIn chan<- 
 
 		udpInbounds[inboundKey] = inbound
 		udpListeners[inboundKey] = udpListener
-	}
 
-	au := "none"
-	if inbound.Authentication != nil {
-		au = "local"
-	} else if A.Authenticator() != nil {
-		au = "global"
+		log.Info().
+			Str("addr", addr).
+			Str("network", "udp").
+			Str("auth", au).
+			Msgf("[Inbound] %s proxy listening", inbound.Type)
 	}
-	if inbound.Type == C.InboundTypeRedir || inbound.Type == C.InboundTypeTproxy {
-		au = "none"
-	}
-
-	log.Info().
-		Str("addr", addr).
-		Str("auth", au).
-		Bool("legacy", inbound.IsFromPortCfg).
-		Msgf("[Inbound] %s proxy listening", inbound.Type)
 }
 
 func closeListener(inbound C.Inbound) {
@@ -179,6 +185,10 @@ func closeListener(inbound C.Inbound) {
 		}
 		delete(tcpInbounds, inboundKey)
 		delete(tcpListeners, inboundKey)
+		log.Info().
+			Str("addr", inbound.BindAddress).
+			Str("network", "tcp").
+			Msgf("[Inbound] %s proxy is down", inbound.Type)
 	}
 	listener = udpListeners[inboundKey]
 	if listener != nil {
@@ -187,6 +197,10 @@ func closeListener(inbound C.Inbound) {
 		}
 		delete(udpInbounds, inboundKey)
 		delete(udpListeners, inboundKey)
+		log.Info().
+			Str("addr", inbound.BindAddress).
+			Str("network", "udp").
+			Msgf("[Inbound] %s proxy is down", inbound.Type)
 	}
 }
 
@@ -260,7 +274,6 @@ func reCreateListeners(inbounds []C.Inbound, tcpIn chan<- C.ConnContext, udpIn c
 	needClose, needCreate := getNeedCloseAndCreateInbound(getInbounds(), inbounds)
 	for _, m := range needClose {
 		closeListener(m)
-		log.Info().Str("addr", m.BindAddress).Msgf("[Inbound] %s proxy is down", m.Type)
 	}
 	for _, m := range needCreate {
 		createListener(m, tcpIn, udpIn)
