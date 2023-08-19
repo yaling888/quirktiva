@@ -749,7 +749,9 @@ func parseRawRules(
 				return nil, err
 			}
 
-			parsed := R.NewGroup(raw.Name, groupMatcher, subRules)
+			appendRuleGroupName(subRules, raw.Name)
+
+			parsed := R.NewGroup(fmt.Sprintf("%s (%s)", raw.Name, raw.If), groupMatcher, subRules)
 
 			rules = append(rules, parsed)
 
@@ -833,6 +835,16 @@ func parseRawRules(
 	}
 
 	return rules, nil
+}
+
+func appendRuleGroupName(subRules []C.Rule, groupName string) {
+	for i := range subRules {
+		subRules[i].AppendGroup(groupName)
+		if subRules[i].RuleType() != C.Group {
+			continue
+		}
+		appendRuleGroupName(subRules[i].SubRules(), groupName)
+	}
 }
 
 func parseHosts(cfg *RawConfig) (*trie.DomainTrie[netip.Addr], error) {

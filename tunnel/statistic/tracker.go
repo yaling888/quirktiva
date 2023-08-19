@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid/v5"
+	"github.com/samber/lo"
 	"go.uber.org/atomic"
 
 	C "github.com/Dreamacro/clash/constant"
@@ -24,6 +25,7 @@ type trackerInfo struct {
 	Chain         C.Chain       `json:"chains"`
 	Rule          string        `json:"rule"`
 	RulePayload   string        `json:"rulePayload"`
+	RuleGroup     C.RuleGroup   `json:"ruleGroup"`
 }
 
 type tcpTracker struct {
@@ -68,7 +70,6 @@ func NewTCPTracker(conn C.Conn, manager *Manager, metadata *C.Metadata, rule C.R
 			Start:         time.Now(),
 			Metadata:      metadata,
 			Chain:         conn.Chains(),
-			Rule:          "",
 			UploadTotal:   atomic.NewInt64(0),
 			DownloadTotal: atomic.NewInt64(0),
 		},
@@ -77,6 +78,7 @@ func NewTCPTracker(conn C.Conn, manager *Manager, metadata *C.Metadata, rule C.R
 	if rule != nil {
 		t.trackerInfo.Rule = rule.RuleType().String()
 		t.trackerInfo.RulePayload = rule.Payload()
+		t.trackerInfo.RuleGroup = lo.WithoutEmpty(rule.RuleGroups())
 	}
 
 	manager.Join(t)
@@ -125,7 +127,6 @@ func NewUDPTracker(conn C.PacketConn, manager *Manager, metadata *C.Metadata, ru
 			Start:         time.Now(),
 			Metadata:      metadata,
 			Chain:         conn.Chains(),
-			Rule:          "",
 			UploadTotal:   atomic.NewInt64(0),
 			DownloadTotal: atomic.NewInt64(0),
 		},
@@ -134,6 +135,7 @@ func NewUDPTracker(conn C.PacketConn, manager *Manager, metadata *C.Metadata, ru
 	if rule != nil {
 		ut.trackerInfo.Rule = rule.RuleType().String()
 		ut.trackerInfo.RulePayload = rule.Payload()
+		ut.trackerInfo.RuleGroup = lo.WithoutEmpty(rule.RuleGroups())
 	}
 
 	manager.Join(ut)

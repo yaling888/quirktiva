@@ -75,9 +75,9 @@ func (t Type) String() string {
 	case TPROXY:
 		return "TProxy"
 	case TUN:
-		return "Tun"
+		return "TUN"
 	case MITM:
-		return "Mitm"
+		return "MITM"
 	case TUNNEL:
 		return "Tunnel"
 	default:

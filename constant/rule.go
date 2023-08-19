@@ -1,6 +1,10 @@
 package constant
 
-import "github.com/Dreamacro/clash/component/geodata/router"
+import (
+	"fmt"
+
+	"github.com/Dreamacro/clash/component/geodata/router"
+)
 
 // Rule Type
 const (
@@ -66,6 +70,20 @@ func (rt RuleType) String() string {
 	}
 }
 
+type RuleGroup []string
+
+func (rg RuleGroup) String() string {
+	l := len(rg)
+	switch l {
+	case 0:
+		return ""
+	case 1:
+		return rg[0]
+	default:
+		return fmt.Sprintf("%s[%s]", rg[l-1], rg[0])
+	}
+}
+
 type Rule interface {
 	RuleType() RuleType
 	Match(metadata *Metadata) bool
@@ -76,6 +94,8 @@ type Rule interface {
 	SetRuleExtra(re *RuleExtra)
 	ShouldFindProcess() bool
 	SubRules() []Rule
+	RuleGroups() RuleGroup
+	AppendGroup(group string)
 }
 
 type RuleGeoSite interface {

@@ -16,6 +16,7 @@ var (
 
 type Base struct {
 	ruleExtra *C.RuleExtra
+	ruleGroup C.RuleGroup
 }
 
 func (b *Base) RuleExtra() *C.RuleExtra {
@@ -28,6 +29,14 @@ func (b *Base) SetRuleExtra(re *C.RuleExtra) {
 
 func (b *Base) SubRules() []C.Rule {
 	return nil
+}
+
+func (b *Base) RuleGroups() C.RuleGroup {
+	return b.ruleGroup
+}
+
+func (b *Base) AppendGroup(group string) {
+	b.ruleGroup = append(b.ruleGroup, group)
 }
 
 func (b *Base) ShouldFindProcess() bool {

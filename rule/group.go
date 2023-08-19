@@ -8,7 +8,7 @@ import (
 
 type Group struct {
 	*Base
-	name    string
+	payload string
 	matcher C.Matcher
 	rules   []C.Rule
 }
@@ -20,7 +20,7 @@ func (g *Group) RuleType() C.RuleType {
 func (g *Group) Match(metadata *C.Metadata) bool {
 	rs, err := g.matcher.Match(metadata)
 	if err != nil {
-		log.Warn().Err(err).Str("name", g.name).Msg("[Matcher] match group failed")
+		log.Warn().Err(err).Str("name", g.matcher.Name()).Msg("[Matcher] match group failed")
 		return false
 	}
 	return rs
@@ -31,7 +31,7 @@ func (g *Group) Adapter() string {
 }
 
 func (g *Group) Payload() string {
-	return g.name
+	return g.payload
 }
 
 func (g *Group) ShouldResolveIP() bool {
@@ -46,10 +46,10 @@ func (g *Group) RuleExtra() *C.RuleExtra {
 	return nil
 }
 
-func NewGroup(name string, matcher C.Matcher, rules []C.Rule) *Group {
+func NewGroup(payload string, matcher C.Matcher, rules []C.Rule) *Group {
 	return &Group{
 		Base:    &Base{},
-		name:    name,
+		payload: payload,
 		matcher: matcher,
 		rules:   rules,
 	}

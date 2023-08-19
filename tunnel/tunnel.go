@@ -270,17 +270,19 @@ func resolveMetadata(_ C.PlainContext, metadata *C.Metadata) (proxy C.Proxy, rul
 	}
 
 	switch mode {
-	case Direct:
-		proxy = proxies["DIRECT"]
-	case Global:
-		proxy = proxies["GLOBAL"]
+	case Rule:
+		proxy, rule, err = match(metadata)
 	case Script:
 		proxy, err = matchScript(metadata)
 		if err != nil {
 			err = fmt.Errorf("execute script failed: %w", err)
 		}
-	default: // Rule
-		proxy, rule, err = match(metadata)
+	case Direct:
+		proxy = proxies["DIRECT"]
+	case Global:
+		proxy = proxies["GLOBAL"]
+	default:
+		panic(fmt.Sprintf("unknown mode: %s", mode))
 	}
 	return
 }
@@ -457,6 +459,7 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 					Str("rAddr", metadata.RemoteAddress()).
 					Str("rule", rule.RuleType().String()).
 					Str("rulePayload", rule.Payload()).
+					Str("ruleGroup", rule.RuleGroups().String()).
 					Msg("[UDP] dial failed")
 			}
 			return
@@ -481,6 +484,7 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 				EmbedObject(mode).
 				Str("rule", fmt.Sprintf("%s(%s)", rule.RuleType().String(), rule.Payload())).
 				EmbedObject(rawPc).
+				Str("ruleGroup", rule.RuleGroups().String()).
 				Msg("[UDP] connected")
 		default:
 			log.Info().EmbedObject(metadata).EmbedObject(mode).EmbedObject(rawPc).Msg("[UDP] connected")
@@ -566,6 +570,7 @@ func handleTCPConn(connCtx C.ConnContext) {
 				Str("rAddr", metadata.RemoteAddress()).
 				Str("rule", rule.RuleType().String()).
 				Str("rulePayload", rule.Payload()).
+				Str("ruleGroup", rule.RuleGroups().String()).
 				Msg("[TCP] dial failed")
 		}
 		return
@@ -599,6 +604,7 @@ func handleTCPConn(connCtx C.ConnContext) {
 			EmbedObject(mode).
 			Str("rule", fmt.Sprintf("%s(%s)", rule.RuleType().String(), rule.Payload())).
 			EmbedObject(remoteConn).
+			Str("ruleGroup", rule.RuleGroups().String()).
 			Msg("[TCP] connected")
 	default:
 		log.Info().
@@ -629,7 +635,7 @@ func match(metadata *C.Metadata) (C.Proxy, C.Rule, error) {
 		resolved = true
 	}
 
-	adapter, rule, _ := matchRule(rules, metadata, &resolved, &processFound)
+	adapter, rule := matchRule(rules, metadata, &resolved, &processFound)
 
 	if adapter != nil {
 		return adapter, rule, nil
@@ -642,7 +648,7 @@ func match(metadata *C.Metadata) (C.Proxy, C.Rule, error) {
 	return proxies["REJECT"], nil, nil
 }
 
-func matchRule(subRules []C.Rule, metadata *C.Metadata, resolved, processFound *bool) (C.Proxy, C.Rule, error) {
+func matchRule(subRules []C.Rule, metadata *C.Metadata, resolved, processFound *bool) (C.Proxy, C.Rule) {
 	for _, rule := range subRules {
 		if !*resolved && shouldResolveIP(rule, metadata) {
 			rAddrs, err := resolver.LookupIP(context.Background(), metadata.Host)
@@ -695,9 +701,9 @@ func matchRule(subRules []C.Rule, metadata *C.Metadata, resolved, processFound *
 
 		if rule.Match(metadata) {
 			if rule.RuleType() == C.Group {
-				adapter, subRule, _ := matchRule(rule.SubRules(), metadata, resolved, processFound)
+				adapter, subRule := matchRule(rule.SubRules(), metadata, resolved, processFound)
 				if adapter != nil {
-					return adapter, subRule, nil
+					return adapter, subRule
 				}
 				continue
 			}
@@ -727,7 +733,7 @@ func matchRule(subRules []C.Rule, metadata *C.Metadata, resolved, processFound *
 					policy := UDPFallbackPolicy.Load()
 					if policy != "" {
 						if adapter2, ok2 := FindProxyByName(policy); ok2 {
-							return adapter2, rule, nil
+							return adapter2, rule
 						}
 						log.Warn().
 							Str("policy", policy).
@@ -741,11 +747,11 @@ func matchRule(subRules []C.Rule, metadata *C.Metadata, resolved, processFound *
 				}
 			}
 
-			return adapter, rule, nil
+			return adapter, rule
 		}
 	}
 
-	return nil, nil, nil
+	return nil, nil
 }
 
 func matchScript(metadata *C.Metadata) (C.Proxy, error) {
