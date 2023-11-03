@@ -1,19 +1,23 @@
-FROM golang:latest as builder
-RUN wget http://geolite.maxmind.com/download/geoip/database/GeoLite2-Country.tar.gz -O /tmp/GeoLite2-Country.tar.gz && \
-    tar zxvf /tmp/GeoLite2-Country.tar.gz -C /tmp && \
-    cp /tmp/GeoLite2-Country_*/GeoLite2-Country.mmdb /Country.mmdb
-RUN curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh && \
-    mkdir -p /go/src/github.com/Dreamacro/clash
-WORKDIR /go/src/github.com/Dreamacro/clash
-COPY . /go/src/github.com/Dreamacro/clash
-RUN dep ensure && \
-    GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags '-w -s' -o /clash && \
-    chmod +x /clash
+FROM --platform=${BUILDPLATFORM} golang:alpine as builder
+
+RUN apk add --no-cache make git ca-certificates && \
+    wget -O /Country.mmdb https://raw.githubusercontent.com/yaling888/geoip/release/Country.mmdb && \
+    wget -O /geosite.dat https://raw.githubusercontent.com/yaling888/geosite/release/geosite.dat
+WORKDIR /workdir
+COPY --from=tonistiigi/xx:golang / /
+ARG TARGETOS TARGETARCH TARGETVARIANT
+
+RUN --mount=target=. \
+    --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    make BINDIR= ${TARGETOS}-${TARGETARCH}${TARGETVARIANT} && \
+    mv /clash* /clash
 
 FROM alpine:latest
-RUN apk --no-cache add ca-certificates && \
-    mkdir -p /root/.config/clash
+LABEL org.opencontainers.image.source="https://github.com/yaling888/clash"
+
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /Country.mmdb /root/.config/clash/
-COPY --from=builder /clash .
-EXPOSE 7890 7891
+COPY --from=builder /geosite.dat /root/.config/clash/
+COPY --from=builder /clash /
 ENTRYPOINT ["/clash"]

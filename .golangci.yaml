@@ -1,0 +1,22 @@
+linters:
+  disable-all: true
+  enable:
+    - gci
+    - gofumpt
+    - gosimple
+    - govet
+    - ineffassign
+    - misspell
+    - staticcheck
+    - unconvert
+    - unused
+    - usestdlibvars
+
+linters-settings:
+  gci:
+    sections:
+      - standard
+      - prefix(github.com/yaling888/clash)
+      - default
+  staticcheck:
+    go: '1.21'

@@ -1,0 +1,56 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [plus-pro]
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['go']
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Get latest go version
+        id: version
+        run: |
+          go_mod_version=$(cat go.mod | grep -oE '^go [0-9]{1,}.[0-9|a-z]{1,}(.[0-9]{1,})?' | awk '(NR==1){printf $2}')
+          latest_go_version=$(curl -sSL https://go.dev/dl/?mode=json | grep "version" | cut -d\" -f4 | awk -Fgo '(NR==1){printf $2}') || ""
+          go_version="$latest_go_version"
+
+          if [[ -z "$latest_go_version" ]] || [[ $go_mod_version =~ .*[rc|beta].* ]]; then
+            go_version="$go_mod_version"
+          fi
+
+          echo "go_version=${go_version}" >> $GITHUB_OUTPUT
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ steps.version.outputs.go_version }}
+          check-latest: true
+          cache: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: ${{ matrix.language }}
+
+      #- name: Autobuild
+      #  uses: github/codeql-action/autobuild@v2
+
+      - name: Build
+        env:
+          NAME: clash-plus-pro
+          BINDIR: bin
+        run: make docker
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2

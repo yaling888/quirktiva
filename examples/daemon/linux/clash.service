@@ -1,0 +1,31 @@
+############################################################################
+# Install:
+# curl -LO https://github.com/yaling888/clash/raw/plus-pro/examples/daemon/linux/clash.service
+# cp clash.service /etc/systemd/system/
+# systemctl enable clash.service
+# systemctl start clash
+# systemctl status clash -l --no-pager
+# ps aux | grep clash
+# journalctl -ex
+#
+# Uninstall:
+# systemctl stop clash.service
+# systemctl disable clash.service
+# rm /etc/systemd/system/clash.service
+#
+# executable file: /usr/local/bin/clash
+# configuration folder: /etc/clash/
+############################################################################
+[Unit]
+Description=Clash Daemon
+After=syslog.target network-online.target remote-fs.target nss-lookup.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Restart=always
+LimitNOFILE=524288
+ExecStart=/usr/local/bin/clash -d /etc/clash/
+
+[Install]
+WantedBy=multi-user.target

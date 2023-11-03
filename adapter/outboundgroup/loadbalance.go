@@ -1,0 +1,203 @@
+package outboundgroup
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+
+	"golang.org/x/net/publicsuffix"
+
+	"github.com/yaling888/clash/adapter/outbound"
+	"github.com/yaling888/clash/common/murmur3"
+	"github.com/yaling888/clash/common/singledo"
+	"github.com/yaling888/clash/component/dialer"
+	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/clash/constant/provider"
+)
+
+type strategyFn = func(proxies []C.Proxy, metadata *C.Metadata) C.Proxy
+
+var _ C.ProxyAdapter = (*LoadBalance)(nil)
+
+type LoadBalance struct {
+	*outbound.Base
+	disableUDP bool
+	disableDNS bool
+	single     *singledo.Single[[]C.Proxy]
+	providers  []provider.ProxyProvider
+	strategyFn strategyFn
+}
+
+var errStrategy = errors.New("unsupported strategy")
+
+func parseStrategy(config map[string]any) string {
+	if strategy, ok := config["strategy"].(string); ok {
+		return strategy
+	}
+	return "consistent-hashing"
+}
+
+func getKey(metadata *C.Metadata) string {
+	if metadata.Host != "" {
+		// ip host
+		if ip := net.ParseIP(metadata.Host); ip != nil {
+			return metadata.Host
+		}
+
+		if eTLD, err := publicsuffix.EffectiveTLDPlusOne(metadata.Host); err == nil {
+			return eTLD
+		}
+	}
+
+	if !metadata.DstIP.IsValid() {
+		return ""
+	}
+
+	return metadata.DstIP.String()
+}
+
+func jumpHash(key uint64, buckets int32) int32 {
+	var b, j int64
+
+	for j < int64(buckets) {
+		b = j
+		key = key*2862933555777941757 + 1
+		j = int64(float64(b+1) * (float64(int64(1)<<31) / float64((key>>33)+1)))
+	}
+
+	return int32(b)
+}
+
+// DialContext implements C.ProxyAdapter
+func (lb *LoadBalance) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (c C.Conn, err error) {
+	defer func() {
+		if err == nil {
+			c.AppendToChains(lb)
+		}
+	}()
+
+	proxy := lb.Unwrap(metadata)
+
+	c, err = proxy.DialContext(ctx, metadata, lb.Base.DialOptions(opts...)...)
+	return
+}
+
+// ListenPacketContext implements C.ProxyAdapter
+func (lb *LoadBalance) ListenPacketContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (pc C.PacketConn, err error) {
+	defer func() {
+		if err == nil {
+			pc.AppendToChains(lb)
+		}
+	}()
+
+	proxy := lb.Unwrap(metadata)
+	return proxy.ListenPacketContext(ctx, metadata, lb.Base.DialOptions(opts...)...)
+}
+
+// SupportUDP implements C.ProxyAdapter
+func (lb *LoadBalance) SupportUDP() bool {
+	return !lb.disableUDP
+}
+
+// DisableDnsResolve implements C.DisableDnsResolve
+func (lb *LoadBalance) DisableDnsResolve() bool {
+	return lb.disableDNS
+}
+
+func strategyRoundRobin() strategyFn {
+	idx := 0
+	return func(proxies []C.Proxy, metadata *C.Metadata) C.Proxy {
+		length := len(proxies)
+		for i := 0; i < length; i++ {
+			idx = (idx + 1) % length
+			proxy := proxies[idx]
+			if proxy.Alive() {
+				return proxy
+			}
+		}
+
+		return proxies[0]
+	}
+}
+
+func strategyConsistentHashing() strategyFn {
+	maxRetry := 5
+	return func(proxies []C.Proxy, metadata *C.Metadata) C.Proxy {
+		key := uint64(murmur3.Sum32([]byte(getKey(metadata))))
+		buckets := int32(len(proxies))
+		for i := 0; i < maxRetry; i, key = i+1, key+1 {
+			idx := jumpHash(key, buckets)
+			proxy := proxies[idx]
+			if proxy.Alive() {
+				return proxy
+			}
+		}
+
+		// when availability is poor, traverse the entire list to get the available nodes
+		for _, proxy := range proxies {
+			if proxy.Alive() {
+				return proxy
+			}
+		}
+
+		return proxies[0]
+	}
+}
+
+// Unwrap implements C.ProxyAdapter
+func (lb *LoadBalance) Unwrap(metadata *C.Metadata) C.Proxy {
+	proxies := lb.proxies(true)
+	return lb.strategyFn(proxies, metadata)
+}
+
+func (lb *LoadBalance) proxies(touch bool) []C.Proxy {
+	elm, _, _ := lb.single.Do(func() ([]C.Proxy, error) {
+		return getProvidersProxies(lb.providers, touch), nil
+	})
+
+	return elm
+}
+
+// MarshalJSON implements C.ProxyAdapter
+func (lb *LoadBalance) MarshalJSON() ([]byte, error) {
+	var all []string
+	for _, proxy := range lb.proxies(false) {
+		all = append(all, proxy.Name())
+	}
+	return json.Marshal(map[string]any{
+		"type": lb.Type().String(),
+		"all":  all,
+	})
+}
+
+// Cleanup implements C.ProxyAdapter
+func (lb *LoadBalance) Cleanup() {
+	lb.single.Reset()
+}
+
+func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvider, strategy string) (lb *LoadBalance, err error) {
+	var strategyFn strategyFn
+	switch strategy {
+	case "consistent-hashing":
+		strategyFn = strategyConsistentHashing()
+	case "round-robin":
+		strategyFn = strategyRoundRobin()
+	default:
+		return nil, fmt.Errorf("%w: %s", errStrategy, strategy)
+	}
+	return &LoadBalance{
+		Base: outbound.NewBase(outbound.BaseOption{
+			Name:        option.Name,
+			Type:        C.LoadBalance,
+			Interface:   option.Interface,
+			RoutingMark: option.RoutingMark,
+		}),
+		single:     singledo.NewSingle[[]C.Proxy](defaultGetProxiesDuration),
+		providers:  providers,
+		strategyFn: strategyFn,
+		disableUDP: option.DisableUDP,
+		disableDNS: option.DisableDNS,
+	}, nil
+}

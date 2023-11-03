@@ -1,0 +1,169 @@
+//go:build windows
+
+/* SPDX-License-Identifier: MIT
+ *
+ * Copyright (C) 2017-2021 WireGuard LLC. All Rights Reserved.
+ */
+
+package driver
+
+import (
+	"runtime"
+	"syscall"
+	"unsafe"
+
+	"github.com/phuslu/log"
+	"golang.org/x/sys/windows"
+)
+
+type loggerLevel int
+
+const (
+	logInfo loggerLevel = iota
+	logWarn
+	logErr
+)
+
+const AdapterNameMax = 128
+
+type Adapter struct {
+	handle uintptr
+}
+
+var (
+	modwintun                         = newLazyDLL("wintun.dll", setupLogger)
+	procWintunCreateAdapter           = modwintun.NewProc("WintunCreateAdapter")
+	procWintunOpenAdapter             = modwintun.NewProc("WintunOpenAdapter")
+	procWintunCloseAdapter            = modwintun.NewProc("WintunCloseAdapter")
+	procWintunDeleteDriver            = modwintun.NewProc("WintunDeleteDriver")
+	procWintunGetAdapterLUID          = modwintun.NewProc("WintunGetAdapterLUID")
+	procWintunGetRunningDriverVersion = modwintun.NewProc("WintunGetRunningDriverVersion")
+)
+
+func logMessage(level loggerLevel, _ uint64, msg *uint16) int {
+	switch level {
+	case logInfo:
+		log.Info().Msgf("[TUN] %s", windows.UTF16PtrToString(msg))
+	case logWarn:
+		log.Warn().Msgf("[TUN] %s", windows.UTF16PtrToString(msg))
+	case logErr:
+		log.Error().Msgf("[TUN] %s", windows.UTF16PtrToString(msg))
+	default:
+		log.Debug().Msgf("[TUN] %s", windows.UTF16PtrToString(msg))
+	}
+	return 0
+}
+
+func setupLogger(dll *lazyDLL) {
+	var callback uintptr
+	if runtime.GOARCH == "386" {
+		callback = windows.NewCallback(func(level loggerLevel, _, _ uint32, msg *uint16) int {
+			return logMessage(level, 0, msg)
+		})
+	} else if runtime.GOARCH == "arm" {
+		callback = windows.NewCallback(func(level loggerLevel, _, _, _ uint32, msg *uint16) int {
+			return logMessage(level, 0, msg)
+		})
+	} else if runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64" {
+		callback = windows.NewCallback(logMessage)
+	}
+	_, _, _ = syscall.SyscallN(dll.NewProc("WintunSetLogger").Addr(), callback)
+}
+
+func closeAdapter(wintun *Adapter) {
+	_, _, _ = syscall.SyscallN(procWintunCloseAdapter.Addr(), wintun.handle)
+}
+
+// CreateAdapter creates a Wintun adapter. name is the cosmetic name of the adapter.
+// tunnelType represents the type of adapter and should be "Wintun". requestedGUID is
+// the GUID of the created network adapter, which then influences NLA generation
+// deterministically. If it is set to nil, the GUID is chosen by the system at random,
+// and hence a new NLA entry is created for each new adapter.
+func CreateAdapter(name string, tunnelType string, requestedGUID *windows.GUID) (wintun *Adapter, err error) {
+	var name16 *uint16
+	name16, err = windows.UTF16PtrFromString(name)
+	if err != nil {
+		return
+	}
+	var tunnelType16 *uint16
+	tunnelType16, err = windows.UTF16PtrFromString(tunnelType)
+	if err != nil {
+		return
+	}
+	if err := procWintunCreateAdapter.Find(); err != nil {
+		return nil, err
+	}
+	r0, _, e1 := syscall.SyscallN(procWintunCreateAdapter.Addr(), uintptr(unsafe.Pointer(name16)),
+		uintptr(unsafe.Pointer(tunnelType16)), uintptr(unsafe.Pointer(requestedGUID)))
+	if r0 == 0 {
+		err = e1
+		return
+	}
+	wintun = &Adapter{handle: r0}
+	runtime.SetFinalizer(wintun, closeAdapter)
+	return
+}
+
+// OpenAdapter opens an existing Wintun adapter by name.
+func OpenAdapter(name string) (wintun *Adapter, err error) {
+	var name16 *uint16
+	name16, err = windows.UTF16PtrFromString(name)
+	if err != nil {
+		return
+	}
+	if err := procWintunOpenAdapter.Find(); err != nil {
+		return nil, err
+	}
+	r0, _, e1 := syscall.SyscallN(procWintunOpenAdapter.Addr(), uintptr(unsafe.Pointer(name16)))
+	if r0 == 0 {
+		err = e1
+		return
+	}
+	wintun = &Adapter{handle: r0}
+	runtime.SetFinalizer(wintun, closeAdapter)
+	return
+}
+
+// Close closes a Wintun adapter.
+func (wintun *Adapter) Close() (err error) {
+	if err := procWintunCloseAdapter.Find(); err != nil {
+		return err
+	}
+	runtime.SetFinalizer(wintun, nil)
+	r1, _, e1 := syscall.SyscallN(procWintunCloseAdapter.Addr(), wintun.handle)
+	if r1 == 0 {
+		err = e1
+	}
+	return
+}
+
+// Uninstall removes the driver from the system if no drivers are currently in use.
+func Uninstall() (err error) {
+	if err := procWintunDeleteDriver.Find(); err != nil {
+		return err
+	}
+	r1, _, e1 := syscall.SyscallN(procWintunDeleteDriver.Addr())
+	if r1 == 0 {
+		err = e1
+	}
+	return
+}
+
+// RunningVersion returns the version of the loaded driver.
+func RunningVersion() (version uint32, err error) {
+	if err := procWintunGetRunningDriverVersion.Find(); err != nil {
+		return 0, err
+	}
+	r0, _, e1 := syscall.SyscallN(procWintunGetRunningDriverVersion.Addr())
+	version = uint32(r0)
+	if version == 0 {
+		err = e1
+	}
+	return
+}
+
+// LUID returns the LUID of the adapter.
+func (wintun *Adapter) LUID() (luid uint64) {
+	_, _, _ = syscall.SyscallN(procWintunGetAdapterLUID.Addr(), wintun.handle, uintptr(unsafe.Pointer(&luid)))
+	return
+}
