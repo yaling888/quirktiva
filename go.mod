@@ -19,7 +19,7 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/vishvananda/netlink v1.2.1-beta.2.0.20230807190133-6afddb37c1f0
 	go.etcd.io/bbolt v1.3.8
-	go.starlark.net v0.0.0-20231016134836-22325403fcb3
+	go.starlark.net v0.0.0-20231101134539-556fd59b42f6
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.5.3
 	golang.org/x/crypto v0.14.0

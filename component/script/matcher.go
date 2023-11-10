@@ -3,8 +3,8 @@ package script
 import (
 	"errors"
 	"fmt"
+	T "time"
 
-	"github.com/gofrs/uuid/v5"
 	"go.starlark.net/lib/time"
 	"go.starlark.net/starlark"
 	"go.starlark.net/syntax"
@@ -14,7 +14,7 @@ import (
 
 const metadataLocalKey = "local.metadata_key"
 
-var keywordAllow = map[string]bool{
+var allowKeywords = map[string]bool{
 	"_metadata":     true,
 	"now":           true,
 	"type":          true,
@@ -29,6 +29,12 @@ var keywordAllow = map[string]bool{
 	"user_agent":    true,
 	"special_proxy": true,
 	"inbound_port":  true,
+}
+
+var parseOption = syntax.LegacyFileOptions()
+
+var nowErrFunc = func() (T.Time, error) {
+	return T.Now(), nil
 }
 
 var _ C.Matcher = (*Matcher)(nil)
@@ -53,13 +59,13 @@ func (m *Matcher) Eval(metadata *C.Metadata) (string, error) {
 	predefined := make(starlark.StringDict)
 	predefined["_metadata"] = metadataDict
 
-	id, _ := uuid.NewV4()
 	thread := &starlark.Thread{
-		Name:  m.name + "-" + id.String(),
 		Print: func(_ *starlark.Thread, _ string) {},
 	}
 
 	thread.SetLocal(metadataLocalKey, metadata)
+
+	time.SetNow(thread, nowErrFunc)
 
 	results, err := m.program.Init(thread, predefined)
 	if err != nil {
@@ -84,15 +90,15 @@ func (m *Matcher) Match(metadata *C.Metadata) (bool, error) {
 		return false, err
 	}
 
-	predefined["now"] = time.Time(time.NowFunc())
+	predefined["now"] = time.Time(T.Now())
 
-	id, _ := uuid.NewV4()
 	thread := &starlark.Thread{
-		Name:  m.name + "-" + id.String(),
 		Print: func(_ *starlark.Thread, _ string) {},
 	}
 
 	thread.SetLocal(metadataLocalKey, metadata)
+
+	time.SetNow(thread, nowErrFunc)
 
 	results, err := m.program.Init(thread, predefined)
 	if err != nil {
@@ -129,13 +135,13 @@ func NewMatcher(name, filename, code string) (_ *Matcher, err error) {
 		code = fmt.Sprintf("%s=(%s)", key, code)
 	}
 
-	starFile, err := syntax.Parse(filename, code, 0)
+	starFile, err := parseOption.Parse(filename, code, 0)
 	if err != nil {
 		return nil, fmt.Errorf("parse script code error: %w", err)
 	}
 
 	program, err := starlark.FileProgram(starFile, func(s string) bool {
-		rs, ok := keywordAllow[s]
+		rs, ok := allowKeywords[s]
 		return ok && rs
 	})
 	if err != nil {
