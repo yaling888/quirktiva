@@ -1,12 +1,13 @@
 package convert
 
 import (
-	"encoding/base64"
-	"math/rand"
+	"bytes"
 	"net/http"
+	"strconv"
 	"strings"
 
-	"github.com/gofrs/uuid/v5"
+	"github.com/yaling888/clash/common/rand"
+	"github.com/yaling888/clash/common/uuid"
 )
 
 var hostsSuffix = []string{
@@ -287,19 +288,27 @@ var userAgents = []string{
 var (
 	hostsLen = len(hostsSuffix)
 	uaLen    = len(userAgents)
+	prefixFn = []func() string{
+		func() string {
+			return strconv.FormatUint(rand.Uint64()>>31, 10)
+		},
+		func() string {
+			return strings.ToLower(uuid.RandomB64Hlf().String())
+		},
+		func() string {
+			buf := []byte(uuid.RandomB58().String())
+			buf[3] = '-'
+			buf[4] = '-'
+			buf[5] = '-'
+			buf[8] = '-'
+			buf = bytes.ToLower(buf[:17])
+			return string(buf)
+		},
+	}
 )
 
 func RandHost() string {
-	id, _ := uuid.NewV4()
-	base := strings.ToLower(base64.RawURLEncoding.EncodeToString(id.Bytes()))
-	base = strings.ReplaceAll(base, "-", "")
-	base = strings.ReplaceAll(base, "_", "")
-	buf := []byte(base)
-	prefix := string(buf[:3]) + "---"
-	prefix += string(buf[6:8]) + "-"
-	prefix += string(buf[len(buf)-8:])
-
-	return prefix + hostsSuffix[rand.Intn(hostsLen)]
+	return prefixFn[rand.Intn(3)]() + hostsSuffix[rand.Intn(hostsLen)]
 }
 
 func RandUserAgent() string {
