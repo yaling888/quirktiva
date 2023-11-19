@@ -3,7 +3,7 @@ package vless
 import (
 	"net"
 
-	"github.com/gofrs/uuid/v5"
+	"github.com/yaling888/clash/common/uuid"
 )
 
 // Version of vmess
@@ -32,7 +32,7 @@ type DstAddr struct {
 
 // Client is vless connection generator
 type Client struct {
-	uuid *uuid.UUID
+	uuid uuid.UUID
 }
 
 // StreamConn return a Conn with net.Conn and DstAddr
@@ -42,12 +42,12 @@ func (c *Client) StreamConn(conn net.Conn, dst *DstAddr) (net.Conn, error) {
 
 // NewClient return Client instance
 func NewClient(uuidStr string) (*Client, error) {
-	uid, err := uuid.FromString(uuidStr)
+	uid, err := uuid.ParseStd(uuidStr)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Client{
-		uuid: &uid,
+		uuid: uid,
 	}, nil
 }

@@ -6,7 +6,7 @@ import (
 	"net"
 	"runtime"
 
-	"github.com/gofrs/uuid/v5"
+	"github.com/yaling888/clash/common/uuid"
 )
 
 // Version of vmess
@@ -53,7 +53,7 @@ type DstAddr struct {
 // Client is vmess connection generator
 type Client struct {
 	user     []*ID
-	uuid     *uuid.UUID
+	uuid     uuid.UUID
 	security Security
 	isAead   bool
 }
@@ -76,7 +76,7 @@ func (c *Client) StreamConn(conn net.Conn, dst *DstAddr) (net.Conn, error) {
 
 // NewClient return Client instance
 func NewClient(config Config) (*Client, error) {
-	uid, err := uuid.FromString(config.UUID)
+	uid, err := uuid.ParseStd(config.UUID)
 	if err != nil {
 		return nil, err
 	}
@@ -101,8 +101,8 @@ func NewClient(config Config) (*Client, error) {
 	}
 
 	return &Client{
-		user:     newAlterIDs(newID(&uid), config.AlterID),
-		uuid:     &uid,
+		user:     newAlterIDs(newID(uid), config.AlterID),
+		uuid:     uid,
 		security: security,
 		isAead:   config.IsAead,
 	}, nil

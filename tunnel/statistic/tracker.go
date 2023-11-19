@@ -4,10 +4,10 @@ import (
 	"net"
 	"time"
 
-	"github.com/gofrs/uuid/v5"
 	"github.com/samber/lo"
 	"go.uber.org/atomic"
 
+	"github.com/yaling888/clash/common/uuid"
 	C "github.com/yaling888/clash/constant"
 )
 
@@ -60,13 +60,13 @@ func (tt *tcpTracker) Close() error {
 }
 
 func NewTCPTracker(conn C.Conn, manager *Manager, metadata *C.Metadata, rule C.Rule) C.Conn {
-	uuidM, _ := uuid.NewV4()
+	id := uuid.RandomB64Hlf()
 
 	t := &tcpTracker{
 		Conn:    conn,
 		manager: manager,
 		trackerInfo: &trackerInfo{
-			UUID:          uuidM,
+			UUID:          id,
 			Start:         time.Now(),
 			Metadata:      metadata,
 			Chain:         conn.Chains(),
@@ -117,13 +117,13 @@ func (ut *udpTracker) Close() error {
 }
 
 func NewUDPTracker(conn C.PacketConn, manager *Manager, metadata *C.Metadata, rule C.Rule) *udpTracker {
-	uuidM, _ := uuid.NewV4()
+	id := uuid.RandomB64Hlf()
 
 	ut := &udpTracker{
 		PacketConn: conn,
 		manager:    manager,
 		trackerInfo: &trackerInfo{
-			UUID:          uuidM,
+			UUID:          id,
 			Start:         time.Now(),
 			Metadata:      metadata,
 			Chain:         conn.Chains(),

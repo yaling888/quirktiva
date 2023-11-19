@@ -1,8 +1,9 @@
 package context
 
 import (
-	"github.com/gofrs/uuid/v5"
 	"github.com/miekg/dns"
+
+	"github.com/yaling888/clash/common/uuid"
 )
 
 const (
@@ -18,7 +19,7 @@ type DNSContext struct {
 }
 
 func NewDNSContext(msg *dns.Msg) *DNSContext {
-	id, _ := uuid.NewV4()
+	id := uuid.RandomB64Hlf()
 	return &DNSContext{
 		id:  id,
 		msg: msg,

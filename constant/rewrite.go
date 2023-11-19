@@ -71,7 +71,6 @@ func (rt RewriteType) String() string {
 }
 
 type Rewrite interface {
-	ID() string
 	URLRegx() *regexp.Regexp
 	RuleType() RewriteType
 	RuleRegx() []*regexp.Regexp

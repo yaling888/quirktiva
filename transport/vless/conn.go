@@ -5,15 +5,14 @@ import (
 	"io"
 	"net"
 
-	"github.com/gofrs/uuid/v5"
-
 	"github.com/yaling888/clash/common/pool"
+	"github.com/yaling888/clash/common/uuid"
 )
 
 type Conn struct {
 	net.Conn
 	dst      *DstAddr
-	id       *uuid.UUID
+	id       uuid.UUID
 	received bool
 }
 

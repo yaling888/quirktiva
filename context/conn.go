@@ -3,8 +3,7 @@ package context
 import (
 	"net"
 
-	"github.com/gofrs/uuid/v5"
-
+	"github.com/yaling888/clash/common/uuid"
 	C "github.com/yaling888/clash/constant"
 )
 
@@ -15,7 +14,7 @@ type ConnContext struct {
 }
 
 func NewConnContext(conn net.Conn, metadata *C.Metadata) *ConnContext {
-	id, _ := uuid.NewV4()
+	id := uuid.RandomB64Hlf()
 	return &ConnContext{
 		id:       id,
 		metadata: metadata,

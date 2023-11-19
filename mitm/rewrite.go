@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	regexp "github.com/dlclark/regexp2"
-	"github.com/gofrs/uuid/v5"
 
 	C "github.com/yaling888/clash/constant"
 )
@@ -14,15 +13,10 @@ import (
 var errInvalid = errors.New("invalid rewrite rule")
 
 type RewriteRule struct {
-	id          string
 	urlRegx     *regexp.Regexp
 	ruleType    C.RewriteType
 	ruleRegx    []*regexp.Regexp
 	rulePayload []string
-}
-
-func (r *RewriteRule) ID() string {
-	return r.id
 }
 
 func (r *RewriteRule) URLRegx() *regexp.Regexp {
@@ -90,9 +84,7 @@ func (r *RewriteRule) ReplaceSubPayload(oldData string) (string, bool) {
 }
 
 func NewRewriteRule(urlRegx *regexp.Regexp, ruleType C.RewriteType, ruleRegx []*regexp.Regexp, rulePayload []string) *RewriteRule {
-	id, _ := uuid.NewV4()
 	return &RewriteRule{
-		id:          id.String(),
 		urlRegx:     urlRegx,
 		ruleType:    ruleType,
 		ruleRegx:    ruleRegx,
