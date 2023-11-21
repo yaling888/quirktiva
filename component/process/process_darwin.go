@@ -9,8 +9,6 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/unix"
-
-	"github.com/yaling888/clash/common/byteorder"
 )
 
 const (
@@ -121,5 +119,5 @@ func getExecPathFromPID(pid uint32) (string, error) {
 }
 
 func readNativeUint32(b []byte) uint32 {
-	return byteorder.Native.Uint32(b)
+	return binary.NativeEndian.Uint32(b)
 }

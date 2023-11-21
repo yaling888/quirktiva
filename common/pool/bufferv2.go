@@ -8,13 +8,13 @@ import (
 	"net/netip"
 	"sync"
 	"unicode/utf8"
-
-	"github.com/yaling888/clash/common/byteorder"
 )
 
 var buffer2Pool = sync.Pool{
 	New: func() any {
-		return &bytes.Buffer{}
+		return &Buffer{
+			buf: new(bytes.Buffer),
+		}
 	},
 }
 
@@ -23,23 +23,18 @@ type Buffer struct {
 }
 
 func NewBuffer() *Buffer {
-	return &Buffer{
-		buf: buffer2Pool.Get().(*bytes.Buffer),
-	}
+	return buffer2Pool.Get().(*Buffer)
 }
 
 func NewBufferWithData(data []byte) *Buffer {
-	b := buffer2Pool.Get().(*bytes.Buffer)
-	b.Write(data)
-	return &Buffer{
-		buf: b,
-	}
+	b := buffer2Pool.Get().(*Buffer)
+	b.buf.Write(data)
+	return b
 }
 
 func (b *Buffer) Release() {
 	b.buf.Reset()
-	buffer2Pool.Put(b.buf)
-	b.buf = nil
+	buffer2Pool.Put(b)
 }
 
 func (b *Buffer) Reset() {
@@ -92,7 +87,7 @@ func (b *Buffer) ReadUint16(r io.Reader) (uint16, error) {
 	if err != nil {
 		return 0, err
 	}
-	return byteorder.Native.Uint16(b.buf.Next(2)), nil
+	return binary.NativeEndian.Uint16(b.buf.Next(2)), nil
 }
 
 func (b *Buffer) ReadUint32(r io.Reader) (uint32, error) {
@@ -100,7 +95,7 @@ func (b *Buffer) ReadUint32(r io.Reader) (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	return byteorder.Native.Uint32(b.buf.Next(4)), nil
+	return binary.NativeEndian.Uint32(b.buf.Next(4)), nil
 }
 
 func (b *Buffer) ReadUint64(r io.Reader) (uint64, error) {
@@ -108,7 +103,7 @@ func (b *Buffer) ReadUint64(r io.Reader) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return byteorder.Native.Uint64(b.buf.Next(8)), nil
+	return binary.NativeEndian.Uint64(b.buf.Next(8)), nil
 }
 
 func (b *Buffer) ReadUint16be(r io.Reader) (uint16, error) {
@@ -205,19 +200,19 @@ func (br *BufferReader) ReadUint8() uint8 {
 }
 
 func (br *BufferReader) ReadUint16() uint16 {
-	r := byteorder.Native.Uint16((*br)[:2])
+	r := binary.NativeEndian.Uint16((*br)[:2])
 	*br = (*br)[2:]
 	return r
 }
 
 func (br *BufferReader) ReadUint32() uint32 {
-	r := byteorder.Native.Uint32((*br)[:4])
+	r := binary.NativeEndian.Uint32((*br)[:4])
 	*br = (*br)[4:]
 	return r
 }
 
 func (br *BufferReader) ReadUint64() uint64 {
-	r := byteorder.Native.Uint64((*br)[:8])
+	r := binary.NativeEndian.Uint64((*br)[:8])
 	*br = (*br)[8:]
 	return r
 }
@@ -373,15 +368,15 @@ func (bw *BufferWriter) PutUint8(v uint8) {
 }
 
 func (bw *BufferWriter) PutUint16(v uint16) {
-	byteorder.Native.PutUint16(bw.next(2), v)
+	binary.NativeEndian.PutUint16(bw.next(2), v)
 }
 
 func (bw *BufferWriter) PutUint32(v uint32) {
-	byteorder.Native.PutUint32(bw.next(4), v)
+	binary.NativeEndian.PutUint32(bw.next(4), v)
 }
 
 func (bw *BufferWriter) PutUint64(v uint64) {
-	byteorder.Native.PutUint64(bw.next(8), v)
+	binary.NativeEndian.PutUint64(bw.next(8), v)
 }
 
 func (bw *BufferWriter) PutUint16be(v uint16) {

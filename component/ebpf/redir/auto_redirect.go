@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"net"
+	"math/bits"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -16,7 +16,7 @@ import (
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 
-	"github.com/yaling888/clash/common/byteorder"
+	"github.com/yaling888/clash/common/pool"
 	C "github.com/yaling888/clash/constant"
 	"github.com/yaling888/clash/transport/socks5"
 )
@@ -28,6 +28,8 @@ const (
 	mapKey2 uint32 = 1
 	mapKey3 uint32 = 2
 )
+
+var isLittleEndian = binary.NativeEndian.Uint16([]byte{0x12, 0x34}) == binary.LittleEndian.Uint16([]byte{0x12, 0x34})
 
 type EBpfRedirect struct {
 	objs         io.Closer
@@ -52,8 +54,8 @@ func NewEBpfRedirect(ifName string, ifIndex int, ifMark uint32, routeIndex uint3
 		ifIndex:   ifIndex,
 		ifMark:    ifMark,
 		rtIndex:   routeIndex,
-		redirIp:   binary.BigEndian.Uint32(redirAddrPort.Addr().AsSlice()),
-		redirPort: redirAddrPort.Port(),
+		redirIp:   binary.NativeEndian.Uint32(redirAddrPort.Addr().AsSlice()),
+		redirPort: hostToNetwork16(redirAddrPort.Port()),
 	}
 }
 
@@ -85,12 +87,18 @@ func (e *EBpfRedirect) Start() error {
 		return fmt.Errorf("storing objects: %w", err)
 	}
 
-	if err := objs.bpfMaps.RedirParamsMap.Update(mapKey2, e.redirIp, ebpf.UpdateAny); err != nil {
+	redirIp := e.redirIp
+	redirPort := e.redirPort
+	if isLittleEndian {
+		redirIp = bits.ReverseBytes32(redirIp)
+		redirPort = bits.ReverseBytes16(redirPort)
+	}
+	if err := objs.bpfMaps.RedirParamsMap.Update(mapKey2, redirIp, ebpf.UpdateAny); err != nil {
 		e.Close()
 		return fmt.Errorf("storing objects: %w", err)
 	}
 
-	if err := objs.bpfMaps.RedirParamsMap.Update(mapKey3, uint32(e.redirPort), ebpf.UpdateAny); err != nil {
+	if err := objs.bpfMaps.RedirParamsMap.Update(mapKey3, uint32(redirPort), ebpf.UpdateAny); err != nil {
 		e.Close()
 		return fmt.Errorf("storing objects: %w", err)
 	}
@@ -190,14 +198,14 @@ func (e *EBpfRedirect) Lookup(srcAddrPort netip.AddrPort) (socks5.Addr, error) {
 		return nil, fmt.Errorf("remote address is ipv6")
 	}
 
-	srcIp := binary.BigEndian.Uint32(rAddr.AsSlice())
-	scrPort := srcAddrPort.Port()
+	srcIp := binary.NativeEndian.Uint32(rAddr.AsSlice())
+	scrPort := hostToNetwork16(srcAddrPort.Port())
 
 	key := bpfRedirInfo{
-		Sip:   byteorder.HostToNetwork32(srcIp),
-		Sport: byteorder.HostToNetwork16(scrPort),
-		Dip:   byteorder.HostToNetwork32(e.redirIp),
-		Dport: byteorder.HostToNetwork16(e.redirPort),
+		Sip:   srcIp,
+		Sport: scrPort,
+		Dip:   e.redirIp,
+		Dport: e.redirPort,
 	}
 
 	origin := bpfOriginInfo{}
@@ -207,10 +215,16 @@ func (e *EBpfRedirect) Lookup(srcAddrPort netip.AddrPort) (socks5.Addr, error) {
 		return nil, err
 	}
 
-	addr := make([]byte, net.IPv4len+3)
-	addr[0] = socks5.AtypIPv4
+	addr := pool.BufferWriter{}
+	addr.PutUint8(socks5.AtypIPv4)
+	addr.PutUint32(origin.Ip)
+	addr.PutUint16(origin.Port)
+	return addr.Bytes(), nil
+}
 
-	binary.BigEndian.PutUint32(addr[1:1+net.IPv4len], byteorder.NetworkToHost32(origin.Ip))               // big end
-	binary.BigEndian.PutUint16(addr[1+net.IPv4len:3+net.IPv4len], byteorder.NetworkToHost16(origin.Port)) // big end
-	return addr, nil
+func hostToNetwork16(v uint16) uint16 {
+	if isLittleEndian {
+		return bits.ReverseBytes16(v)
+	}
+	return v
 }

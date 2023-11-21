@@ -8,7 +8,6 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/yaling888/clash/common/byteorder"
 	"github.com/yaling888/clash/component/iface"
 )
 
@@ -60,7 +59,7 @@ func bindSocketToInterface4(handle windows.Handle, index int) error {
 	// Ref: https://learn.microsoft.com/en-us/windows/win32/winsock/ipproto-ip-socket-options
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint32(buf, uint32(index))
-	return windows.SetsockoptInt(handle, windows.IPPROTO_IP, ipUnicastIf, int(byteorder.Native.Uint32(buf)))
+	return windows.SetsockoptInt(handle, windows.IPPROTO_IP, ipUnicastIf, int(binary.NativeEndian.Uint32(buf)))
 }
 
 func bindSocketToInterface6(handle windows.Handle, index int) error {
