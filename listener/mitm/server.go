@@ -123,7 +123,10 @@ var initOption = sync.OnceValues(func() (*C.MitmOption, error) {
 		return nil, err
 	}
 
-	privateKey := rootCACert.PrivateKey.(*rsa.PrivateKey)
+	privateKey, ok := rootCACert.PrivateKey.(*rsa.PrivateKey)
+	if !ok {
+		return nil, rsa.ErrVerification
+	}
 
 	x509c, err := x509.ParseCertificate(rootCACert.Certificate[0])
 	if err != nil {
@@ -138,8 +141,7 @@ var initOption = sync.OnceValues(func() (*C.MitmOption, error) {
 		return nil, err
 	}
 
-	certOption.SetValidity(time.Hour * 24 * 365 * 2) // 2 years
-	certOption.SetOrganization("Clash ManInTheMiddle Proxy Services")
+	certOption.SetValidity(time.Hour * 24 * 365) // 1 years
 
 	option := &C.MitmOption{
 		ApiHost:    "mitm.clash",

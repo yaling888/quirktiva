@@ -248,7 +248,7 @@ func handleApiRequest(session *C.MitmSession, opt *C.MitmOption) error {
 	if opt.CertConfig != nil && strings.ToLower(session.Request.URL.Path) == "/cert.crt" {
 		b := pem.EncodeToMemory(&pem.Block{
 			Type:  "CERTIFICATE",
-			Bytes: opt.CertConfig.GetCA().Raw,
+			Bytes: opt.CertConfig.GetRootCA().Raw,
 		})
 
 		session.Response = session.NewResponse(http.StatusOK, bytes.NewReader(b))

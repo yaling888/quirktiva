@@ -1,37 +1,22 @@
 package cert
 
 import (
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha1"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"math/big"
 	"net"
 	"os"
 	"strings"
-	"sync/atomic"
 	"time"
 )
 
-var currentSerialNumber = time.Now().Unix()
-
-type Config struct {
-	ca           *x509.Certificate
-	caPrivateKey *rsa.PrivateKey
-
-	roots *x509.CertPool
-
-	privateKey *rsa.PrivateKey
-
-	validity     time.Duration
-	keyID        []byte
-	organization string
-
-	certsStorage CertsStorage
-}
+const monthDur = 30 * 24 * time.Hour
 
 type CertsStorage interface {
 	Get(key string) (*tls.Certificate, bool)
@@ -39,95 +24,24 @@ type CertsStorage interface {
 	Set(key string, cert *tls.Certificate)
 }
 
-func NewAuthority(name, organization string, validity time.Duration) (*x509.Certificate, *rsa.PrivateKey, error) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, nil, err
-	}
-	pub := privateKey.Public()
+type Config struct {
+	rootCA       *x509.Certificate
+	rootKey      any
+	ca           *x509.Certificate
+	caPrivateKey *ecdsa.PrivateKey
 
-	pkixPub, err := x509.MarshalPKIXPublicKey(pub)
-	if err != nil {
-		return nil, nil, err
-	}
-	h := sha1.New()
-	_, err = h.Write(pkixPub)
-	if err != nil {
-		return nil, nil, err
-	}
-	keyID := h.Sum(nil)
+	roots         *x509.CertPool
+	intermediates *x509.CertPool
 
-	serial := atomic.AddInt64(&currentSerialNumber, 1)
+	privateKey *ecdsa.PrivateKey
 
-	tmpl := &x509.Certificate{
-		SerialNumber: big.NewInt(serial),
-		Subject: pkix.Name{
-			CommonName:         name,
-			Organization:       []string{organization},
-			OrganizationalUnit: []string{"Clash"},
-		},
-		SubjectKeyId:          keyID,
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-		NotBefore:             time.Now().Add(-validity),
-		NotAfter:              time.Now().Add(validity),
-		DNSNames:              []string{name},
-		IsCA:                  true,
-	}
+	validity time.Duration
 
-	raw, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, pub, privateKey)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	x509c, err := x509.ParseCertificate(raw)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return x509c, privateKey, nil
+	certsStorage CertsStorage
 }
 
-func NewConfig(ca *x509.Certificate, caPrivateKey *rsa.PrivateKey) (*Config, error) {
-	roots := x509.NewCertPool()
-	roots.AddCert(ca)
-
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, err
-	}
-	pub := privateKey.Public()
-
-	pkixPub, err := x509.MarshalPKIXPublicKey(pub)
-	if err != nil {
-		return nil, err
-	}
-	h := sha1.New()
-	_, err = h.Write(pkixPub)
-	if err != nil {
-		return nil, err
-	}
-	keyID := h.Sum(nil)
-
-	return &Config{
-		ca:           ca,
-		caPrivateKey: caPrivateKey,
-		privateKey:   privateKey,
-		keyID:        keyID,
-		validity:     time.Hour,
-		organization: "Clash",
-		certsStorage: NewDomainTrieCertsStorage(),
-		roots:        roots,
-	}, nil
-}
-
-func (c *Config) GetCA() *x509.Certificate {
-	return c.ca
-}
-
-func (c *Config) SetOrganization(organization string) {
-	c.organization = organization
+func (c *Config) GetRootCA() *x509.Certificate {
+	return c.rootCA
 }
 
 func (c *Config) SetValidity(validity time.Duration) {
@@ -156,8 +70,9 @@ func (c *Config) GetOrCreateCert(hostname string, ips ...net.IP) (*tls.Certifica
 	if ok {
 		leaf = tlsCertificate.Leaf
 		if _, err := leaf.Verify(x509.VerifyOptions{
-			DNSName: hostname,
-			Roots:   c.roots,
+			DNSName:       hostname,
+			Roots:         c.roots,
+			Intermediates: c.intermediates,
 		}); err == nil {
 			return tlsCertificate, nil
 		}
@@ -200,22 +115,38 @@ func (c *Config) GetOrCreateCert(hostname string, ips ...net.IP) (*tls.Certifica
 		key = "+." + topHost
 	}
 
-	serial := atomic.AddInt64(&currentSerialNumber, 1)
+	now := time.Now()
+	if now.After(c.ca.NotAfter) {
+		midCA, midPrivateKey, err := generateCert("Clash TLS Hybrid ECC SHA384 CA1", true, c.rootCA, c.rootKey)
+		if err != nil {
+			return nil, err
+		}
+		c.ca = midCA
+		c.caPrivateKey = midPrivateKey.(*ecdsa.PrivateKey)
+	}
 
+	notAfter := now.AddDate(0, int(c.validity/monthDur+1), 0)
+	if notAfter.After(c.ca.NotAfter) {
+		notAfter = c.ca.NotAfter
+	}
+
+	serial, _ := rand.Prime(rand.Reader, 120)
 	tmpl := &x509.Certificate{
-		SerialNumber: big.NewInt(serial),
+		Version:      3,
+		SerialNumber: serial,
 		Subject: pkix.Name{
-			CommonName:   topHost,
-			Organization: []string{c.organization},
+			CommonName:         topHost,
+			Organization:       []string{"Clash Proxy Services"},
+			OrganizationalUnit: []string{"Clash Plus"},
 		},
-		SubjectKeyId:          c.keyID,
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-		NotBefore:             time.Now().Add(-c.validity),
-		NotAfter:              time.Now().Add(c.validity),
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		NotBefore:             clearClock(now.AddDate(0, -1, 0)),
+		NotAfter:              clearClock(notAfter),
 		DNSNames:              dnsNames,
 		IPAddresses:           ips,
+		BasicConstraintsValid: true,
+		IsCA:                  false,
 	}
 
 	raw, err := x509.CreateCertificate(rand.Reader, tmpl, c.ca, c.privateKey.Public(), c.caPrivateKey)
@@ -229,7 +160,7 @@ func (c *Config) GetOrCreateCert(hostname string, ips ...net.IP) (*tls.Certifica
 	}
 
 	tlsCertificate = &tls.Certificate{
-		Certificate: [][]byte{raw, c.ca.Raw},
+		Certificate: [][]byte{raw, c.ca.Raw, c.rootCA.Raw},
 		PrivateKey:  c.privateKey,
 		Leaf:        x509c,
 	}
@@ -240,28 +171,7 @@ func (c *Config) GetOrCreateCert(hostname string, ips ...net.IP) (*tls.Certifica
 
 // GenerateAndSave generate CA private key and CA certificate and dump them to file
 func GenerateAndSave(caPath string, caKeyPath string) error {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return err
-	}
-
-	tmpl := &x509.Certificate{
-		SerialNumber: big.NewInt(time.Now().Unix()),
-		Subject: pkix.Name{
-			Country:            []string{"US"},
-			CommonName:         "Clash Root CA",
-			Organization:       []string{"Clash Trust Services"},
-			OrganizationalUnit: []string{"Clash"},
-		},
-		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		NotBefore:             time.Now().Add(-(time.Hour * 24 * 60)),
-		NotAfter:              time.Now().Add(time.Hour * 24 * 365 * 25),
-		BasicConstraintsValid: true,
-		IsCA:                  true,
-	}
-
-	caRaw, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, privateKey.Public(), privateKey)
+	ca, privateKey, err := generateCert("Clash Root CA", true, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -274,7 +184,7 @@ func GenerateAndSave(caPath string, caKeyPath string) error {
 		_ = caOut.Close()
 	}(caOut)
 
-	if err = pem.Encode(caOut, &pem.Block{Type: "CERTIFICATE", Bytes: caRaw}); err != nil {
+	if err = pem.Encode(caOut, &pem.Block{Type: "CERTIFICATE", Bytes: ca.Raw}); err != nil {
 		return err
 	}
 
@@ -286,11 +196,113 @@ func GenerateAndSave(caPath string, caKeyPath string) error {
 		_ = caKeyOut.Close()
 	}(caKeyOut)
 
-	if err = pem.Encode(caKeyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)}); err != nil {
+	err = pem.Encode(caKeyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey.(*rsa.PrivateKey))})
+	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func NewConfig(rootCA *x509.Certificate, rootPrivateKey any) (*Config, error) {
+	midCA, midPrivateKey, err := generateCert("Clash TLS Hybrid ECC SHA384 CA1", true, rootCA, rootPrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	privateKey, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+
+	roots := x509.NewCertPool()
+	roots.AddCert(rootCA)
+
+	intermediates := x509.NewCertPool()
+	intermediates.AddCert(midCA)
+
+	return &Config{
+		rootCA:        rootCA,
+		rootKey:       rootPrivateKey,
+		ca:            midCA,
+		caPrivateKey:  midPrivateKey.(*ecdsa.PrivateKey),
+		privateKey:    privateKey,
+		validity:      time.Hour,
+		certsStorage:  NewDomainTrieCertsStorage(),
+		roots:         roots,
+		intermediates: intermediates,
+	}, nil
+}
+
+func generateCert(cn string, isCA bool, parentCA *x509.Certificate, parentKey any) (*x509.Certificate, any, error) {
+	var (
+		privateKey any
+		err        error
+	)
+	if isCA && parentCA == nil {
+		privateKey, err = rsa.GenerateKey(rand.Reader, 2048)
+	} else {
+		privateKey, err = ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+
+	publicKey := privateKey.(crypto.Signer).Public()
+
+	serial, _ := rand.Prime(rand.Reader, 120)
+	year, month, day := time.Now().Date()
+
+	tmpl := &x509.Certificate{
+		Version:      3,
+		SerialNumber: serial,
+		Subject: pkix.Name{
+			CommonName:         cn,
+			Country:            []string{"US"},
+			Organization:       []string{"Clash Trust Services"},
+			OrganizationalUnit: []string{"clashplus.eu.org"},
+		},
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign | x509.KeyUsageDigitalSignature,
+		BasicConstraintsValid: true,
+		IsCA:                  isCA,
+	}
+
+	if parentCA == nil {
+		tmpl.NotBefore = time.Date(year-2, month, day, 0, 0, 0, 0, time.UTC)
+		tmpl.NotAfter = time.Date(year+23, month, day, 0, 0, 0, 0, time.UTC)
+		parentCA = tmpl
+	} else {
+		now := time.Now()
+		var notAfter time.Time
+		if isCA {
+			tmpl.MaxPathLenZero = true
+			notAfter = now.AddDate(5, 6, 0)
+		} else {
+			notAfter = now.AddDate(1, 6, 0)
+		}
+		if notAfter.After(parentCA.NotAfter) {
+			notAfter = parentCA.NotAfter
+		}
+		tmpl.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
+		tmpl.NotBefore = clearClock(now.AddDate(0, -6, 0))
+		tmpl.NotAfter = clearClock(notAfter)
+	}
+
+	if parentKey == nil {
+		parentKey = privateKey
+	}
+
+	raw, err := x509.CreateCertificate(rand.Reader, tmpl, parentCA, publicKey, parentKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	cert, err := x509.ParseCertificate(raw)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return cert, privateKey, nil
 }
 
 func hasDnsNames(dnsNames []string, hostname string) bool {
@@ -300,4 +312,9 @@ func hasDnsNames(dnsNames []string, hostname string) bool {
 		}
 	}
 	return false
+}
+
+func clearClock(t time.Time) time.Time {
+	year, month, day := t.Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
 }
