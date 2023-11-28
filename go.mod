@@ -3,35 +3,35 @@ module github.com/yaling888/clash
 go 1.21.1
 
 require (
-	github.com/antonmedv/expr v1.15.3
-	github.com/cilium/ebpf v0.12.2
+	github.com/antonmedv/expr v1.15.5
+	github.com/cilium/ebpf v0.12.3
 	github.com/dlclark/regexp2 v1.10.0
 	github.com/go-chi/chi/v5 v5.0.10
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/render v1.0.3
 	github.com/gorilla/websocket v1.5.0
-	github.com/insomniacslk/dhcp v0.0.0-20231016090811-6a2c8fbdcc1c
-	github.com/miekg/dns v1.1.56
+	github.com/insomniacslk/dhcp v0.0.0-20231126010706-b0416c0f187a
+	github.com/miekg/dns v1.1.57
 	github.com/oschwald/geoip2-golang v1.9.0
 	github.com/phuslu/log v1.0.88
 	github.com/samber/lo v1.38.1
 	github.com/stretchr/testify v1.8.4
-	github.com/vishvananda/netlink v1.2.1-beta.2.0.20230807190133-6afddb37c1f0
+	github.com/vishvananda/netlink v1.2.1-beta.2.0.20231127184239-0ced8385386a
 	go.etcd.io/bbolt v1.3.8
-	go.starlark.net v0.0.0-20231101134539-556fd59b42f6
+	go.starlark.net v0.0.0-20231121155337-90ade8b19d09
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.5.3
-	golang.org/x/crypto v0.14.0
-	golang.org/x/net v0.17.0
-	golang.org/x/sync v0.4.0
-	golang.org/x/sys v0.13.0
-	golang.org/x/text v0.13.0
-	golang.org/x/time v0.3.0
+	golang.org/x/crypto v0.16.0
+	golang.org/x/net v0.19.0
+	golang.org/x/sync v0.5.0
+	golang.org/x/sys v0.15.0
+	golang.org/x/text v0.14.0
+	golang.org/x/time v0.5.0
 	golang.zx2c4.com/wireguard v0.0.0-20231022001213-2e0774f246fb
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20231028232028-d3e570a78ab8
+	gvisor.dev/gvisor v0.0.0-20231130224249-b850869d6e9a
 )
 
 require (
