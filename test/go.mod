@@ -16,12 +16,12 @@ replace github.com/yaling888/clash => ../
 
 require (
 	github.com/Microsoft/go-winio v0.6.1 // indirect
-	github.com/antonmedv/expr v1.15.5 // indirect
 	github.com/cilium/ebpf v0.12.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.10.0 // indirect
 	github.com/docker/distribution v2.8.2+incompatible // indirect
 	github.com/docker/go-units v0.5.0 // indirect
+	github.com/expr-lang/expr v1.15.6 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect

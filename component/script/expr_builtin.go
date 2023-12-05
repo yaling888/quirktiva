@@ -3,7 +3,7 @@ package script
 import (
 	"time"
 
-	"github.com/antonmedv/expr/ast"
+	"github.com/expr-lang/expr/ast"
 
 	C "github.com/yaling888/clash/constant"
 )
