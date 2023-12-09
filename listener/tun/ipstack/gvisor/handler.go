@@ -48,8 +48,8 @@ func (gh *gvHandler) HandleTCP(tunConn net.Conn) {
 	}
 
 	if D.ShouldHijackDns(gh.dnsHijack, rAddrPort, "tcp") {
-		go func(dnsConn net.Conn, addr string) {
-			log.Debug().Str("addr", addr).Msg("[TUN] hijack tcp dns")
+		go func(dnsConn net.Conn, addr netip.AddrPort) {
+			log.Debug().NetIPAddrPort("addr", addr).Msg("[TUN] hijack tcp dns")
 
 			defer func(c net.Conn) {
 				_ = c.Close()
@@ -89,7 +89,7 @@ func (gh *gvHandler) HandleTCP(tunConn net.Conn) {
 			}
 
 			_, _ = buf.WriteTo(dnsConn)
-		}(tunConn, rAddrPort.String())
+		}(tunConn, rAddrPort)
 
 		return
 	}
@@ -130,7 +130,7 @@ func (gh *gvHandler) HandleUDP(stack *stack.Stack, id stack.TransportEndpointID,
 
 	if D.ShouldHijackDns(gh.dnsHijack, rAddrPort, "udp") {
 		go func() {
-			log.Debug().Str("addr", rAddrPort.String()).Msg("[TUN] hijack udp dns")
+			log.Debug().NetIPAddrPort("addr", rAddrPort).Msg("[TUN] hijack udp dns")
 
 			defer data.Release()
 

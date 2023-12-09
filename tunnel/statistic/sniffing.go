@@ -32,7 +32,7 @@ func (r *sniffing) Write(b []byte) (int, error) {
 		if err == nil && strings.Index(header.Domain(), ".") > 0 {
 			log.Debug().
 				Str("host", header.Domain()).
-				Str("ip", r.metadata.DstIP.String()).
+				NetIPAddr("ip", r.metadata.DstIP).
 				Msg("[Sniffer] update sni")
 
 			resolver.InsertHostByIP(r.metadata.DstIP, header.Domain())

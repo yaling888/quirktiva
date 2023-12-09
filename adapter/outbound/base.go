@@ -7,8 +7,6 @@ import (
 	"io"
 	"net"
 
-	"github.com/phuslu/log"
-
 	"github.com/yaling888/clash/component/dialer"
 	C "github.com/yaling888/clash/constant"
 )
@@ -136,8 +134,8 @@ func (c *conn) SetChains(chains []string) {
 	c.chain = chains
 }
 
-func (c *conn) MarshalObject(e *log.Entry) {
-	e.Str("proxy", c.Chains().String())
+func (c *conn) String() string {
+	return c.Chains().String()
 }
 
 func NewConn(c net.Conn, a C.ProxyAdapter) C.Conn {
@@ -164,8 +162,8 @@ func (c *packetConn) SetChains(chains []string) {
 	c.chain = chains
 }
 
-func (c *packetConn) MarshalObject(e *log.Entry) {
-	e.Str("proxy", c.Chains().String())
+func (c *packetConn) String() string {
+	return c.Chains().String()
 }
 
 func NewPacketConn(pc net.PacketConn, a C.ProxyAdapter) C.PacketConn {

@@ -42,6 +42,10 @@ func SetLevel(newLevel LogLevel) {
 	level = newLevel
 	(logger.DefaultLogger.Writer.(*multiWriter)).consoleLevel = logger.Level(newLevel)
 
+	if !jsonSource.HasSubscriber() && !textSource.HasSubscriber() {
+		logger.DefaultLogger.SetLevel(logger.Level(newLevel))
+	}
+
 	gLevel := gLog.Warning
 	if newLevel == DEBUG {
 		gLevel = gLog.Debug

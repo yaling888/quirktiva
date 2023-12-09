@@ -56,6 +56,7 @@ func init() {
 func SubscribeText() observable.Subscription[Event] {
 	sub, _ := textSource.Subscribe()
 	enabledText = true
+	logger.DefaultLogger.SetLevel(logger.DebugLevel)
 	return sub
 }
 
@@ -63,12 +64,16 @@ func UnSubscribeText(sub observable.Subscription[Event]) {
 	textSource.UnSubscribe(sub)
 	if !textSource.HasSubscriber() {
 		enabledText = false
+		if !jsonSource.HasSubscriber() {
+			logger.DefaultLogger.SetLevel(logger.DefaultLogger.Writer.(*multiWriter).consoleLevel)
+		}
 	}
 }
 
 func SubscribeJson() observable.Subscription[Event] {
 	sub, _ := jsonSource.Subscribe()
 	enabledJson = true
+	logger.DefaultLogger.SetLevel(logger.DebugLevel)
 	return sub
 }
 
@@ -76,6 +81,9 @@ func UnSubscribeJson(sub observable.Subscription[Event]) {
 	jsonSource.UnSubscribe(sub)
 	if !jsonSource.HasSubscriber() {
 		enabledJson = false
+		if !textSource.HasSubscriber() {
+			logger.DefaultLogger.SetLevel(logger.DefaultLogger.Writer.(*multiWriter).consoleLevel)
+		}
 	}
 }
 

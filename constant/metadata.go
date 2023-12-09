@@ -195,3 +195,19 @@ func (n Port) MarshalJSON() ([]byte, error) {
 func (n Port) String() string {
 	return strconv.FormatUint(uint64(n), 10)
 }
+
+type LogAddr struct {
+	M        Metadata
+	Src      bool
+	HostOnly bool
+}
+
+func (l LogAddr) String() string {
+	if l.HostOnly {
+		return l.M.String()
+	}
+	if !l.Src {
+		return l.M.RemoteAddress()
+	}
+	return l.M.SourceAddress()
+}

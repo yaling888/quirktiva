@@ -184,7 +184,7 @@ func msgToIP(msg *D.Msg) []netip.Addr {
 	return ips
 }
 
-func msgToIPStr(msg *D.Msg) []string {
+func msgToIPStr(msg D.Msg) []string {
 	var ips []string
 
 	for _, answer := range msg.Answer {
@@ -362,8 +362,16 @@ func logDnsResponse(q D.Question, msg *rMsg, err error) {
 			Str("source", msg.Source).
 			Str("qType", D.Type(q.Qtype).String()).
 			Str("name", q.Name).
-			Strs("answer", msgToIPStr(msg.Msg)).
+			EmbedObject(LogAnswer{ans: *msg.Msg}).
 			Uint32("ttl", minTTL(msg.Msg.Answer)).
 			Msg("[DNS] dns response")
 	}
+}
+
+type LogAnswer struct {
+	ans D.Msg
+}
+
+func (l LogAnswer) MarshalObject(e *log.Entry) {
+	e.Strs("answer", msgToIPStr(l.ans))
 }

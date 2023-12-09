@@ -84,6 +84,14 @@ func (rg RuleGroup) String() string {
 	}
 }
 
+type LogRule struct {
+	R Rule
+}
+
+func (l LogRule) String() string {
+	return fmt.Sprintf("%s(%s)", l.R.RuleType().String(), l.R.Payload())
+}
+
 type Rule interface {
 	RuleType() RuleType
 	Match(metadata *Metadata) bool

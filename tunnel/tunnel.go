@@ -375,7 +375,7 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 		return
 	}
 
-	log.Debug().EmbedObject(metadata).Str("inbound", metadata.Type.String()).Msg("[UDP] accept session")
+	log.Debug().EmbedObject(metadata).Any("inbound", metadata.Type).Msg("[UDP] accept session")
 
 	handle := func() bool {
 		pc := natTable.Get(key)
@@ -450,16 +450,16 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 				log.Warn().
 					Err(err).
 					Str("proxy", rawProxy.Name()).
-					Str("rAddr", metadata.RemoteAddress()).
+					Any("rAddr", C.LogAddr{M: *metadata}).
 					Msg("[UDP] dial failed")
 			} else {
 				log.Warn().
 					Err(err).
 					Str("proxy", rawProxy.Name()).
-					Str("rAddr", metadata.RemoteAddress()).
-					Str("rule", rule.RuleType().String()).
+					Any("rAddr", C.LogAddr{M: *metadata}).
+					Any("rule", rule.RuleType()).
 					Str("rulePayload", rule.Payload()).
-					Str("ruleGroup", rule.RuleGroups().String()).
+					Any("ruleGroup", rule.RuleGroups()).
 					Msg("[UDP] dial failed")
 			}
 			return
@@ -476,18 +476,18 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 		case metadata.SpecialProxy != "":
 			log.Info().
 				EmbedObject(metadata).
-				EmbedObject(rawPc).
+				Any("proxy", rawPc).
 				Msg("[UDP] tunnel connected")
 		case rule != nil:
 			log.Info().
 				EmbedObject(metadata).
-				EmbedObject(mode).
-				Str("rule", fmt.Sprintf("%s(%s)", rule.RuleType().String(), rule.Payload())).
-				EmbedObject(rawPc).
-				Str("ruleGroup", rule.RuleGroups().String()).
+				Any("mode", mode).
+				Any("rule", C.LogRule{R: rule}).
+				Any("proxy", rawPc).
+				Any("ruleGroup", rule.RuleGroups()).
 				Msg("[UDP] connected")
 		default:
-			log.Info().EmbedObject(metadata).EmbedObject(mode).EmbedObject(rawPc).Msg("[UDP] connected")
+			log.Info().EmbedObject(metadata).Any("mode", mode).Any("proxy", rawPc).Msg("[UDP] connected")
 		}
 
 		oAddr := metadata.DstIP
@@ -518,7 +518,7 @@ func handleTCPConn(connCtx C.ConnContext) {
 		return
 	}
 
-	log.Debug().EmbedObject(metadata).Str("inbound", metadata.Type.String()).Msg("[TCP] accept connection")
+	log.Debug().EmbedObject(metadata).Any("inbound", metadata.Type).Msg("[TCP] accept connection")
 
 	proxy, rule, err := resolveMetadata(connCtx, metadata)
 	if err != nil {
@@ -561,16 +561,16 @@ func handleTCPConn(connCtx C.ConnContext) {
 			log.Warn().
 				Err(err).
 				Str("proxy", rawProxy.Name()).
-				Str("rAddr", metadata.RemoteAddress()).
+				Any("rAddr", C.LogAddr{M: *metadata}).
 				Msg("[TCP] dial failed")
 		} else {
 			log.Warn().
 				Err(err).
 				Str("proxy", rawProxy.Name()).
-				Str("rAddr", metadata.RemoteAddress()).
-				Str("rule", rule.RuleType().String()).
+				Any("rAddr", C.LogAddr{M: *metadata}).
+				Any("rule", rule.RuleType()).
 				Str("rulePayload", rule.Payload()).
-				Str("ruleGroup", rule.RuleGroups().String()).
+				Any("ruleGroup", rule.RuleGroups()).
 				Msg("[TCP] dial failed")
 		}
 		return
@@ -596,21 +596,21 @@ func handleTCPConn(connCtx C.ConnContext) {
 	case metadata.SpecialProxy != "":
 		log.Info().
 			EmbedObject(metadata).
-			EmbedObject(remoteConn).
+			Any("proxy", remoteConn).
 			Msg("[TCP] tunnel connected")
 	case rule != nil:
 		log.Info().
 			EmbedObject(metadata).
-			EmbedObject(mode).
-			Str("rule", fmt.Sprintf("%s(%s)", rule.RuleType().String(), rule.Payload())).
-			EmbedObject(remoteConn).
-			Str("ruleGroup", rule.RuleGroups().String()).
+			Any("mode", mode).
+			Any("rule", C.LogRule{R: rule}).
+			Any("proxy", remoteConn).
+			Any("ruleGroup", rule.RuleGroups()).
 			Msg("[TCP] connected")
 	default:
 		log.Info().
 			EmbedObject(metadata).
-			EmbedObject(mode).
-			EmbedObject(remoteConn).
+			Any("mode", mode).
+			Any("proxy", remoteConn).
 			Msg("[TCP] connected")
 	}
 
@@ -664,7 +664,7 @@ func matchRule(subRules []C.Rule, metadata *C.Metadata, resolved, processFound *
 				}
 				log.Debug().
 					Str("host", metadata.Host).
-					Str("ip", ip.String()).
+					NetIPAddr("ip", ip).
 					Msg("[Matcher] resolve success")
 
 				metadata.DstIP = ip
@@ -685,11 +685,11 @@ func matchRule(subRules []C.Rule, metadata *C.Metadata, resolved, processFound *
 				if err2 != nil {
 					log.Debug().
 						Err(err2).
-						Str("addr", metadata.String()).
+						Any("addr", C.LogAddr{M: *metadata, HostOnly: true}).
 						Msg("[Matcher] find process failed")
 				} else {
 					log.Debug().
-						Str("addr", metadata.String()).
+						Any("addr", C.LogAddr{M: *metadata, HostOnly: true}).
 						Str("path", path).
 						Msg("[Matcher] find process success")
 

@@ -93,8 +93,8 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 			}
 
 			if D.ShouldHijackDns(dnsAddr, rAddrPort, "tcp") {
-				go func(dnsConn net.Conn, addr string) {
-					log.Debug().Str("addr", addr).Msg("[TUN] hijack tcp dns")
+				go func(dnsConn net.Conn, addr netip.AddrPort) {
+					log.Debug().NetIPAddrPort("addr", addr).Msg("[TUN] hijack tcp dns")
 
 					defer func(c net.Conn) {
 						_ = c.Close()
@@ -134,7 +134,7 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 					}
 
 					_, _ = buf.WriteTo(dnsConn)
-				}(conn, rAddrPort.String())
+				}(conn, rAddrPort)
 
 				continue
 			}
