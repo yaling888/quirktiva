@@ -24,9 +24,10 @@ type TLSObfs struct {
 }
 
 func (to *TLSObfs) read(b []byte, discardN int) (int, error) {
-	buf := pool.Get(discardN)
-	_, err := io.ReadFull(to.Conn, buf)
-	_ = pool.Put(buf)
+	bufP := pool.GetBufferWriter()
+	bufP.Grow(discardN)
+	_, err := io.ReadFull(to.Conn, bufP.Bytes())
+	pool.PutBufferWriter(bufP)
 	if err != nil {
 		return 0, err
 	}

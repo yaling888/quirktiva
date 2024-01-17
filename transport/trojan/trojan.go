@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -124,79 +125,89 @@ func (t *Trojan) PacketConn(conn net.Conn) net.PacketConn {
 	}
 }
 
-func writePacket(w io.Writer, socks5Addr, payload []byte) (int, error) {
-	buf := pool.GetBufferWriter()
-	defer pool.PutBufferWriter(buf)
+func writePacket(w io.Writer, socks5Addr, payload []byte) (n int, err error) {
+	bufP := pool.GetNetBuf()
+	defer pool.PutNetBuf(bufP)
 
-	buf.PutSlice(socks5Addr)
-	buf.PutUint16be(uint16(len(payload)))
-	buf.PutSlice(crlf)
-	buf.PutSlice(payload)
+	n = len(payload)
+	t := copy(*bufP, socks5Addr)
+	binary.BigEndian.PutUint16((*bufP)[t:], uint16(n))
+	t += 2
+	t += copy((*bufP)[t:], crlf)
+	t += copy((*bufP)[t:], payload)
 
-	return w.Write(buf.Bytes())
+	delta := t - n
+	n, err = w.Write((*bufP)[:t])
+	if n < t && err == nil {
+		err = io.ErrShortWrite
+	}
+	n = max(n-delta, 0)
+	return
 }
 
-func WritePacket(w io.Writer, socks5Addr, payload []byte) (int, error) {
-	if len(payload) <= maxLength {
+func WritePacket(w io.Writer, socks5Addr, payload []byte) (n int, err error) {
+	total := len(payload)
+	if total <= maxLength {
 		return writePacket(w, socks5Addr, payload)
 	}
 
 	offset := 0
-	total := len(payload)
+	cursor := 0
 	for {
-		cursor := offset + maxLength
-		if cursor > total {
-			cursor = total
-		}
+		cursor = min(offset+maxLength, total)
 
-		n, err := writePacket(w, socks5Addr, payload[offset:cursor])
-		if err != nil {
-			return offset + n, err
-		}
+		n, err = writePacket(w, socks5Addr, payload[offset:cursor])
 
-		offset = cursor
-		if offset == total {
-			break
+		offset = min(offset+n, total)
+		if err != nil || offset == total {
+			n = offset
+			return
 		}
 	}
-
-	return total, nil
 }
 
-func ReadPacket(r io.Reader, payload []byte) (net.Addr, int, int, error) {
-	addr, err := socks5.ReadAddr(r, payload)
+func ReadPacket(r io.Reader, payload []byte) (addr *net.UDPAddr, n int, remain int, err error) {
+	var socAddr socks5.Addr
+	socAddr, err = socks5.ReadAddr(r, payload)
 	if err != nil {
-		return nil, 0, 0, errors.New("read addr error")
+		if err != io.EOF {
+			err = fmt.Errorf("read addr error, %w", err)
+		}
+		return
 	}
-	uAddr := addr.UDPAddr()
-	if uAddr == nil {
-		return nil, 0, 0, errors.New("parse addr error")
+	addr = socAddr.UDPAddr()
+	if addr == nil {
+		err = errors.New("parse addr error")
+		return
 	}
 
 	if _, err = io.ReadFull(r, payload[:2]); err != nil {
-		return nil, 0, 0, errors.New("read length error")
+		if err != io.EOF {
+			err = fmt.Errorf("read length error, %w", err)
+		}
+		return
 	}
 
 	total := int(binary.BigEndian.Uint16(payload[:2]))
 	if total > maxLength {
-		return nil, 0, 0, errors.New("packet invalid")
+		err = errors.New("invalid packet")
+		return
 	}
 
 	// read crlf
 	if _, err = io.ReadFull(r, payload[:2]); err != nil {
-		return nil, 0, 0, errors.New("read crlf error")
+		if err != io.EOF {
+			err = fmt.Errorf("read crlf error, %w", err)
+		}
+		return
 	}
 
-	length := len(payload)
-	if total < length {
-		length = total
+	length := min(len(payload), total)
+	if length, err = io.ReadFull(r, payload[:length]); err != nil && err != io.EOF {
+		err = fmt.Errorf("read packet error, %w", err)
 	}
 
-	if _, err = io.ReadFull(r, payload[:length]); err != nil {
-		return nil, 0, 0, errors.New("read packet error")
-	}
-
-	return uAddr, length, total - length, nil
+	return addr, length, total - length, err
 }
 
 func New(option *Option) *Trojan {
@@ -218,15 +229,9 @@ func (pc *PacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	pc.mux.Lock()
 	defer pc.mux.Unlock()
 	if pc.remain != 0 {
-		length := len(b)
-		if pc.remain < length {
-			length = pc.remain
-		}
+		length := min(len(b), pc.remain)
 
 		n, err := pc.Conn.Read(b[:length])
-		if err != nil {
-			return 0, nil, err
-		}
 
 		pc.remain -= n
 		addr := pc.rAddr
@@ -234,20 +239,16 @@ func (pc *PacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 			pc.rAddr = nil
 		}
 
-		return n, addr, nil
+		return n, addr, err
 	}
 
 	addr, n, remain, err := ReadPacket(pc.Conn, b)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	if remain != 0 {
+	if err == nil && remain > 0 {
 		pc.remain = remain
 		pc.rAddr = addr
 	}
 
-	return n, addr, nil
+	return n, addr, err
 }
 
 func hexSha224(data []byte) []byte {

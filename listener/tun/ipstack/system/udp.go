@@ -4,21 +4,17 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/yaling888/clash/common/pool"
 	"github.com/yaling888/clash/listener/tun/ipstack/system/mars/nat"
 )
 
 type packet struct {
 	sender *nat.UDP
+	data   *nat.UDPElement
 	lAddr  netip.AddrPort
-	data   *pool.Buffer
 }
 
-func (pkt *packet) Data() []byte {
-	if pkt.data == nil {
-		return nil
-	}
-	return pkt.data.Bytes()
+func (pkt *packet) Data() *[]byte {
+	return pkt.data.Packet
 }
 
 func (pkt *packet) WriteBack(b []byte, addr net.Addr) (n int, err error) {
@@ -36,6 +32,6 @@ func (pkt *packet) LocalAddr() net.Addr {
 }
 
 func (pkt *packet) Drop() {
-	pkt.data.Release()
+	pkt.sender.PutUDPElement(pkt.data)
 	pkt.data = nil
 }

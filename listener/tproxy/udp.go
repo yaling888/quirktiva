@@ -58,10 +58,10 @@ func NewUDP(addr string, in chan<- *inbound.PacketAdapter) (C.Listener, error) {
 	go func() {
 		oob := make([]byte, 1024)
 		for {
-			buf := pool.Get(pool.UDPBufferSize)
-			n, oobn, _, lAddr, err := c.ReadMsgUDPAddrPort(buf, oob)
+			bufP := pool.GetNetBuf()
+			n, oobn, _, lAddr, err := c.ReadMsgUDPAddrPort(*bufP, oob)
 			if err != nil {
-				_ = pool.Put(buf)
+				pool.PutNetBuf(bufP)
 				if rl.closed {
 					break
 				}
@@ -70,6 +70,7 @@ func NewUDP(addr string, in chan<- *inbound.PacketAdapter) (C.Listener, error) {
 
 			rAddr, err := getOrigDst(oob[:oobn])
 			if err != nil {
+				pool.PutNetBuf(bufP)
 				continue
 			}
 
@@ -77,21 +78,23 @@ func NewUDP(addr string, in chan<- *inbound.PacketAdapter) (C.Listener, error) {
 				// try to unmap 4in6 address
 				lAddr = netip.AddrPortFrom(lAddr.Addr().Unmap(), lAddr.Port())
 			}
-			handlePacketConn(in, buf[:n], lAddr, rAddr)
+			*bufP = (*bufP)[:n]
+			handlePacketConn(in, bufP, lAddr, rAddr)
 		}
 	}()
 
 	return rl, nil
 }
 
-func handlePacketConn(in chan<- *inbound.PacketAdapter, buf []byte, lAddr, rAddr netip.AddrPort) {
+func handlePacketConn(in chan<- *inbound.PacketAdapter, bufP *[]byte, lAddr, rAddr netip.AddrPort) {
 	target := socks5.AddrFromStdAddrPort(rAddr)
 	pkt := &packet{
 		lAddr: lAddr,
-		buf:   buf,
+		bufP:  bufP,
 	}
 	select {
 	case in <- inbound.NewPacket(target, target.UDPAddr(), pkt, C.TPROXY):
 	default:
+		pkt.Drop()
 	}
 }

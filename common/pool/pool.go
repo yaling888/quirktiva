@@ -1,21 +1,31 @@
 package pool
 
-const (
-	// io.Copy default buffer size is 32 KiB
-	// but the maximum packet size of vmess/shadowsocks is about 16 KiB
-	// so define a buffer of 20 KiB to reduce the memory of each TCP relay
-	RelayBufferSize = 20 * 1024
+import "sync"
 
-	// RelayBufferSize uses 20KiB, but due to the allocator it will actually
-	// request 32Kib. Most UDPs are smaller than the MTU, and the TUN's MTU
-	// set to 9000, so the UDP Buffer size set to 16Kib
-	UDPBufferSize = 16 * 1024
+const (
+	NetBufferSize = 64 << 10
 )
 
-func Get(size int) []byte {
-	return defaultAllocator.Get(size)
+var netBufferPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, NetBufferSize)
+		return &b
+	},
 }
 
-func Put(buf []byte) error {
-	return defaultAllocator.Put(buf)
+func GetNetBuf() *[]byte {
+	return netBufferPool.Get().(*[]byte)
+}
+
+func PutNetBuf(bufP *[]byte) {
+	if bufP == nil {
+		panic("bufP is nil")
+	}
+	if cap(*bufP) < NetBufferSize {
+		panic("invalid bufP capacity")
+	}
+	if len(*bufP) < NetBufferSize {
+		*bufP = (*bufP)[:NetBufferSize]
+	}
+	netBufferPool.Put(bufP)
 }

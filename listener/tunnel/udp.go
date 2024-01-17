@@ -53,27 +53,28 @@ func NewUDP(addr, target, proxy string, in chan<- *inbound.PacketAdapter) (*Pack
 	}
 	go func() {
 		for {
-			buf := pool.Get(pool.UDPBufferSize)
-			n, remoteAddr, err := l.ReadFrom(buf)
+			bufP := pool.GetNetBuf()
+			n, remoteAddr, err := l.ReadFrom(*bufP)
 			if err != nil {
-				_ = pool.Put(buf)
+				pool.PutNetBuf(bufP)
 				if sl.closed {
 					break
 				}
 				continue
 			}
-			sl.handleUDP(l, in, buf[:n], remoteAddr)
+			*bufP = (*bufP)[:n]
+			sl.handleUDP(l, in, bufP, remoteAddr)
 		}
 	}()
 
 	return sl, nil
 }
 
-func (l *PacketConn) handleUDP(pc net.PacketConn, in chan<- *inbound.PacketAdapter, buf []byte, addr net.Addr) {
+func (l *PacketConn) handleUDP(pc net.PacketConn, in chan<- *inbound.PacketAdapter, bufP *[]byte, addr net.Addr) {
 	pkt := &packet{
 		pc:      pc,
 		rAddr:   addr,
-		payload: buf,
+		payload: bufP,
 	}
 
 	ctx := inbound.NewPacket(l.target, pc.LocalAddr(), pkt, C.TUNNEL)
@@ -81,5 +82,6 @@ func (l *PacketConn) handleUDP(pc net.PacketConn, in chan<- *inbound.PacketAdapt
 	select {
 	case in <- ctx:
 	default:
+		pkt.Drop()
 	}
 }

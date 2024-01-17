@@ -9,10 +9,10 @@ import (
 type packet struct {
 	pc      net.PacketConn
 	rAddr   net.Addr
-	payload []byte
+	payload *[]byte
 }
 
-func (c *packet) Data() []byte {
+func (c *packet) Data() *[]byte {
 	return c.payload
 }
 
@@ -27,5 +27,6 @@ func (c *packet) LocalAddr() net.Addr {
 }
 
 func (c *packet) Drop() {
-	_ = pool.Put(c.payload)
+	pool.PutNetBuf(c.payload)
+	c.payload = nil
 }

@@ -7,26 +7,30 @@ import (
 	"net/netip"
 	"sync"
 
-	"github.com/yaling888/clash/common/pool"
 	dev "github.com/yaling888/clash/listener/tun/device"
 	"github.com/yaling888/clash/listener/tun/ipstack/system/mars/tcpip"
 )
 
-type udpElement struct {
-	packet      *pool.Buffer
-	source      netip.AddrPort
-	destination netip.AddrPort
+type UDPElement struct {
+	Packet      *[]byte
+	Source      netip.AddrPort
+	Destination netip.AddrPort
 }
 
-func (c *udpElement) clearPointers() {
-	c.packet.Release()
-	c.packet = nil
+func (c *UDPElement) reset() {
+	if c.Packet == nil {
+		panic("Packet is nil")
+	}
+	if cap(*c.Packet) < bufSize {
+		panic("invalid Packet capacity")
+	}
+	*c.Packet = (*c.Packet)[:bufSize]
 }
 
 type UDP struct {
 	device         dev.Device
 	udpElements    *sync.Pool
-	incomingPacket chan *udpElement
+	incomingPacket chan *UDPElement
 	writeBuff      [65535]byte
 	writeBuffs     [][]byte
 	writeLock      sync.Mutex
@@ -34,24 +38,13 @@ type UDP struct {
 	closedOnce     sync.Once
 }
 
-func (u *UDP) ReadFrom(buf []byte) (n int, src netip.AddrPort, dest netip.AddrPort, err error) {
+func (u *UDP) ReadFrom() (ue *UDPElement, err error) {
 	select {
 	case <-u.closed:
 		err = net.ErrClosed
-		return
-	case elem := <-u.incomingPacket:
-		defer u.putUDPElement(elem)
-
-		n = copy(buf, elem.packet.Bytes())
-		if n < elem.packet.Len() {
-			err = io.ErrShortBuffer
-			return
-		}
-
-		src = elem.source
-		dest = elem.destination
-		return
+	case ue = <-u.incomingPacket:
 	}
+	return
 }
 
 func (u *UDP) WriteTo(buf []byte, local netip.AddrPort, remote netip.AddrPort) (int, error) {
@@ -123,20 +116,21 @@ func (u *UDP) handleUDPPacket(ip tcpip.IP, pkt tcpip.UDPPacket) {
 	}
 
 	elem := u.getUDPElement()
-	elem.packet = pool.NewBufferWithData(pkt.Payload())
+	n := copy(*elem.Packet, pkt.Payload())
+	*elem.Packet = (*elem.Packet)[:n]
 
-	elem.source = netip.AddrPortFrom(ip.SourceIP(), pkt.SourcePort())
-	elem.destination = netip.AddrPortFrom(ip.DestinationIP(), pkt.DestinationPort())
+	elem.Source = netip.AddrPortFrom(ip.SourceIP(), pkt.SourcePort())
+	elem.Destination = netip.AddrPortFrom(ip.DestinationIP(), pkt.DestinationPort())
 
 	u.incomingPacket <- elem
 }
 
-func (u *UDP) getUDPElement() *udpElement {
-	return u.udpElements.Get().(*udpElement)
+func (u *UDP) getUDPElement() *UDPElement {
+	return u.udpElements.Get().(*UDPElement)
 }
 
-func (u *UDP) putUDPElement(elem *udpElement) {
-	elem.clearPointers()
+func (u *UDP) PutUDPElement(elem *UDPElement) {
+	elem.reset()
 	u.udpElements.Put(elem)
 }
 
@@ -144,7 +138,7 @@ func (u *UDP) flushPacketQueue() {
 	for {
 		select {
 		case elem := <-u.incomingPacket:
-			u.putUDPElement(elem)
+			u.PutUDPElement(elem)
 		default:
 			return
 		}

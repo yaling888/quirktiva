@@ -24,12 +24,14 @@ func (r *XorShift128Plus) Next() uint64 {
 func (r *XorShift128Plus) InitFromBin(bin []byte) {
 	var full []byte
 	if len(bin) < 16 {
-		full := pool.Get(16)[:0]
-		defer pool.Put(full)
-		full = append(full, bin...)
-		for len(full) < 16 {
-			full = append(full, 0)
+		bufP := pool.GetBufferWriter()
+		defer pool.PutBufferWriter(bufP)
+
+		*bufP = append(*bufP, bin...)
+		for len(*bufP) < 16 {
+			*bufP = append(*bufP, 0)
 		}
+		full = *bufP
 	} else {
 		full = bin
 	}
@@ -40,14 +42,17 @@ func (r *XorShift128Plus) InitFromBin(bin []byte) {
 func (r *XorShift128Plus) InitFromBinAndLength(bin []byte, length int) {
 	var full []byte
 	if len(bin) < 16 {
-		full := pool.Get(16)[:0]
-		defer pool.Put(full)
-		full = append(full, bin...)
-		for len(full) < 16 {
-			full = append(full, 0)
+		bufP := pool.GetBufferWriter()
+		defer pool.PutBufferWriter(bufP)
+
+		*bufP = append(*bufP, bin...)
+		for len(*bufP) < 16 {
+			*bufP = append(*bufP, 0)
 		}
+		full = *bufP
+	} else {
+		full = bin
 	}
-	full = bin
 	binary.LittleEndian.PutUint16(full, uint16(length))
 	r.s[0] = binary.LittleEndian.Uint64(full[:8])
 	r.s[1] = binary.LittleEndian.Uint64(full[8:16])

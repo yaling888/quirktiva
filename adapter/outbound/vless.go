@@ -392,14 +392,14 @@ func (vc *vlessPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	return length, vc.rAddr, nil
 }
 
-func writePacket(w io.Writer, b []byte) (int, error) {
-	buf := pool.GetBufferWriter()
-	defer pool.PutBufferWriter(buf)
+func writePacket(w io.Writer, b []byte) (n int, err error) {
+	bufP := pool.GetNetBuf()
+	defer pool.PutNetBuf(bufP)
 
-	buf.PutUint16be(uint16(len(b)))
-	buf.PutSlice(b)
-
-	return w.Write(buf.Bytes())
+	binary.BigEndian.PutUint16(*bufP, uint16(len(b)))
+	n = copy((*bufP)[2:], b)
+	_, err = w.Write((*bufP)[:2+n])
+	return
 }
 
 func NewVless(option VlessOption) (*Vless, error) {

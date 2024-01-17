@@ -12,12 +12,16 @@ import (
 )
 
 func handleUDPToRemote(packet C.UDPPacket, pc C.PacketConn, metadata *C.Metadata) error {
-	addr := metadata.UDPAddr()
-	if addr == nil {
-		return errors.New("udp addr invalid")
+	if packet.Data() == nil {
+		return errors.New("invalid udp payload")
 	}
 
-	if _, err := pc.WriteTo(packet.Data(), addr); err != nil {
+	addr := metadata.UDPAddr()
+	if addr == nil {
+		return errors.New("invalid udp addr")
+	}
+
+	if _, err := pc.WriteTo(*packet.Data(), addr); err != nil {
 		return err
 	}
 	// reset timeout
@@ -27,11 +31,11 @@ func handleUDPToRemote(packet C.UDPPacket, pc C.PacketConn, metadata *C.Metadata
 }
 
 func handleUDPToLocal(packet C.UDPPacket, pc net.PacketConn, key, rKey string, oAddr, fAddr netip.Addr) {
-	buf := pool.Get(pool.UDPBufferSize)
+	bufP := pool.GetNetBuf()
 	defer func() {
 		_ = pc.Close()
 		natTable.Delete(key)
-		_ = pool.Put(buf)
+		pool.PutNetBuf(bufP)
 
 		if rKey != "" {
 			addrTable.Delete(rKey)
@@ -40,7 +44,7 @@ func handleUDPToLocal(packet C.UDPPacket, pc net.PacketConn, key, rKey string, o
 
 	for {
 		_ = pc.SetReadDeadline(time.Now().Add(udpTimeout))
-		n, from, err := pc.ReadFrom(buf)
+		n, from, err := pc.ReadFrom(*bufP)
 		if err != nil {
 			return
 		}
@@ -55,7 +59,7 @@ func handleUDPToLocal(packet C.UDPPacket, pc net.PacketConn, key, rKey string, o
 			}
 		}
 
-		_, err = packet.WriteBack(buf[:n], &fromUDPAddr)
+		_, err = packet.WriteBack((*bufP)[:n], &fromUDPAddr)
 		if err != nil {
 			return
 		}

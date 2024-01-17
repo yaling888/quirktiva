@@ -199,10 +199,10 @@ func WritePacket(w io.Writer, socks5Addr, payload []byte) (int, error) {
 }
 
 func ReadPacket(r io.Reader, payload []byte) (net.Addr, int, error) {
-	buf := pool.Get(pool.UDPBufferSize)
-	defer pool.Put(buf)
+	bufP := pool.GetNetBuf()
+	defer pool.PutNetBuf(bufP)
 
-	n, err := r.Read(buf)
+	n, err := r.Read(*bufP)
 	headLen := 1
 	if err != nil {
 		return nil, 0, err
@@ -212,21 +212,21 @@ func ReadPacket(r io.Reader, payload []byte) (net.Addr, int, error) {
 	}
 
 	// parse snell UDP response address format
-	switch buf[0] {
+	switch (*bufP)[0] {
 	case 0x04:
 		headLen += net.IPv4len + 2
 		if n < headLen {
 			err = errors.New("insufficient UDP length")
 			break
 		}
-		buf[0] = socks5.AtypIPv4
+		(*bufP)[0] = socks5.AtypIPv4
 	case 0x06:
 		headLen += net.IPv6len + 2
 		if n < headLen {
 			err = errors.New("insufficient UDP length")
 			break
 		}
-		buf[0] = socks5.AtypIPv6
+		(*bufP)[0] = socks5.AtypIPv6
 	default:
 		err = errors.New("ip version invalid")
 	}
@@ -235,7 +235,7 @@ func ReadPacket(r io.Reader, payload []byte) (net.Addr, int, error) {
 		return nil, 0, err
 	}
 
-	addr := socks5.SplitAddr(buf[0:])
+	addr := socks5.SplitAddr((*bufP)[0:])
 	if addr == nil {
 		return nil, 0, errors.New("remote address invalid")
 	}
@@ -248,7 +248,7 @@ func ReadPacket(r io.Reader, payload []byte) (net.Addr, int, error) {
 	if n-headLen < length {
 		length = n - headLen
 	}
-	copy(payload[:], buf[headLen:headLen+length])
+	copy(payload[:], (*bufP)[headLen:headLen+length])
 
 	return uAddr, length, nil
 }

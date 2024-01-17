@@ -150,9 +150,8 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 			_ = udp.Close()
 		}(stack.UDP())
 
-		buf := make([]byte, 65535)
 		for {
-			n, lAddrPort, rAddrPort, err0 := stack.UDP().ReadFrom(buf)
+			ue, err0 := stack.UDP().ReadFrom()
 			if err0 != nil {
 				if ipStack.closed {
 					break
@@ -162,40 +161,40 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 				continue
 			}
 
+			rAddrPort := ue.Destination
 			if rAddrPort.Addr().IsLoopback() || rAddrPort.Addr() == gateway {
+				stack.UDP().PutUDPElement(ue)
 				continue
 			}
 
-			data := pool.NewBufferWithData(buf[:n])
-
 			if D.ShouldHijackDns(dnsAddr, rAddrPort, "udp") {
-				go func(st *mars.StackListener, dat *pool.Buffer, rap, lap netip.AddrPort) {
-					log.Debug().Str("addr", rap.String()).Msg("[TUN] hijack udp dns")
+				go func() {
+					defer stack.UDP().PutUDPElement(ue)
 
-					defer dat.Release()
+					log.Debug().NetIPAddrPort("addr", ue.Destination).Msg("[TUN] hijack udp dns")
 
-					msg, err1 := D.RelayDnsPacket(dat.Bytes())
+					msg, err1 := D.RelayDnsPacket(*ue.Packet)
 					if err1 != nil {
 						return
 					}
 
-					_, _ = st.UDP().WriteTo(msg, rap, lap)
-				}(stack, data, rAddrPort, lAddrPort)
+					_, _ = stack.UDP().WriteTo(msg, ue.Destination, ue.Source)
+				}()
 
 				continue
 			}
 
 			pkt := &packet{
 				sender: stack.UDP(),
-				lAddr:  lAddrPort,
-				data:   data,
+				data:   ue,
+				lAddr:  ue.Source,
 			}
 
 			select {
-			case udpIn <- inbound.NewPacketBy(pkt, lAddrPort, rAddrPort, C.TUN):
+			case udpIn <- inbound.NewPacketBy(pkt, ue.Source, rAddrPort, C.TUN):
 			default:
 				log.Debug().
-					NetIPAddrPort("lAddrPort", lAddrPort).
+					NetIPAddrPort("lAddrPort", ue.Source).
 					NetIPAddrPort("rAddrPort", rAddrPort).
 					Msg("[Stack] drop udp packet, because inbound queue is full")
 				pkt.Drop()

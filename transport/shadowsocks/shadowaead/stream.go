@@ -6,8 +6,7 @@ import (
 	"errors"
 	"io"
 	"net"
-
-	"github.com/yaling888/clash/common/pool"
+	"sync"
 )
 
 const (
@@ -27,21 +26,27 @@ type Writer struct {
 // NewWriter wraps an io.Writer with authenticated encryption.
 func NewWriter(w io.Writer, aead cipher.AEAD) *Writer { return &Writer{Writer: w, AEAD: aead} }
 
+var bufPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, bufSize)
+		return &b
+	},
+}
+
 // Write encrypts p and writes to the embedded io.Writer.
 func (w *Writer) Write(p []byte) (n int, err error) {
-	buf := pool.Get(bufSize)
-	defer pool.Put(buf)
+	bufP := bufPool.Get().(*[]byte)
+	defer bufPool.Put(bufP)
 	nonce := w.nonce[:w.NonceSize()]
 	tag := w.Overhead()
 	off := 2 + tag
 
 	// compatible with snell
 	if len(p) == 0 {
-		buf = buf[:off]
-		buf[0], buf[1] = byte(0), byte(0)
-		w.Seal(buf[:0], nonce, buf[:2], nil)
+		(*bufP)[0], (*bufP)[1] = byte(0), byte(0)
+		w.Seal((*bufP)[:0], nonce, (*bufP)[:2], nil)
 		increment(nonce)
-		_, err = w.Writer.Write(buf)
+		_, err = w.Writer.Write((*bufP)[:off])
 		return
 	}
 
@@ -50,13 +55,12 @@ func (w *Writer) Write(p []byte) (n int, err error) {
 		if n+nr > len(p) {
 			nr = len(p) - n
 		}
-		buf = buf[:off+nr+tag]
-		buf[0], buf[1] = byte(nr>>8), byte(nr) // big-endian payload size
-		w.Seal(buf[:0], nonce, buf[:2], nil)
+		(*bufP)[0], (*bufP)[1] = byte(nr>>8), byte(nr) // big-endian payload size
+		w.Seal((*bufP)[:0], nonce, (*bufP)[:2], nil)
 		increment(nonce)
-		w.Seal(buf[:off], nonce, p[n:n+nr], nil)
+		w.Seal((*bufP)[:off], nonce, p[n:n+nr], nil)
 		increment(nonce)
-		_, err = w.Writer.Write(buf)
+		_, err = w.Writer.Write((*bufP)[:off+nr+tag])
 	}
 	return
 }
@@ -65,20 +69,20 @@ func (w *Writer) Write(p []byte) (n int, err error) {
 // writes to the embedded io.Writer. Returns number of bytes read from r and
 // any error encountered.
 func (w *Writer) ReadFrom(r io.Reader) (n int64, err error) {
-	buf := pool.Get(bufSize)
-	defer pool.Put(buf)
+	bufP := bufPool.Get().(*[]byte)
+	defer bufPool.Put(bufP)
 	nonce := w.nonce[:w.NonceSize()]
 	tag := w.Overhead()
 	off := 2 + tag
 	for {
-		nr, er := r.Read(buf[off : off+payloadSizeMask])
+		nr, er := r.Read((*bufP)[off : off+payloadSizeMask])
 		n += int64(nr)
-		buf[0], buf[1] = byte(nr>>8), byte(nr)
-		w.Seal(buf[:0], nonce, buf[:2], nil)
+		(*bufP)[0], (*bufP)[1] = byte(nr>>8), byte(nr)
+		w.Seal((*bufP)[:0], nonce, (*bufP)[:2], nil)
 		increment(nonce)
-		w.Seal(buf[:off], nonce, buf[off:off+nr], nil)
+		w.Seal((*bufP)[:off], nonce, (*bufP)[off:off+nr], nil)
 		increment(nonce)
-		if _, ew := w.Writer.Write(buf[:off+nr+tag]); ew != nil {
+		if _, ew := w.Writer.Write((*bufP)[:off+nr+tag]); ew != nil {
 			err = ew
 			return
 		}
@@ -95,7 +99,7 @@ type Reader struct {
 	io.Reader
 	cipher.AEAD
 	nonce [32]byte // should be sufficient for most nonce sizes
-	buf   []byte   // to be put back into bufPool
+	bufP  *[]byte  // to be put back into bufPool
 	off   int      // offset to unconsumed part of buf
 }
 
@@ -138,24 +142,26 @@ func (r *Reader) read(p []byte) (int, error) {
 
 // Read reads from the embedded io.Reader, decrypts and writes to p.
 func (r *Reader) Read(p []byte) (int, error) {
-	if r.buf == nil {
+	if r.bufP == nil {
 		if len(p) >= payloadSizeMask+r.Overhead() {
 			return r.read(p)
 		}
-		b := pool.Get(bufSize)
-		n, err := r.read(b)
+		bp := bufPool.Get().(*[]byte)
+		n, err := r.read(*bp)
 		if err != nil {
 			return 0, err
 		}
-		r.buf = b[:n]
+		*bp = (*bp)[:n]
+		r.bufP = bp
 		r.off = 0
 	}
 
-	n := copy(p, r.buf[r.off:])
+	n := copy(p, (*r.bufP)[r.off:])
 	r.off += n
-	if r.off == len(r.buf) {
-		pool.Put(r.buf[:cap(r.buf)])
-		r.buf = nil
+	if r.off == len(*r.bufP) {
+		*r.bufP = (*r.bufP)[:bufSize]
+		bufPool.Put(r.bufP)
+		r.bufP = nil
 	}
 	return n, nil
 }
@@ -164,34 +170,35 @@ func (r *Reader) Read(p []byte) (int, error) {
 // there's no more data to write or when an error occurs. Return number of
 // bytes written to w and any error encountered.
 func (r *Reader) WriteTo(w io.Writer) (n int64, err error) {
-	if r.buf == nil {
-		r.buf = pool.Get(bufSize)
-		r.off = len(r.buf)
+	if r.bufP == nil {
+		r.bufP = bufPool.Get().(*[]byte)
+		r.off = len(*r.bufP)
 	}
 
 	for {
-		for r.off < len(r.buf) {
-			nw, ew := w.Write(r.buf[r.off:])
+		for r.off < len(*r.bufP) {
+			nw, ew := w.Write((*r.bufP)[r.off:])
 			r.off += nw
 			n += int64(nw)
 			if ew != nil {
-				if r.off == len(r.buf) {
-					pool.Put(r.buf[:cap(r.buf)])
-					r.buf = nil
+				if r.off == len(*r.bufP) {
+					*r.bufP = (*r.bufP)[:bufSize]
+					bufPool.Put(r.bufP)
+					r.bufP = nil
 				}
 				err = ew
 				return
 			}
 		}
 
-		nr, er := r.read(r.buf)
+		nr, er := r.read(*r.bufP)
 		if er != nil {
 			if er != io.EOF {
 				err = er
 			}
 			return
 		}
-		r.buf = r.buf[:nr]
+		*r.bufP = (*r.bufP)[:nr]
 		r.off = 0
 	}
 }

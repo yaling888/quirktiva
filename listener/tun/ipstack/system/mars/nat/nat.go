@@ -11,6 +11,8 @@ import (
 	"github.com/yaling888/clash/listener/tun/ipstack/system/mars/tcpip"
 )
 
+const bufSize = 64 << 10
+
 func Start(device dev.Device, gateway, portal, _ netip.Addr) (*TCP, *UDP, error) {
 	if !portal.Is4() || !gateway.Is4() {
 		return nil, nil, net.InvalidAddrError("only ipv4 supported")
@@ -24,17 +26,22 @@ func Start(device dev.Device, gateway, portal, _ netip.Addr) (*TCP, *UDP, error)
 	var (
 		offset     = device.Offset()
 		batchSize  = device.BatchSize()
-		bufferSize = 65535 + offset
+		bufferSize = bufSize + offset
 	)
+
+	bufferSize += 7 - ((bufferSize + 7) % 8)
 
 	tab := newTable()
 	udp := &UDP{
 		device:         device,
 		closed:         make(chan struct{}),
-		incomingPacket: make(chan *udpElement, 100),
+		incomingPacket: make(chan *UDPElement, 128),
 		writeBuffs:     make([][]byte, 0, 1),
 		udpElements: &sync.Pool{New: func() any {
-			return new(udpElement)
+			b := make([]byte, bufSize)
+			return &UDPElement{
+				Packet: &b,
+			}
 		}},
 	}
 

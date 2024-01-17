@@ -26,10 +26,10 @@ func newAEADWriter(w io.Writer, aead cipher.AEAD, iv []byte) *aeadWriter {
 
 func (w *aeadWriter) Write(b []byte) (n int, err error) {
 	w.writeLock.Lock()
-	buf := pool.Get(pool.RelayBufferSize)
+	bufP := pool.GetNetBuf()
 	defer func() {
 		w.writeLock.Unlock()
-		pool.Put(buf)
+		pool.PutNetBuf(bufP)
 	}()
 	length := len(b)
 	for {
@@ -40,17 +40,17 @@ func (w *aeadWriter) Write(b []byte) (n int, err error) {
 		if length < readLen {
 			readLen = length
 		}
-		payloadBuf := buf[lenSize : lenSize+chunkSize-w.Overhead()]
+		payloadBuf := (*bufP)[lenSize : lenSize+chunkSize-w.Overhead()]
 		copy(payloadBuf, b[n:n+readLen])
 
-		binary.BigEndian.PutUint16(buf[:lenSize], uint16(readLen+w.Overhead()))
+		binary.BigEndian.PutUint16((*bufP)[:lenSize], uint16(readLen+w.Overhead()))
 		binary.BigEndian.PutUint16(w.nonce[:2], w.count)
 		copy(w.nonce[2:], w.iv[2:12])
 
 		w.Seal(payloadBuf[:0], w.nonce[:w.NonceSize()], payloadBuf[:readLen], nil)
 		w.count++
 
-		_, err = w.Writer.Write(buf[:lenSize+readLen+w.Overhead()])
+		_, err = w.Writer.Write((*bufP)[:lenSize+readLen+w.Overhead()])
 		if err != nil {
 			break
 		}
@@ -64,7 +64,7 @@ type aeadReader struct {
 	io.Reader
 	cipher.AEAD
 	nonce   [32]byte
-	buf     []byte
+	bufP    *[]byte
 	offset  int
 	iv      []byte
 	sizeBuf []byte
@@ -76,12 +76,12 @@ func newAEADReader(r io.Reader, aead cipher.AEAD, iv []byte) *aeadReader {
 }
 
 func (r *aeadReader) Read(b []byte) (int, error) {
-	if r.buf != nil {
-		n := copy(b, r.buf[r.offset:])
+	if r.bufP != nil {
+		n := copy(b, (*r.bufP)[r.offset:])
 		r.offset += n
-		if r.offset == len(r.buf) {
-			pool.Put(r.buf)
-			r.buf = nil
+		if r.offset == len(*r.bufP) {
+			pool.PutNetBuf(r.bufP)
+			r.bufP = nil
 		}
 		return n, nil
 	}
@@ -96,29 +96,31 @@ func (r *aeadReader) Read(b []byte) (int, error) {
 		return 0, errors.New("buffer is larger than standard")
 	}
 
-	buf := pool.Get(size)
-	_, err = io.ReadFull(r.Reader, buf[:size])
+	bufP := pool.GetNetBuf()
+	_, err = io.ReadFull(r.Reader, (*bufP)[:size])
 	if err != nil {
-		pool.Put(buf)
+		pool.PutNetBuf(bufP)
 		return 0, err
 	}
 
 	binary.BigEndian.PutUint16(r.nonce[:2], r.count)
 	copy(r.nonce[2:], r.iv[2:12])
 
-	_, err = r.Open(buf[:0], r.nonce[:r.NonceSize()], buf[:size], nil)
+	_, err = r.Open((*bufP)[:0], r.nonce[:r.NonceSize()], (*bufP)[:size], nil)
 	r.count++
 	if err != nil {
+		pool.PutNetBuf(bufP)
 		return 0, err
 	}
 	realLen := size - r.Overhead()
-	n := copy(b, buf[:realLen])
+	n := copy(b, (*bufP)[:realLen])
 	if len(b) >= realLen {
-		pool.Put(buf)
+		pool.PutNetBuf(bufP)
 		return n, nil
 	}
 
+	*bufP = (*bufP)[:realLen]
 	r.offset = n
-	r.buf = buf[:realLen]
+	r.bufP = bufP
 	return n, nil
 }

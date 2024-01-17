@@ -118,24 +118,42 @@ func (g *Conn) Read(b []byte) (n int, err error) {
 	return n, nil
 }
 
+const bufSize = pool.NetBufferSize + 16
+
+var bufPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, bufSize)
+		return &b
+	},
+}
+
 func (g *Conn) Write(b []byte) (n int, err error) {
-	protobufHeader := [binary.MaxVarintLen64 + 1]byte{0x0A}
-	varuintSize := binary.PutUvarint(protobufHeader[1:], uint64(len(b)))
-	grpcPayloadLen := uint32(varuintSize + 1 + len(b))
+	n = len(b)
 
-	buf := pool.GetBufferWriter()
-	defer pool.PutBufferWriter(buf)
-	buf.PutUint8(0)
-	buf.PutUint32be(grpcPayloadLen)
-	buf.PutSlice(protobufHeader[:varuintSize+1])
-	buf.PutSlice(b)
+	bufP := bufPool.Get().(*[]byte)
+	defer bufPool.Put(bufP)
 
-	_, err = g.writer.Write(buf.Bytes())
+	varuintSize := binary.PutUvarint((*bufP)[6:], uint64(n))
+	grpcPayloadLen := uint32(varuintSize + 1 + n)
+
+	(*bufP)[0] = byte(0)
+	(*bufP)[5] = byte(0x0A)
+	binary.BigEndian.PutUint32((*bufP)[1:], grpcPayloadLen)
+
+	t := 6 + varuintSize
+	t1 := copy((*bufP)[t:], b)
+
+	_, err = g.writer.Write((*bufP)[:t+t1])
 	if err == io.ErrClosedPipe && g.err != nil {
 		err = g.err
 	}
-
-	return len(b), err
+	if n > t1 {
+		n = t1
+		if err == nil {
+			err = io.ErrShortWrite
+		}
+	}
+	return
 }
 
 func (g *Conn) Close() error {

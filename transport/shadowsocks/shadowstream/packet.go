@@ -15,17 +15,18 @@ var ErrShortPacket = errors.New("short packet")
 // Pack encrypts plaintext using stream cipher s and a random IV.
 // Returns a slice of dst containing random IV and ciphertext.
 // Ensure len(dst) >= s.IVSize() + len(plaintext).
-func Pack(dst, plaintext []byte, s Cipher) ([]byte, error) {
-	if len(dst) < s.IVSize()+len(plaintext) {
-		return nil, io.ErrShortBuffer
+func Pack(dst *[]byte, plaintext []byte, s Cipher) error {
+	if len(*dst) < s.IVSize()+len(plaintext) {
+		return io.ErrShortBuffer
 	}
-	iv := dst[:s.IVSize()]
+	iv := (*dst)[:s.IVSize()]
 	_, err := rand.Read(iv)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	s.Encrypter(iv).XORKeyStream(dst[len(iv):], plaintext)
-	return dst[:len(iv)+len(plaintext)], nil
+	s.Encrypter(iv).XORKeyStream((*dst)[len(iv):], plaintext)
+	*dst = (*dst)[:len(iv)+len(plaintext)]
+	return nil
 }
 
 // Unpack decrypts pkt using stream cipher s.
@@ -52,16 +53,16 @@ func NewPacketConn(c net.PacketConn, ciph Cipher) *PacketConn {
 	return &PacketConn{PacketConn: c, Cipher: ciph}
 }
 
-const maxPacketSize = 64 * 1024
+// const maxPacketSize = 64 * 1024
 
 func (c *PacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
-	buf := pool.Get(maxPacketSize)
-	defer pool.Put(buf)
-	buf, err := Pack(buf, b, c.Cipher)
+	bufP := pool.GetNetBuf()
+	defer pool.PutNetBuf(bufP)
+	err := Pack(bufP, b, c)
 	if err != nil {
 		return 0, err
 	}
-	_, err = c.PacketConn.WriteTo(buf, addr)
+	_, err = c.PacketConn.WriteTo(*bufP, addr)
 	return len(b), err
 }
 

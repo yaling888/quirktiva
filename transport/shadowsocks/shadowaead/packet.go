@@ -17,21 +17,22 @@ var _zerononce [128]byte // read-only. 128 bytes is more than enough.
 // Pack encrypts plaintext using Cipher with a randomly generated salt and
 // returns a slice of dst containing the encrypted packet and any error occurred.
 // Ensure len(dst) >= ciph.SaltSize() + len(plaintext) + aead.Overhead().
-func Pack(dst, plaintext []byte, ciph Cipher) ([]byte, error) {
+func Pack(dst *[]byte, plaintext []byte, ciph Cipher) error {
 	saltSize := ciph.SaltSize()
-	salt := dst[:saltSize]
+	salt := (*dst)[:saltSize]
 	if _, err := rand.Read(salt); err != nil {
-		return nil, err
+		return err
 	}
 	aead, err := ciph.Encrypter(salt)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if len(dst) < saltSize+len(plaintext)+aead.Overhead() {
-		return nil, io.ErrShortBuffer
+	if len(*dst) < saltSize+len(plaintext)+aead.Overhead() {
+		return io.ErrShortBuffer
 	}
-	b := aead.Seal(dst[saltSize:saltSize], _zerononce[:aead.NonceSize()], plaintext, nil)
-	return dst[:saltSize+len(b)], nil
+	b := aead.Seal((*dst)[saltSize:saltSize], _zerononce[:aead.NonceSize()], plaintext, nil)
+	*dst = (*dst)[:saltSize+len(b)]
+	return nil
 }
 
 // Unpack decrypts pkt using Cipher and returns a slice of dst containing the decrypted payload and any error occurred.
@@ -61,7 +62,7 @@ type PacketConn struct {
 	Cipher
 }
 
-const maxPacketSize = 64 * 1024
+// const maxPacketSize = 64 * 1024
 
 // NewPacketConn wraps a net.PacketConn with cipher
 func NewPacketConn(c net.PacketConn, ciph Cipher) *PacketConn {
@@ -70,13 +71,13 @@ func NewPacketConn(c net.PacketConn, ciph Cipher) *PacketConn {
 
 // WriteTo encrypts b and write to addr using the embedded PacketConn.
 func (c *PacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
-	buf := pool.Get(maxPacketSize)
-	defer pool.Put(buf)
-	buf, err := Pack(buf, b, c)
+	bufP := pool.GetNetBuf()
+	defer pool.PutNetBuf(bufP)
+	err := Pack(bufP, b, c)
 	if err != nil {
 		return 0, err
 	}
-	_, err = c.PacketConn.WriteTo(buf, addr)
+	_, err = c.PacketConn.WriteTo(*bufP, addr)
 	return len(b), err
 }
 

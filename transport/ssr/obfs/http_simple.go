@@ -53,21 +53,21 @@ func (c *httpConn) Read(b []byte) (int, error) {
 		return c.Conn.Read(b)
 	}
 
-	buf := pool.Get(pool.RelayBufferSize)
-	defer pool.Put(buf)
-	n, err := c.Conn.Read(buf)
+	bufP := pool.GetNetBuf()
+	defer pool.PutNetBuf(bufP)
+	n, err := c.Conn.Read(*bufP)
 	if err != nil {
 		return 0, err
 	}
-	pos := bytes.Index(buf[:n], []byte("\r\n\r\n"))
+	pos := bytes.Index((*bufP)[:n], []byte("\r\n\r\n"))
 	if pos == -1 {
 		return 0, io.EOF
 	}
 	c.hasRecvHeader = true
 	dataLength := n - pos - 4
-	n = copy(b, buf[4+pos:n])
+	n = copy(b, (*bufP)[4+pos:n])
 	if dataLength > n {
-		c.buf = append(c.buf, buf[4+pos+n:4+pos+dataLength]...)
+		c.buf = append(c.buf, (*bufP)[4+pos+n:4+pos+dataLength]...)
 	}
 	return n, nil
 }

@@ -19,13 +19,13 @@ func (c *Conn) Read(b []byte) (int, error) {
 		return c.decoded.Read(b)
 	}
 
-	buf := pool.Get(pool.RelayBufferSize)
-	defer pool.Put(buf)
-	n, err := c.Conn.Read(buf)
+	bufP := pool.GetNetBuf()
+	defer pool.PutNetBuf(bufP)
+	n, err := c.Conn.Read(*bufP)
 	if err != nil {
 		return 0, err
 	}
-	c.underDecoded.Write(buf[:n])
+	c.underDecoded.Write((*bufP)[:n])
 	err = c.Decode(&c.decoded, &c.underDecoded)
 	if err != nil {
 		return 0, err

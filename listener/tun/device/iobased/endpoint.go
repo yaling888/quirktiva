@@ -104,6 +104,7 @@ func (e *Endpoint) dispatchLoop(cancel context.CancelFunc) {
 		sizes      = make([]int, batchSize)
 	)
 
+	bufferSize += 7 - ((bufferSize + 7) % 8)
 	for i := range buffs {
 		buffs[i] = make([]byte, bufferSize)
 	}
@@ -154,6 +155,7 @@ func (e *Endpoint) outboundLoop(ctx context.Context) {
 		if pkt.IsNil() {
 			break
 		}
+		buffs = buffs[:0]
 		e.writePacket(buffs, pkt)
 	}
 }
@@ -168,7 +170,6 @@ func (e *Endpoint) writePacket(buffs [][]byte, pkt stack.PacketBufferPtr) tcpip.
 	defer func() {
 		pktView.Release()
 		pkt.DecRef()
-		buffs = buffs[:0]
 	}()
 
 	if offset > 0 {

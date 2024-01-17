@@ -39,11 +39,11 @@ func (c *randomHeadConn) Read(b []byte) (int, error) {
 	if c.rawTransRecv {
 		return c.Conn.Read(b)
 	}
-	buf := pool.Get(pool.RelayBufferSize)
-	defer pool.Put(buf)
-	c.Conn.Read(buf)
+	bufP := pool.GetNetBuf()
+	defer pool.PutNetBuf(bufP)
+	_, _ = c.Conn.Read(*bufP)
 	c.rawTransRecv = true
-	c.Write(nil)
+	_, _ = c.Write(nil)
 	return 0, nil
 }
 
@@ -55,11 +55,12 @@ func (c *randomHeadConn) Write(b []byte) (int, error) {
 	if !c.hasSentHeader {
 		c.hasSentHeader = true
 		dataLength := rand.Intn(96) + 4
-		buf := pool.Get(dataLength + 4)
-		defer pool.Put(buf)
-		R.Read(buf[:dataLength])
-		binary.LittleEndian.PutUint32(buf[dataLength:], 0xffffffff-crc32.ChecksumIEEE(buf[:dataLength]))
-		_, err := c.Conn.Write(buf)
+		bufP := pool.GetBufferWriter()
+		bufP.Grow(dataLength + 4)
+		defer pool.PutBufferWriter(bufP)
+		_, _ = R.Read((*bufP)[:dataLength])
+		binary.LittleEndian.PutUint32((*bufP)[dataLength:], 0xffffffff-crc32.ChecksumIEEE((*bufP)[:dataLength]))
+		_, err := c.Conn.Write(bufP.Bytes())
 		return len(b), err
 	}
 	if c.rawTransRecv {

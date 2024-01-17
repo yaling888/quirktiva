@@ -35,7 +35,7 @@ func New(
 		devName    = tunConf.Device
 		stackType  = tunConf.Stack
 		autoRoute  = tunConf.AutoRoute
-		mtu        = 9000
+		mtu        = 1<<16 - 1
 
 		tunDevice device.Device
 		tunStack  ipstack.Stack

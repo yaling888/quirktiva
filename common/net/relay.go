@@ -4,6 +4,8 @@ import (
 	"io"
 	"net"
 	"time"
+
+	"github.com/yaling888/clash/common/pool"
 )
 
 // Relay copies between left and right bidirectionally.
@@ -14,14 +16,16 @@ func Relay(leftConn, rightConn net.Conn) {
 	tcpKeepAlive(rightConn)
 
 	go func() {
-		// Wrapping to avoid using *net.TCPConn.(ReadFrom)
-		// See also https://github.com/yaling888/clash/pull/1209
-		_, err := io.Copy(WriteOnlyWriter{Writer: leftConn}, ReadOnlyReader{Reader: rightConn})
+		bufP := pool.GetNetBuf()
+		defer pool.PutNetBuf(bufP)
+		_, err := io.CopyBuffer(WriteOnlyWriter{Writer: leftConn}, ReadOnlyReader{Reader: rightConn}, *bufP)
 		_ = leftConn.SetReadDeadline(time.Now())
 		ch <- err
 	}()
 
-	_, _ = io.Copy(WriteOnlyWriter{Writer: rightConn}, ReadOnlyReader{Reader: leftConn})
+	bufP := pool.GetNetBuf()
+	defer pool.PutNetBuf(bufP)
+	_, _ = io.CopyBuffer(WriteOnlyWriter{Writer: rightConn}, ReadOnlyReader{Reader: leftConn}, *bufP)
 	_ = rightConn.SetReadDeadline(time.Now())
 	<-ch
 }

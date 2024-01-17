@@ -22,7 +22,7 @@ import (
 const (
 	// defaultWndSize if set to zero, the default
 	// receive window buffer size is used instead.
-	defaultWndSize = pool.RelayBufferSize
+	defaultWndSize = pool.NetBufferSize
 
 	// maxConnAttempts specifies the maximum number
 	// of in-flight tcp connection attempts.

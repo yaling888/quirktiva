@@ -16,7 +16,7 @@ const (
 
 type chunkReader struct {
 	io.Reader
-	buf     []byte
+	bufP    *[]byte
 	sizeBuf []byte
 	offset  int
 }
@@ -30,12 +30,12 @@ func newChunkWriter(writer io.WriteCloser) *chunkWriter {
 }
 
 func (cr *chunkReader) Read(b []byte) (int, error) {
-	if cr.buf != nil {
-		n := copy(b, cr.buf[cr.offset:])
+	if cr.bufP != nil {
+		n := copy(b, (*cr.bufP)[cr.offset:])
 		cr.offset += n
-		if cr.offset == len(cr.buf) {
-			pool.Put(cr.buf)
-			cr.buf = nil
+		if cr.offset == len(*cr.bufP) {
+			pool.PutNetBuf(cr.bufP)
+			cr.bufP = nil
 		}
 		return n, nil
 	}
@@ -59,15 +59,16 @@ func (cr *chunkReader) Read(b []byte) (int, error) {
 		return size, nil
 	}
 
-	buf := pool.Get(size)
-	_, err = io.ReadFull(cr.Reader, buf)
+	bufP := pool.GetNetBuf()
+	_, err = io.ReadFull(cr.Reader, (*bufP)[:size])
 	if err != nil {
-		pool.Put(buf)
+		pool.PutNetBuf(bufP)
 		return 0, err
 	}
-	n := copy(b, buf)
+	n := copy(b, (*bufP)[:size])
+	*bufP = (*bufP)[:size]
 	cr.offset = n
-	cr.buf = buf
+	cr.bufP = bufP
 	return n, nil
 }
 
@@ -76,8 +77,8 @@ type chunkWriter struct {
 }
 
 func (cw *chunkWriter) Write(b []byte) (n int, err error) {
-	buf := pool.Get(pool.RelayBufferSize)
-	defer pool.Put(buf)
+	bufP := pool.GetNetBuf()
+	defer pool.PutNetBuf(bufP)
 	length := len(b)
 	for {
 		if length == 0 {
@@ -87,11 +88,11 @@ func (cw *chunkWriter) Write(b []byte) (n int, err error) {
 		if length < chunkSize {
 			readLen = length
 		}
-		payloadBuf := buf[lenSize : lenSize+chunkSize]
+		payloadBuf := (*bufP)[lenSize : lenSize+chunkSize]
 		copy(payloadBuf, b[n:n+readLen])
 
-		binary.BigEndian.PutUint16(buf[:lenSize], uint16(readLen))
-		_, err = cw.Writer.Write(buf[:lenSize+readLen])
+		binary.BigEndian.PutUint16((*bufP)[:lenSize], uint16(readLen))
+		_, err = cw.Writer.Write((*bufP)[:lenSize+readLen])
 		if err != nil {
 			break
 		}

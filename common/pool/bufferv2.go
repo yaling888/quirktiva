@@ -26,12 +26,6 @@ func NewBuffer() *Buffer {
 	return buffer2Pool.Get().(*Buffer)
 }
 
-func NewBufferWithData(data []byte) *Buffer {
-	b := buffer2Pool.Get().(*Buffer)
-	b.buf.Write(data)
-	return b
-}
-
 func (b *Buffer) Release() {
 	b.buf.Reset()
 	buffer2Pool.Put(b)
@@ -475,6 +469,11 @@ func (bw *BufferWriter) Slice(begin, end int) BufferWriter {
 	w := (*bw)[begin:end]
 	w.Reset()
 	return w
+}
+
+func (bw *BufferWriter) Truncate(n int) *BufferWriter {
+	*bw = (*bw)[:n]
+	return bw
 }
 
 func (bw *BufferWriter) Write(p []byte) (n int, err error) {

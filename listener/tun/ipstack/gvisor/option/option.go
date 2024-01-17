@@ -54,15 +54,15 @@ const (
 	tcpMinBufferSize = tcp.MinBufferSize
 
 	// tcpMaxBufferSize is the maximum permitted size of a send/recv buffer.
-	tcpMaxBufferSize = pool.RelayBufferSize
+	tcpMaxBufferSize = pool.NetBufferSize
 
 	// tcpDefaultBufferSize is the default size of the send buffer for
 	// a transport endpoint.
-	tcpDefaultSendBufferSize = pool.RelayBufferSize
+	tcpDefaultSendBufferSize = pool.NetBufferSize
 
 	// tcpDefaultReceiveBufferSize is the default size of the receive buffer
 	// for a transport endpoint.
-	tcpDefaultReceiveBufferSize = pool.RelayBufferSize
+	tcpDefaultReceiveBufferSize = pool.NetBufferSize
 )
 
 type Option func(*stack.Stack) error

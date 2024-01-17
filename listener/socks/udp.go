@@ -49,11 +49,10 @@ func NewUDP(addr string, in chan<- *inbound.PacketAdapter) (C.Listener, error) {
 		addr:       addr,
 	}
 	go func() {
+		buf := make([]byte, pool.NetBufferSize)
 		for {
-			buf := pool.Get(pool.UDPBufferSize)
 			n, remoteAddr, err := l.ReadFrom(buf)
 			if err != nil {
-				_ = pool.Put(buf)
 				if sl.closed {
 					break
 				}
@@ -69,18 +68,19 @@ func NewUDP(addr string, in chan<- *inbound.PacketAdapter) (C.Listener, error) {
 func handleSocksUDP(pc net.PacketConn, in chan<- *inbound.PacketAdapter, buf []byte, addr net.Addr) {
 	target, payload, err := socks5.DecodeUDPPacket(buf)
 	if err != nil {
-		// Unresolved UDP packet, return buffer to the pool
-		_ = pool.Put(buf)
 		return
 	}
-	packet := &packet{
+	bufP := pool.GetNetBuf()
+	n := copy(*bufP, payload)
+	*bufP = (*bufP)[:n]
+	pkt := &packet{
 		pc:      pc,
 		rAddr:   addr,
-		payload: payload,
-		bufRef:  buf,
+		payload: bufP,
 	}
 	select {
-	case in <- inbound.NewPacket(target, pc.LocalAddr(), packet, C.SOCKS5):
+	case in <- inbound.NewPacket(target, pc.LocalAddr(), pkt, C.SOCKS5):
 	default:
+		pkt.Drop()
 	}
 }

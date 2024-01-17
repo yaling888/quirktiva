@@ -48,15 +48,15 @@ func (c *tls12TicketConn) Read(b []byte) (int, error) {
 		return c.decoded.Read(b)
 	}
 
-	buf := pool.Get(pool.RelayBufferSize)
-	defer pool.Put(buf)
-	n, err := c.Conn.Read(buf)
+	bufP := pool.GetNetBuf()
+	defer pool.PutNetBuf(bufP)
+	n, err := c.Conn.Read(*bufP)
 	if err != nil {
 		return 0, err
 	}
 
 	if c.handshakeStatus == 8 {
-		c.underDecoded.Write(buf[:n])
+		c.underDecoded.Write((*bufP)[:n])
 		for c.underDecoded.Len() > 5 {
 			if !bytes.Equal(c.underDecoded.Bytes()[:3], []byte{0x17, 3, 3}) {
 				c.underDecoded.Reset()
@@ -77,11 +77,11 @@ func (c *tls12TicketConn) Read(b []byte) (int, error) {
 		return 0, errTLS12TicketAuthTooShortData
 	}
 
-	if !hmac.Equal(buf[33:43], c.hmacSHA1(buf[11:33])[:10]) || !hmac.Equal(buf[n-10:n], c.hmacSHA1(buf[:n-10])[:10]) {
+	if !hmac.Equal((*bufP)[33:43], c.hmacSHA1((*bufP)[11:33])[:10]) || !hmac.Equal((*bufP)[n-10:n], c.hmacSHA1((*bufP)[:n-10])[:10]) {
 		return 0, errTLS12TicketAuthHMACError
 	}
 
-	c.Write(nil)
+	_, _ = c.Write(nil)
 	return 0, nil
 }
 
@@ -204,12 +204,12 @@ func (c *tls12TicketConn) packTicketBuf(buf *bytes.Buffer, u string) {
 }
 
 func (t *tls12Ticket) hmacSHA1(data []byte) []byte {
-	key := pool.Get(len(t.Key) + 32)
-	defer pool.Put(key)
-	copy(key, t.Key)
-	copy(key[len(t.Key):], t.clientID[:])
+	key := pool.GetBufferWriter()
+	defer pool.PutBufferWriter(key)
+	key.PutSlice(t.Key)
+	key.PutSlice(t.clientID[:])
 
-	sha1Data := tools.HmacSHA1(key, data)
+	sha1Data := tools.HmacSHA1(key.Bytes(), data)
 	return sha1Data[:10]
 }
 

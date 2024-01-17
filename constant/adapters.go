@@ -177,7 +177,7 @@ func (at AdapterType) String() string {
 // UDPPacket contains the data of UDP packet, and offers control/info of UDP packet's source
 type UDPPacket interface {
 	// Data get the payload of UDP Packet
-	Data() []byte
+	Data() *[]byte
 
 	// WriteBack writes the payload with source IP/Port equals addr
 	// - variable source IP/Port is important to STUN

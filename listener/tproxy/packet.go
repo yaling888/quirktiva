@@ -9,11 +9,11 @@ import (
 
 type packet struct {
 	lAddr netip.AddrPort
-	buf   []byte
+	bufP  *[]byte
 }
 
-func (c *packet) Data() []byte {
-	return c.buf
+func (c *packet) Data() *[]byte {
+	return c.bufP
 }
 
 // WriteBack opens a new socket binding `addr` to write UDP packet back
@@ -39,5 +39,6 @@ func (c *packet) LocalAddr() net.Addr {
 }
 
 func (c *packet) Drop() {
-	_ = pool.Put(c.buf)
+	pool.PutNetBuf(c.bufP)
+	c.bufP = nil
 }

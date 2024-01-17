@@ -39,7 +39,7 @@ func (a *authData) next() *authData {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
 	if a.connectionID > 0xff000000 || a.connectionID == 0 {
-		R.Read(a.clientID[:])
+		_, _ = R.Read(a.clientID[:])
 		a.connectionID = rand.Uint32() & 0xffffff
 	}
 	a.connectionID++
@@ -55,13 +55,15 @@ func (a *authData) putAuthData(buf *bytes.Buffer) {
 }
 
 func (a *authData) putEncryptedData(b *bytes.Buffer, userKey []byte, paddings [2]int, salt string) error {
-	encrypt := pool.Get(16)
-	defer pool.Put(encrypt)
-	binary.LittleEndian.PutUint32(encrypt, uint32(time.Now().Unix()))
-	copy(encrypt[4:], a.clientID[:])
-	binary.LittleEndian.PutUint32(encrypt[8:], a.connectionID)
-	binary.LittleEndian.PutUint16(encrypt[12:], uint16(paddings[0]))
-	binary.LittleEndian.PutUint16(encrypt[14:], uint16(paddings[1]))
+	encrypt := pool.GetBufferWriter()
+	encrypt.Grow(16)
+	defer pool.PutBufferWriter(encrypt)
+
+	binary.LittleEndian.PutUint32(*encrypt, uint32(time.Now().Unix()))
+	copy((*encrypt)[4:], a.clientID[:])
+	binary.LittleEndian.PutUint32((*encrypt)[8:], a.connectionID)
+	binary.LittleEndian.PutUint16((*encrypt)[12:], uint16(paddings[0]))
+	binary.LittleEndian.PutUint16((*encrypt)[14:], uint16(paddings[1]))
 
 	cipherKey := core.Kdf(base64.StdEncoding.EncodeToString(userKey)+salt, 16)
 	block, err := aes.NewCipher(cipherKey)
@@ -72,8 +74,8 @@ func (a *authData) putEncryptedData(b *bytes.Buffer, userKey []byte, paddings [2
 	iv := bytes.Repeat([]byte{0}, 16)
 	cbcCipher := cipher.NewCBCEncrypter(block, iv)
 
-	cbcCipher.CryptBlocks(encrypt, encrypt)
+	cbcCipher.CryptBlocks(*encrypt, encrypt.Bytes())
 
-	b.Write(encrypt)
+	b.Write(encrypt.Bytes())
 	return nil
 }

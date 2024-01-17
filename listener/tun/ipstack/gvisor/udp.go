@@ -24,11 +24,12 @@ type packet struct {
 	data  *buffer.View
 }
 
-func (pkt *packet) Data() []byte {
+func (pkt *packet) Data() *[]byte {
 	if pkt.data == nil {
 		return nil
 	}
-	return pkt.data.AsSlice()
+	b := pkt.data.AsSlice()
+	return &b
 }
 
 func (pkt *packet) WriteBack(b []byte, addr net.Addr) (n int, err error) {

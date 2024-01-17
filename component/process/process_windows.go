@@ -43,15 +43,18 @@ func findProcessPath(network string, from netip.AddrPort, to netip.AddrPort) (st
 }
 
 func findPidByConnectionEndpoint(family uint32, protocol uint32, from netip.AddrPort, to netip.AddrPort) (uint32, error) {
-	buf := pool.Get(0)
-	defer pool.Put(buf)
+	bufP := pool.GetBufferWriter()
+	defer pool.PutBufferWriter(bufP)
 
+	var buf []byte
 	bufSize := uint32(len(buf))
 
 loop:
 	for {
 		var ret uintptr
-
+		if bufP.Len() > 0 {
+			buf = *bufP
+		}
 		switch protocol {
 		case windows.IPPROTO_TCP:
 			ret, _, _ = procGetExtendedTcpTable.Call(
@@ -81,8 +84,8 @@ loop:
 
 			break loop
 		case uintptr(windows.ERROR_INSUFFICIENT_BUFFER):
-			pool.Put(buf)
-			buf = pool.Get(int(bufSize))
+			bufP.Reset()
+			bufP.Grow(int(bufSize))
 
 			continue loop
 		default:

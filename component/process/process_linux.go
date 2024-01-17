@@ -15,9 +15,8 @@ import (
 )
 
 const (
-	sizeofSocketID      = 0x30
-	sizeofSocketRequest = sizeofSocketID + 0x8
-	sizeofSocket        = sizeofSocketID + 0x18
+	sizeofSocketID = 0x30
+	sizeofSocket   = sizeofSocketID + 0x18
 )
 
 type socketRequest struct {
@@ -29,32 +28,26 @@ type socketRequest struct {
 	ID       netlink.SocketID
 }
 
-func (r *socketRequest) Serialize() []byte {
-	b := pool.BufferWriter(make([]byte, 0, sizeofSocketRequest))
-	b.PutUint8(r.Family)
-	b.PutUint8(r.Protocol)
-	b.PutUint8(r.Ext)
-	b.PutUint8(r.pad)
-	b.PutUint32(r.States)
-	b.PutUint16be(r.ID.SourcePort)
-	b.PutUint16be(r.ID.DestinationPort)
+func (r *socketRequest) serialize(bp *pool.BufferWriter) {
+	bp.PutUint8(r.Family)
+	bp.PutUint8(r.Protocol)
+	bp.PutUint8(r.Ext)
+	bp.PutUint8(r.pad)
+	bp.PutUint32(r.States)
+	bp.PutUint16be(r.ID.SourcePort)
+	bp.PutUint16be(r.ID.DestinationPort)
 	if r.Family == unix.AF_INET6 {
-		b.PutIPv6(r.ID.Source)
-		b.PutIPv6(r.ID.Destination)
+		bp.PutIPv6(r.ID.Source)
+		bp.PutIPv6(r.ID.Destination)
 	} else {
-		b.PutIPv4(r.ID.Source)
-		b.Grow(12)
-		b.PutIPv4(r.ID.Destination)
-		b.Grow(12)
+		bp.PutIPv4(r.ID.Source)
+		bp.Grow(12)
+		bp.PutIPv4(r.ID.Destination)
+		bp.Grow(12)
 	}
-	b.PutUint32(r.ID.Interface)
-	b.PutUint32(r.ID.Cookie[0])
-	b.PutUint32(r.ID.Cookie[1])
-	return b.Bytes()
-}
-
-func (r *socketRequest) Len() int {
-	return sizeofSocketRequest
+	bp.PutUint32(r.ID.Interface)
+	bp.PutUint32(r.ID.Cookie[0])
+	bp.PutUint32(r.ID.Cookie[1])
 }
 
 func findProcessPath(network string, from netip.AddrPort, to netip.AddrPort) (string, error) {
@@ -111,6 +104,15 @@ func resolveSocketByNetlinkExact(family byte, protocol byte, fromAddr netip.Addr
 		toIP = net.IP(toAddr.Addr().AsSlice()).To16()
 	}
 
+	s, err := nl.Subscribe(unix.NETLINK_INET_DIAG)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer s.Close()
+
+	bufP := pool.GetBufferWriter()
+	defer pool.PutBufferWriter(bufP)
+
 	request := &socketRequest{
 		Family:   family,
 		Protocol: protocol,
@@ -122,15 +124,10 @@ func resolveSocketByNetlinkExact(family byte, protocol byte, fromAddr netip.Addr
 			Cookie:          [2]uint32{nl.TCPDIAG_NOCOOKIE, nl.TCPDIAG_NOCOOKIE},
 		},
 	}
-
-	s, err := nl.Subscribe(unix.NETLINK_INET_DIAG)
-	if err != nil {
-		return 0, 0, err
-	}
-	defer s.Close()
+	request.serialize(bufP)
 
 	req := nl.NewNetlinkRequest(nl.SOCK_DIAG_BY_FAMILY, 0) // unix.NLM_F_DUMP
-	req.AddData(request)
+	req.AddRawData(bufP.Bytes())
 
 	err = s.Send(req)
 	if err != nil {
@@ -161,11 +158,17 @@ func resolveSocketByNetlinkExact(family byte, protocol byte, fromAddr netip.Addr
 }
 
 func resolveProcessPathByProcSearch(inode, uid uint32) (string, error) {
-	procDir, err := os.Open("/proc")
+	const (
+		path    = "/proc/"
+		pathLen = len(path)
+	)
+	procDir, err := os.Open(path)
 	if err != nil {
 		return "", err
 	}
-	defer procDir.Close()
+	defer func(procDir *os.File) {
+		_ = procDir.Close()
+	}(procDir)
 
 	pids, err := procDir.Readdirnames(-1)
 	if err != nil {
@@ -174,53 +177,57 @@ func resolveProcessPathByProcSearch(inode, uid uint32) (string, error) {
 
 	expectedSocketName := fmt.Appendf(nil, "socket:[%d]", inode)
 
-	pathBuffer := pool.Get(64)
-	defer pool.Put(pathBuffer)
+	pathBuffer := pool.GetBufferWriter()
+	defer pool.PutBufferWriter(pathBuffer)
 
-	readlinkBuffer := pool.Get(32)
-	defer pool.Put(readlinkBuffer)
+	readlinkBuffer := pool.GetBufferWriter()
+	readlinkBuffer.Grow(32)
+	defer pool.PutBufferWriter(readlinkBuffer)
 
-	copy(pathBuffer, "/proc/")
-
+	pathBuffer.PutString(path)
 	for _, pid := range pids {
 		if !isPid(pid) {
 			continue
 		}
 
-		pathBuffer = append(pathBuffer[:len("/proc/")], pid...)
+		pathBuffer.
+			Truncate(pathLen).
+			PutString(pid)
 
 		stat := &unix.Stat_t{}
-		err = unix.Stat(string(pathBuffer), stat)
+		err = unix.Stat(pathBuffer.String(), stat)
 		if err != nil {
 			continue
 		} else if stat.Uid != uid {
 			continue
 		}
 
-		pathBuffer = append(pathBuffer, "/fd/"...)
-		fdsPrefixLength := len(pathBuffer)
+		pathBuffer.PutString("/fd/")
+		fdsPrefixLength := pathBuffer.Len()
 
-		fdDir, err := os.Open(string(pathBuffer))
+		fdDir, err := os.Open(pathBuffer.String())
 		if err != nil {
 			continue
 		}
 
 		fds, err := fdDir.Readdirnames(-1)
-		fdDir.Close()
+		_ = fdDir.Close()
 		if err != nil {
 			continue
 		}
 
 		for _, fd := range fds {
-			pathBuffer = append(pathBuffer[:fdsPrefixLength], fd...)
+			pathBuffer.
+				Truncate(fdsPrefixLength).
+				PutString(fd)
 
-			n, err := unix.Readlink(string(pathBuffer), readlinkBuffer)
+			n, err := unix.Readlink(pathBuffer.String(), *readlinkBuffer)
 			if err != nil {
 				continue
 			}
 
-			if bytes.Equal(readlinkBuffer[:n], expectedSocketName) {
-				return os.Readlink("/proc/" + pid + "/exe")
+			if bytes.Equal((*readlinkBuffer)[:n], expectedSocketName) {
+				return os.Readlink(path + pid + "/exe")
 			}
 		}
 	}

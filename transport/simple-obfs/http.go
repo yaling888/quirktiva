@@ -18,7 +18,7 @@ type HTTPObfs struct {
 	net.Conn
 	host          string
 	port          string
-	buf           []byte
+	bufP          *[]byte
 	offset        int
 	firstRequest  bool
 	firstResponse bool
@@ -26,36 +26,37 @@ type HTTPObfs struct {
 }
 
 func (ho *HTTPObfs) Read(b []byte) (int, error) {
-	if ho.buf != nil {
-		n := copy(b, ho.buf[ho.offset:])
+	if ho.bufP != nil {
+		n := copy(b, (*ho.bufP)[ho.offset:])
 		ho.offset += n
-		if ho.offset == len(ho.buf) {
-			_ = pool.Put(ho.buf)
-			ho.buf = nil
+		if ho.offset == len(*ho.bufP) {
+			pool.PutNetBuf(ho.bufP)
+			ho.bufP = nil
 		}
 		return n, nil
 	}
 
 	if ho.firstResponse {
-		buf := pool.Get(pool.RelayBufferSize)
-		n, err := ho.Conn.Read(buf)
+		bufP := pool.GetNetBuf()
+		n, err := ho.Conn.Read(*bufP)
 		if err != nil {
-			_ = pool.Put(buf)
+			pool.PutNetBuf(bufP)
 			return 0, err
 		}
-		idx := bytes.Index(buf[:n], []byte("\r\n\r\n"))
+		idx := bytes.Index((*bufP)[:n], []byte("\r\n\r\n"))
 		if idx == -1 {
-			_ = pool.Put(buf)
+			pool.PutNetBuf(bufP)
 			return 0, io.EOF
 		}
 		ho.firstResponse = false
 		length := n - (idx + 4)
-		n = copy(b, buf[idx+4:n])
+		n = copy(b, (*bufP)[idx+4:n])
 		if length > n {
-			ho.buf = buf[:idx+4+length]
+			*bufP = (*bufP)[:idx+4+length]
+			ho.bufP = bufP
 			ho.offset = idx + 4 + n
 		} else {
-			_ = pool.Put(buf)
+			pool.PutNetBuf(bufP)
 		}
 		return n, nil
 	}
