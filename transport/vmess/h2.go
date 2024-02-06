@@ -2,7 +2,7 @@ package vmess
 
 import (
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/url"
@@ -26,7 +26,7 @@ type H2Config struct {
 func (hc *h2Conn) establishConn() error {
 	preader, pwriter := io.Pipe()
 
-	host := hc.cfg.Hosts[rand.Intn(len(hc.cfg.Hosts))]
+	host := hc.cfg.Hosts[rand.IntN(len(hc.cfg.Hosts))]
 	path := hc.cfg.Path
 	// TODO: connect use VMess Host instead of H2 Host
 	req := http.Request{

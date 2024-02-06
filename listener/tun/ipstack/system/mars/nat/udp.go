@@ -2,7 +2,7 @@ package nat
 
 import (
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/netip"
 	"sync"

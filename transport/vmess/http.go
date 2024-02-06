@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/textproto"
@@ -51,16 +51,16 @@ func (hc *httpConn) Write(b []byte) (int, error) {
 		return hc.Conn.Write(b)
 	}
 
-	path := hc.cfg.Path[rand.Intn(len(hc.cfg.Path))]
+	path := hc.cfg.Path[rand.IntN(len(hc.cfg.Path))]
 	host := hc.cfg.Host
 	if header := hc.cfg.Headers["Host"]; len(header) != 0 {
-		host = header[rand.Intn(len(header))]
+		host = header[rand.IntN(len(header))]
 	}
 
 	u := fmt.Sprintf("http://%s%s", host, path)
 	req, _ := http.NewRequest(hc.cfg.Method, u, bytes.NewBuffer(b))
 	for key, list := range hc.cfg.Headers {
-		req.Header.Set(key, list[rand.Intn(len(list))])
+		req.Header.Set(key, list[rand.IntN(len(list))])
 	}
 	req.ContentLength = int64(len(b))
 	if err := req.Write(hc.Conn); err != nil {

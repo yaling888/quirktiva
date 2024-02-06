@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net/netip"
 	"strings"
 	"sync"
@@ -108,7 +108,7 @@ func (r *Resolver) ResolveIP(host string) (ip netip.Addr, err error) {
 	} else if len(ips) == 0 {
 		return netip.Addr{}, fmt.Errorf("%w: %s", resolver.ErrIPNotFound, host)
 	}
-	return ips[rand.Intn(len(ips))], nil
+	return ips[rand.IntN(len(ips))], nil
 }
 
 // LookupIPv4 request with TypeA
@@ -124,7 +124,7 @@ func (r *Resolver) ResolveIPv4(host string) (ip netip.Addr, err error) {
 	} else if len(ips) == 0 {
 		return netip.Addr{}, fmt.Errorf("%w: %s", resolver.ErrIPNotFound, host)
 	}
-	return ips[rand.Intn(len(ips))], nil
+	return ips[rand.IntN(len(ips))], nil
 }
 
 // LookupIPv6 request with TypeAAAA
@@ -140,7 +140,7 @@ func (r *Resolver) ResolveIPv6(host string) (ip netip.Addr, err error) {
 	} else if len(ips) == 0 {
 		return netip.Addr{}, fmt.Errorf("%w: %s", resolver.ErrIPNotFound, host)
 	}
-	return ips[rand.Intn(len(ips))], nil
+	return ips[rand.IntN(len(ips))], nil
 }
 
 func (r *Resolver) shouldIPFallback(ip netip.Addr) bool {

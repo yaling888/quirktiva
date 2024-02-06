@@ -39,12 +39,12 @@ jobs:
           cache: false
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
 
       #- name: Autobuild
-      #  uses: github/codeql-action/autobuild@v2
+      #  uses: github/codeql-action/autobuild@v3
 
       - name: Build
         env:

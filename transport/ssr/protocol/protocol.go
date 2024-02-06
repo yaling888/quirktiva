@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 )
 
@@ -68,7 +68,7 @@ func getHeadSize(b []byte, defaultValue int) int {
 
 func getDataLength(b []byte) int {
 	bLength := len(b)
-	dataLength := getHeadSize(b, 30) + rand.Intn(32)
+	dataLength := getHeadSize(b, 30) + rand.IntN(32)
 	if bLength < dataLength {
 		return bLength
 	}

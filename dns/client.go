@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/netip"
 	"strings"
@@ -51,7 +51,7 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*rMsg, error) {
 			} else if len(ips) == 0 {
 				return nil, fmt.Errorf("%w: %s", resolver.ErrIPNotFound, c.host)
 			}
-			ip := ips[rand.Intn(len(ips))]
+			ip := ips[rand.IntN(len(ips))]
 			c.ip = ip.String()
 			c.lan = ip.IsLoopback() || ip.IsPrivate()
 		}

@@ -19,17 +19,17 @@ import (
 
 type packet struct {
 	stack *stack.Stack
+	data  *buffer.View
 	nicID tcpip.NICID
 	lAddr netip.AddrPort
-	data  *buffer.View
 }
 
 func (pkt *packet) Data() *[]byte {
-	if pkt.data == nil {
-		return nil
+	if pkt.data != nil {
+		b := pkt.data.AsSlice()
+		return &b
 	}
-	b := pkt.data.AsSlice()
-	return &b
+	return nil
 }
 
 func (pkt *packet) WriteBack(b []byte, addr net.Addr) (n int, err error) {

@@ -5,7 +5,7 @@ import (
 	R "crypto/rand"
 	"encoding/binary"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"strconv"
 	"strings"
@@ -227,10 +227,10 @@ func (a *authAES128) getRandDataLengthForPackData(dataLength, fullDataLength int
 		if revLength > -1460 {
 			return trapezoidRandom(revLength+1460, -0.3)
 		}
-		return rand.Intn(32)
+		return rand.IntN(32)
 	}
 	if dataLength > 900 {
-		return rand.Intn(revLength)
+		return rand.IntN(revLength)
 	}
 	return trapezoidRandom(revLength, -0.3)
 }
@@ -255,7 +255,7 @@ func (a *authAES128) packAuthData(poolBuf *bytes.Buffer, data []byte) {
 	macKey.PutSlice(a.iv)
 	macKey.PutSlice(a.Key)
 
-	poolBuf.WriteByte(byte(rand.Intn(256)))
+	poolBuf.WriteByte(byte(rand.IntN(256)))
 	poolBuf.Write(a.hmac(macKey.Bytes(), poolBuf.Bytes())[:6])
 	poolBuf.Write(a.userID[:])
 	err := a.authData.putEncryptedData(poolBuf, a.userKey, [2]int{packedAuthDataLength, randDataLength}, a.salt)
@@ -271,9 +271,9 @@ func (a *authAES128) packAuthData(poolBuf *bytes.Buffer, data []byte) {
 
 func (a *authAES128) getRandDataLengthForPackAuthData(size int) int {
 	if size > 400 {
-		return rand.Intn(512)
+		return rand.IntN(512)
 	}
-	return rand.Intn(1024)
+	return rand.IntN(1024)
 }
 
 func (a *authAES128) packRandData(poolBuf *bytes.Buffer, size int) {

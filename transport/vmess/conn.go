@@ -11,7 +11,7 @@ import (
 	"errors"
 	"hash/fnv"
 	"io"
-	R "math/rand"
+	R "math/rand/v2"
 	"net"
 	"time"
 
@@ -75,7 +75,7 @@ func (vc *Conn) sendRequest() error {
 	buf.PutUint8(vc.respV)
 	buf.PutUint8(vc.option)
 
-	p := R.Intn(16)
+	p := R.IntN(16)
 	// P Sec Reserve Cmd
 	buf.PutUint8(byte(p<<4) | vc.security)
 	buf.PutUint8(0)

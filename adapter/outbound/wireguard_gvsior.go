@@ -8,7 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/netip"
 	"strconv"
@@ -188,7 +188,7 @@ func (w *WireGuard) resolveDNS(metadata *C.Metadata, udp bool) error {
 					rAddrs = v6
 				}
 			}
-			metadata.DstIP = rAddrs[rand.Intn(len(rAddrs))]
+			metadata.DstIP = rAddrs[rand.IntN(len(rAddrs))]
 		}
 	} else if !metadata.Resolved() {
 		var (
@@ -206,7 +206,7 @@ func (w *WireGuard) resolveDNS(metadata *C.Metadata, udp bool) error {
 		if udp {
 			metadata.DstIP = rAddrs[0]
 		} else {
-			metadata.DstIP = rAddrs[rand.Intn(len(rAddrs))]
+			metadata.DstIP = rAddrs[rand.IntN(len(rAddrs))]
 		}
 	}
 	return nil
@@ -360,7 +360,7 @@ func NewWireGuard(option WireGuardOption) (*WireGuard, error) {
 		mtu = 1408
 	}
 
-	threadId := fmt.Sprintf("%s-%d", option.Name, rand.Intn(100))
+	threadId := fmt.Sprintf("%s-%d", option.Name, rand.IntN(100))
 
 	base := &Base{
 		name:  option.Name,

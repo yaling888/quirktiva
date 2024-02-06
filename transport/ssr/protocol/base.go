@@ -7,7 +7,7 @@ import (
 	R "crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
-	"math/rand"
+	"math/rand/v2"
 	"sync"
 	"time"
 

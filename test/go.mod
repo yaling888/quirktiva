@@ -1,6 +1,6 @@
 module clash-test
 
-go 1.21.1
+go 1.22
 
 require (
 	github.com/docker/docker v24.0.5+incompatible

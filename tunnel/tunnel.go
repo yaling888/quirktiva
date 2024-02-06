@@ -3,7 +3,7 @@ package tunnel
 import (
 	"context"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/netip"
 	"path/filepath"
@@ -324,7 +324,7 @@ func resolveDNS(metadata *C.Metadata, proxy, rawProxy C.Proxy) (isRemote bool, e
 					rAddrs = v6 // priority use ipv6
 				}
 			}
-			metadata.DstIP = rAddrs[rand.Intn(len(rAddrs))]
+			metadata.DstIP = rAddrs[rand.IntN(len(rAddrs))]
 		}
 	} else if isUDP {
 		err = localResolveDNS(metadata, true)
@@ -345,7 +345,7 @@ func localResolveDNS(metadata *C.Metadata, udp bool) error {
 	if udp {
 		metadata.DstIP = rAddrs[0]
 	} else {
-		metadata.DstIP = rAddrs[rand.Intn(len(rAddrs))]
+		metadata.DstIP = rAddrs[rand.IntN(len(rAddrs))]
 	}
 	return nil
 }
@@ -660,7 +660,7 @@ func matchRule(subRules []C.Rule, metadata *C.Metadata, resolved, processFound *
 			} else {
 				ip := rAddrs[0]
 				if l := len(rAddrs); l > 1 && metadata.NetWork != C.UDP {
-					ip = rAddrs[rand.Intn(l)]
+					ip = rAddrs[rand.IntN(l)]
 				}
 				log.Debug().
 					Str("host", metadata.Host).

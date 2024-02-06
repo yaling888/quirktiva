@@ -4,7 +4,7 @@ import (
 	R "crypto/rand"
 	"encoding/binary"
 	"hash/crc32"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 
 	"github.com/yaling888/clash/common/pool"
@@ -54,7 +54,7 @@ func (c *randomHeadConn) Write(b []byte) (int, error) {
 	c.buf = append(c.buf, b...)
 	if !c.hasSentHeader {
 		c.hasSentHeader = true
-		dataLength := rand.Intn(96) + 4
+		dataLength := rand.IntN(96) + 4
 		bufP := pool.GetBufferWriter()
 		bufP.Grow(dataLength + 4)
 		defer pool.PutBufferWriter(bufP)

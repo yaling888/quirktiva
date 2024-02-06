@@ -3,7 +3,7 @@ package resolver
 import (
 	"context"
 	"errors"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/netip"
 	"time"
@@ -196,7 +196,7 @@ func resolveIPByType(host string, _type uint16) (netip.Addr, error) {
 		return netip.Addr{}, err
 	}
 
-	return ips[rand.Intn(len(ips))], nil
+	return ips[rand.IntN(len(ips))], nil
 }
 
 func resolveProxyServerHostByType(host string, _type uint16) (netip.Addr, error) {
@@ -211,7 +211,7 @@ func resolveProxyServerHostByType(host string, _type uint16) (netip.Addr, error)
 		return netip.Addr{}, err
 	}
 
-	return ips[rand.Intn(len(ips))], nil
+	return ips[rand.IntN(len(ips))], nil
 }
 
 func lookupIPByProxyAndType(ctx context.Context, host, proxy string, t uint16, both bool) ([]netip.Addr, error) {

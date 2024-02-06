@@ -5,7 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/netip"
@@ -59,7 +59,7 @@ func (dc *dohClient) ExchangeContext(ctx context.Context, m *D.Msg) (msg *rMsg, 
 		}
 
 		u, _ := urlPkg.Parse(dc.url)
-		addr := net.JoinHostPort(ips[rand.Intn(len(ips))].String(), port)
+		addr := net.JoinHostPort(ips[rand.IntN(len(ips))].String(), port)
 
 		u.Host = addr
 		dc.url = u.String()

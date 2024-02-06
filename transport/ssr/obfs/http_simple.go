@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"strconv"
 	"strings"
@@ -82,7 +82,7 @@ func (c *httpConn) Write(b []byte) (int, error) {
 	bLength := len(b)
 	headDataLength := bLength
 	if bLength-headLength > 64 {
-		headDataLength = headLength + rand.Intn(65)
+		headDataLength = headLength + rand.IntN(65)
 	}
 	headData := b[:headDataLength]
 	b = b[headDataLength:]
@@ -100,7 +100,7 @@ func (c *httpConn) Write(b []byte) (int, error) {
 		}
 	}
 	hosts := strings.Split(host, ",")
-	host = hosts[rand.Intn(len(hosts))]
+	host = hosts[rand.IntN(len(hosts))]
 
 	buf := pool.GetBuffer()
 	defer pool.PutBuffer(buf)
@@ -147,7 +147,7 @@ func packBoundary(buf *bytes.Buffer) {
 	buf.WriteString("Content-Type: multipart/form-data; boundary=")
 	set := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 	for i := 0; i < 32; i++ {
-		buf.WriteByte(set[rand.Intn(62)])
+		buf.WriteByte(set[rand.IntN(62)])
 	}
 	buf.WriteString("\r\n")
 }

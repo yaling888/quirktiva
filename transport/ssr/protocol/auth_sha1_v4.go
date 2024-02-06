@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"hash/adler32"
 	"hash/crc32"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 
 	"github.com/yaling888/clash/common/pool"
@@ -177,7 +177,7 @@ func (a *authSHA1V4) getRandDataLength(size int) int {
 		return 0
 	}
 	if size > 400 {
-		return rand.Intn(256)
+		return rand.IntN(256)
 	}
-	return rand.Intn(512)
+	return rand.IntN(512)
 }

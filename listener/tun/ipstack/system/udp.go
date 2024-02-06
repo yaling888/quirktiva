@@ -14,7 +14,10 @@ type packet struct {
 }
 
 func (pkt *packet) Data() *[]byte {
-	return pkt.data.Packet
+	if pkt.data != nil {
+		return pkt.data.Packet
+	}
+	return nil
 }
 
 func (pkt *packet) WriteBack(b []byte, addr net.Addr) (n int, err error) {

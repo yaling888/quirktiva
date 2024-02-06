@@ -13,4 +13,4 @@ linters-settings:
       - prefix(github.com/yaling888/clash)
       - default
   staticcheck:
-    go: '1.21'
+    go: '1.22'

@@ -2,11 +2,11 @@ package convert
 
 import (
 	"bytes"
+	"math/rand/v2"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/yaling888/clash/common/rand"
 	"github.com/yaling888/clash/common/uuid"
 )
 
@@ -308,11 +308,11 @@ var (
 )
 
 func RandHost() string {
-	return prefixFn[rand.Intn(3)]() + hostsSuffix[rand.Intn(hostsLen)]
+	return prefixFn[rand.IntN(3)]() + hostsSuffix[rand.IntN(hostsLen)]
 }
 
 func RandUserAgent() string {
-	return userAgents[rand.Intn(uaLen)]
+	return userAgents[rand.IntN(uaLen)]
 }
 
 func SetUserAgent(header http.Header) {

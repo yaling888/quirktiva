@@ -3,7 +3,7 @@ package script
 import (
 	"context"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net/netip"
 	"path/filepath"
 	"strings"
@@ -23,7 +23,7 @@ func uResolveIP(mtd *C.Metadata, host string) string {
 	} else if rAddrs, err := resolver.LookupIP(context.Background(), host); err == nil {
 		addr := rAddrs[0]
 		if l := len(rAddrs); l > 1 && mtd.NetWork != C.UDP {
-			addr = rAddrs[rand.Intn(l)]
+			addr = rAddrs[rand.IntN(l)]
 		}
 		ip = addr.String()
 		mtd.DstIP = addr
