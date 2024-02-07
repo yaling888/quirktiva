@@ -425,7 +425,6 @@ func ReCreateAutoRedir(ifaceNames []string, defaultInterface string, tcpIn chan<
 
 	autoRedirProgram, err = ebpf.NewRedirEBpfProgram(nicArr, autoRedirListener.TCPAddr().Port(),
 		defaultRouteInterfaceName)
-
 	if err != nil {
 		return
 	}

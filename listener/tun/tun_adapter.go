@@ -96,7 +96,6 @@ func New(
 		}
 
 		tunStack, err = gvisor.New(tunDevice, tunConf.DNSHijack, tunAddress, tcpIn, udpIn)
-
 		if err != nil {
 			return nil, fmt.Errorf("can't New gvisor stack: %w", err)
 		}
