@@ -9,6 +9,8 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/yaling888/clash/common/pool"
 )
 
 const (
@@ -102,7 +104,10 @@ func findProcessPath(network string, from netip.AddrPort, _ netip.AddrPort) (str
 }
 
 func getExecPathFromPID(pid uint32) (string, error) {
-	buf := make([]byte, procpidpathinfosize)
+	bufP := pool.GetBufferWriter()
+	bufP.Grow(procpidpathinfosize)
+	defer pool.PutBufferWriter(bufP)
+	buf := *bufP
 	_, _, errno := syscall.Syscall6(
 		syscall.SYS_PROC_INFO,
 		proccallnumpidinfo,
