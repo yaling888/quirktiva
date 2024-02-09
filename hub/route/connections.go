@@ -52,10 +52,11 @@ func getConnections(w http.ResponseWriter, r *http.Request) {
 	}
 
 	buf := pool.BufferWriter{}
+	encoder := json.NewEncoder(&buf)
 	sendSnapshot := func() error {
 		buf.Reset()
 		snapshot := statistic.DefaultManager.Snapshot()
-		if err := json.NewEncoder(&buf).Encode(snapshot); err != nil {
+		if err := encoder.Encode(snapshot); err != nil {
 			return err
 		}
 

@@ -172,11 +172,12 @@ func traffic(w http.ResponseWriter, r *http.Request) {
 	defer tick.Stop()
 	t := statistic.DefaultManager
 	buf := pool.BufferWriter{}
+	encoder := json.NewEncoder(&buf)
 	var err error
 	for range tick.C {
 		buf.Reset()
 		up, down := t.Now()
-		if err := json.NewEncoder(&buf).Encode(Traffic{
+		if err := encoder.Encode(Traffic{
 			Up:   up,
 			Down: down,
 		}); err != nil {
@@ -230,10 +231,11 @@ func getLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		sub    observable.Subscription[L.Event]
-		ch     = make(chan L.Event, 1024)
-		buf    = pool.BufferWriter{}
-		closed = false
+		sub     observable.Subscription[L.Event]
+		ch      = make(chan L.Event, 1024)
+		buf     = pool.BufferWriter{}
+		encoder = json.NewEncoder(&buf)
+		closed  = false
 	)
 
 	if wsConn == nil {
@@ -275,7 +277,7 @@ func getLogs(w http.ResponseWriter, r *http.Request) {
 		}
 		buf.Reset()
 
-		if err := json.NewEncoder(&buf).Encode(Log{
+		if err := encoder.Encode(Log{
 			Type:    logM.Type(),
 			Payload: logM.Payload,
 		}); err != nil {
