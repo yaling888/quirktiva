@@ -238,7 +238,7 @@ func preHandleMetadata(metadata *C.Metadata) error {
 		if exist {
 			metadata.Host = host
 			metadata.DNSMode = C.DNSMapping
-			if resolver.FakeIPEnabled() {
+			if resolver.FakeIPEnabled() && (metadata.NetWork != C.UDP || resolver.IsFakeIP(metadata.DstIP)) {
 				metadata.DstIP = netip.Addr{}
 				metadata.DNSMode = C.DNSFakeIP
 			} else if node := resolver.DefaultHosts.Search(host); node != nil {
@@ -302,7 +302,7 @@ func resolveDNS(metadata *C.Metadata, proxy, rawProxy C.Proxy) (isRemote bool, e
 
 	if isRemote {
 		var (
-			hasV6  = rawProxy.HasV6()
+			hasV6  = rawProxy.HasV6() && !(isUDP && metadata.Type == C.TUN)
 			rAddrs []netip.Addr
 		)
 		if hasV6 {
@@ -334,11 +334,16 @@ func resolveDNS(metadata *C.Metadata, proxy, rawProxy C.Proxy) (isRemote bool, e
 	return
 }
 
-func localResolveDNS(metadata *C.Metadata, udp bool) error {
+func localResolveDNS(metadata *C.Metadata, udp bool) (err error) {
 	if metadata.Resolved() {
 		return nil
 	}
-	rAddrs, err := resolver.LookupIP(context.Background(), metadata.Host)
+	var rAddrs []netip.Addr
+	if udp && metadata.Type == C.TUN {
+		rAddrs, err = resolver.LookupIPv4(context.Background(), metadata.Host)
+	} else {
+		rAddrs, err = resolver.LookupIP(context.Background(), metadata.Host)
+	}
 	if err != nil {
 		return err
 	}
