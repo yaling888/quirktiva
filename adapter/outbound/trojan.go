@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/net/http2"
 
+	"github.com/yaling888/clash/common/convert"
 	"github.com/yaling888/clash/component/dialer"
 	C "github.com/yaling888/clash/constant"
 	"github.com/yaling888/clash/transport/gun"
@@ -49,9 +50,10 @@ func (t *Trojan) plainStream(c net.Conn) (net.Conn, error) {
 	if t.option.Network == "ws" {
 		host, port, _ := net.SplitHostPort(t.addr)
 		wsOpts := &trojan.WebsocketOption{
-			Host: host,
-			Port: port,
-			Path: t.option.WSOpts.Path,
+			Host:    host,
+			Port:    port,
+			Path:    t.option.WSOpts.Path,
+			Headers: http.Header{},
 		}
 
 		if t.option.SNI != "" {
@@ -59,11 +61,13 @@ func (t *Trojan) plainStream(c net.Conn) (net.Conn, error) {
 		}
 
 		if len(t.option.WSOpts.Headers) != 0 {
-			header := http.Header{}
 			for key, value := range t.option.WSOpts.Headers {
-				header.Add(key, value)
+				wsOpts.Headers.Add(key, value)
 			}
-			wsOpts.Headers = header
+		}
+
+		if wsOpts.Headers.Get("User-Agent") == "" {
+			wsOpts.Headers.Set("User-Agent", convert.RandUserAgent())
 		}
 
 		return t.instance.StreamWebsocketConn(c, wsOpts)

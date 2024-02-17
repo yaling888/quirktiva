@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/yaling888/clash/common/convert"
 	"github.com/yaling888/clash/component/dialer"
 	C "github.com/yaling888/clash/constant"
 )
@@ -147,6 +148,10 @@ func NewHttp(option HttpOption) *Http {
 	headers := http.Header{}
 	for name, value := range option.Headers {
 		headers.Add(name, value)
+	}
+
+	if headers.Get("User-Agent") == "" {
+		headers.Set("User-Agent", convert.RandUserAgent())
 	}
 
 	return &Http{

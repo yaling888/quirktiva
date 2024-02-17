@@ -47,6 +47,9 @@ func NewV2rayObfs(conn net.Conn, option *Option) (net.Conn, error) {
 		}
 	} else if option.RandomHost {
 		config.Headers.Set("Host", convert.RandHost())
+	}
+
+	if config.Headers.Get("User-Agent") == "" {
 		config.Headers.Set("User-Agent", convert.RandUserAgent())
 	}
 

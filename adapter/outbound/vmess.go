@@ -107,11 +107,16 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 			}
 			if v.option.ServerName != "" {
 				wsOpts.TLSConfig.ServerName = v.option.ServerName
+				wsOpts.Host = v.option.ServerName
 			} else if host1 := wsOpts.Headers.Get("Host"); host1 != "" {
 				wsOpts.TLSConfig.ServerName = host1
+				wsOpts.Host = host1
 			}
 		} else if v.option.RandomHost || wsOpts.Headers.Get("Host") == "" {
 			wsOpts.Headers.Set("Host", convert.RandHost())
+		}
+
+		if wsOpts.Headers.Get("User-Agent") == "" {
 			wsOpts.Headers.Set("User-Agent", convert.RandUserAgent())
 		}
 		c, err = vmess.StreamWebsocketConn(c, wsOpts)
@@ -149,9 +154,11 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 
 		if !v.option.TLS && (v.option.RandomHost || len(v.option.HTTPOpts.Headers["Host"]) == 0) {
 			httpOpts.Headers["Host"] = []string{convert.RandHost()}
-			httpOpts.Headers["User-Agent"] = []string{convert.RandUserAgent()}
 		}
 
+		if len(v.option.HTTPOpts.Headers["User-Agent"]) == 0 {
+			httpOpts.Headers["User-Agent"] = []string{convert.RandUserAgent()}
+		}
 		c = vmess.StreamHTTPConn(c, httpOpts)
 	case "h2":
 		host, _, _ := net.SplitHostPort(v.addr)
