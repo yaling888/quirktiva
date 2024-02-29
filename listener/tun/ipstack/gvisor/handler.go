@@ -97,7 +97,7 @@ func (gh *gvHandler) HandleTCP(tunConn net.Conn) {
 	gh.tcpIn <- inbound.NewSocketBy(tunConn, lAddrPort, rAddrPort, C.TUN)
 }
 
-func (gh *gvHandler) HandleUDP(stack *stack.Stack, id stack.TransportEndpointID, pkt stack.PacketBufferPtr) {
+func (gh *gvHandler) HandleUDP(stack *stack.Stack, id stack.TransportEndpointID, pkt *stack.PacketBuffer) {
 	defer pkt.DecRef()
 
 	rAddr, ok := netip.AddrFromSlice(id.LocalAddress.AsSlice())

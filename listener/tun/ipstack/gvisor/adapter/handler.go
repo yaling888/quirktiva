@@ -12,11 +12,11 @@ import (
 // HandleTCPConn and HandleUDPConn methods.
 type Handler interface {
 	HandleTCP(net.Conn)
-	HandleUDP(*stack.Stack, stack.TransportEndpointID, stack.PacketBufferPtr)
+	HandleUDP(*stack.Stack, stack.TransportEndpointID, *stack.PacketBuffer)
 }
 
 // TCPHandleFunc handles incoming TCP connection.
 type TCPHandleFunc func(c net.Conn)
 
 // UDPHandleFunc handles incoming UDP connection.
-type UDPHandleFunc func(stack *stack.Stack, id stack.TransportEndpointID, pkt stack.PacketBufferPtr)
+type UDPHandleFunc func(stack *stack.Stack, id stack.TransportEndpointID, pkt *stack.PacketBuffer)

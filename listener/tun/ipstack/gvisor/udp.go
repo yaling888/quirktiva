@@ -60,14 +60,14 @@ func (pkt *packet) Drop() {
 }
 
 type forwarder struct {
-	handler func(*stack.Stack, stack.TransportEndpointID, stack.PacketBufferPtr)
+	handler func(*stack.Stack, stack.TransportEndpointID, *stack.PacketBuffer)
 
 	stack *stack.Stack
 }
 
 func newForwarder(
 	s *stack.Stack,
-	handler func(*stack.Stack, stack.TransportEndpointID, stack.PacketBufferPtr),
+	handler func(*stack.Stack, stack.TransportEndpointID, *stack.PacketBuffer),
 ) *forwarder {
 	return &forwarder{
 		stack:   s,
@@ -75,7 +75,7 @@ func newForwarder(
 	}
 }
 
-func (f *forwarder) HandlePacket(id stack.TransportEndpointID, pkt stack.PacketBufferPtr) bool {
+func (f *forwarder) HandlePacket(id stack.TransportEndpointID, pkt *stack.PacketBuffer) bool {
 	f.handler(f.stack, id, pkt.IncRef())
 	return true
 }
@@ -85,7 +85,7 @@ func withUDPHandler(handle adapter.UDPHandleFunc) option.Option {
 		udpForwarder := newForwarder(
 			s,
 			func(
-				st *stack.Stack, id stack.TransportEndpointID, pkt stack.PacketBufferPtr,
+				st *stack.Stack, id stack.TransportEndpointID, pkt *stack.PacketBuffer,
 			) {
 				handle(st, id, pkt)
 			})

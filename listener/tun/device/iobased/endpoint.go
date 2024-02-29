@@ -152,7 +152,7 @@ func (e *Endpoint) outboundLoop(ctx context.Context) {
 	buffs := make([][]byte, 0, 1)
 	for {
 		pkt := e.ReadContext(ctx)
-		if pkt.IsNil() {
+		if pkt == nil {
 			break
 		}
 		buffs = buffs[:0]
@@ -161,7 +161,7 @@ func (e *Endpoint) outboundLoop(ctx context.Context) {
 }
 
 // writePacket writes outbound packets to the io.Writer.
-func (e *Endpoint) writePacket(buffs [][]byte, pkt stack.PacketBufferPtr) tcpip.Error {
+func (e *Endpoint) writePacket(buffs [][]byte, pkt *stack.PacketBuffer) tcpip.Error {
 	var (
 		pktView *buffer.View
 		offset  = e.offset
