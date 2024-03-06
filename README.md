@@ -12,7 +12,7 @@
   <a href="https://goreportcard.com/report/github.com/yaling888/clash">
     <img src="https://goreportcard.com/badge/github.com/yaling888/clash?style=flat-square">
   </a>
-  <img src="https://img.shields.io/github/go-mod/go-version/yaling888/clash?style=flat-square">
+  <img src="https://img.shields.io/github/go-mod/go-version/yaling888/clash/plus-pro?style=flat-square">
   <a href="https://github.com/yaling888/clash/releases">
     <img src="https://img.shields.io/github/release/yaling888/clash/all.svg?style=flat-square">
   </a>
@@ -177,7 +177,7 @@ Finally, open the Clash
 - Support `multiport` condition for rule `SRC-PORT` and `DST-PORT`.
 - Support nestable "rule groups", `if` field is the same as the shortcut syntax and if none of the sub-rules match, then continue to match the next rule.
 
-Script shortcuts engines: [expr](https://expr.medv.io/) & [starlark](https://github.com/google/starlark-go).
+Script shortcuts engines: [expr](https://expr-lang.org/) & [starlark](https://github.com/google/starlark-go).
 
 ```yaml
 mode: rule
@@ -508,7 +508,7 @@ tun:
 * For [Windows](https://github.com/yaling888/SoulX).
 
 ### Web GUI
-Open the Dashboard online by click [http://yacd.clash-plus.cf](http://yacd.clash-plus.cf) for local API by Safari or [https://yacd.clash-plus.cf](https://yacd.clash-plus.cf) for local API by Chrome.
+Open the Dashboard online by click [http://yacd.eu.org](http://yacd.eu.org) for local API by Safari or [https://yacd.eu.org](https://yacd.eu.org) for local API by Chrome.
 
 You can download the [Dashboard](https://github.com/yaling888/yacd/archive/gh-pages.zip) into Clash home directory:
 ```sh
@@ -526,6 +526,16 @@ external-controller: 127.0.0.1:9090
 external-ui: dashboard
 ```
 Open [http://127.0.0.1:9090/ui/](http://127.0.0.1:9090/ui/) by web browser.
+
+### Set up a free tunnel server on Cloudflare Workers
+**NOTE**: The Cloudflare Workers outbound TCP sockets to [Cloudflare IP ranges](https://www.cloudflare.com/ips/) are temporarily blocked and the outbound UDP is not supported.
+
+1. Create a Cloudflare Worker application.
+2. Set up a custom domain for your Worker application.
+3. Check the repository [Trovle](https://github.com/yaling888/trovle), the transport `Trojan` and `VLESS` are supported.
+4. Copy [worker.js](https://github.com/yaling888/trovle/blob/main/worker.js) content into your Worker application.
+5. Edit the `configs`, modify the uuid and password.
+6. Save and deploy.
 
 ## Credits
 
