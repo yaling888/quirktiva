@@ -31,7 +31,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b
 	google.golang.org/protobuf v1.32.0
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20240304202520-a4d46d70bf88
+	gvisor.dev/gvisor v0.0.0-20240320211615-e349fdd2d833
 )
 
 require (
