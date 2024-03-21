@@ -17,7 +17,10 @@ import (
 	"github.com/yaling888/clash/component/resolver"
 	C "github.com/yaling888/clash/constant"
 	"github.com/yaling888/clash/transport/gun"
+	"github.com/yaling888/clash/transport/h1"
+	"github.com/yaling888/clash/transport/h2"
 	"github.com/yaling888/clash/transport/socks5"
+	tls2 "github.com/yaling888/clash/transport/tls"
 	"github.com/yaling888/clash/transport/vmess"
 )
 
@@ -62,8 +65,9 @@ type HTTPOptions struct {
 }
 
 type HTTP2Options struct {
-	Host []string `proxy:"host,omitempty"`
-	Path string   `proxy:"path,omitempty"`
+	Host    []string          `proxy:"host,omitempty"`
+	Path    string            `proxy:"path,omitempty"`
+	Headers map[string]string `proxy:"headers,omitempty"`
 }
 
 type GrpcOptions struct {
@@ -121,10 +125,10 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 		}
 		c, err = vmess.StreamWebsocketConn(c, wsOpts)
 	case "http":
-		host, _, _ := net.SplitHostPort(v.addr)
+		host := v.option.Server
 		// readability first, so just copy default TLS logic
 		if v.option.TLS {
-			tlsOpts := &vmess.TLSConfig{
+			tlsOpts := &tls2.Config{
 				Host:           host,
 				SkipCertVerify: v.option.SkipCertVerify,
 			}
@@ -133,13 +137,13 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 				tlsOpts.Host = v.option.ServerName
 			}
 
-			c, err = vmess.StreamTLSConn(c, tlsOpts)
+			c, err = tls2.StreamTLSConn(c, tlsOpts)
 			if err != nil {
 				return nil, err
 			}
 		}
 
-		httpOpts := &vmess.HTTPConfig{
+		httpOpts := &h1.HTTPConfig{
 			Host:    host,
 			Method:  v.option.HTTPOpts.Method,
 			Path:    v.option.HTTPOpts.Path,
@@ -159,11 +163,10 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 		if len(v.option.HTTPOpts.Headers["User-Agent"]) == 0 {
 			httpOpts.Headers["User-Agent"] = []string{convert.RandUserAgent()}
 		}
-		c = vmess.StreamHTTPConn(c, httpOpts)
+		c = h1.StreamHTTPConn(c, httpOpts)
 	case "h2":
-		host, _, _ := net.SplitHostPort(v.addr)
-		tlsOpts := vmess.TLSConfig{
-			Host:           host,
+		tlsOpts := tls2.Config{
+			Host:           v.option.Server,
 			SkipCertVerify: v.option.SkipCertVerify,
 			NextProtos:     []string{"h2"},
 		}
@@ -172,24 +175,35 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 			tlsOpts.Host = v.option.ServerName
 		}
 
-		c, err = vmess.StreamTLSConn(c, &tlsOpts)
+		c, err = tls2.StreamTLSConn(c, &tlsOpts)
 		if err != nil {
 			return nil, err
 		}
 
-		h2Opts := &vmess.H2Config{
-			Hosts: v.option.HTTP2Opts.Host,
-			Path:  v.option.HTTP2Opts.Path,
+		h2Opts := &h2.Config{
+			Hosts:   v.option.HTTP2Opts.Host,
+			Path:    v.option.HTTP2Opts.Path,
+			Headers: http.Header{},
 		}
 
-		c, err = vmess.StreamH2Conn(c, h2Opts)
+		if len(v.option.HTTP2Opts.Headers) != 0 {
+			for key, value := range v.option.HTTP2Opts.Headers {
+				h2Opts.Headers.Add(key, value)
+			}
+		}
+
+		if h2Opts.Headers.Get("User-Agent") == "" {
+			h2Opts.Headers.Set("User-Agent", convert.RandUserAgent())
+		}
+
+		c, err = h2.StreamH2Conn(c, h2Opts)
 	case "grpc":
 		c, err = gun.StreamGunWithConn(c, v.gunTLSConfig, v.gunConfig)
 	default:
 		// handle TLS
 		if v.option.TLS {
 			host, _, _ := net.SplitHostPort(v.addr)
-			tlsOpts := &vmess.TLSConfig{
+			tlsOpts := &tls2.Config{
 				Host:           host,
 				SkipCertVerify: v.option.SkipCertVerify,
 			}
@@ -198,7 +212,7 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 				tlsOpts.Host = v.option.ServerName
 			}
 
-			c, err = vmess.StreamTLSConn(c, tlsOpts)
+			c, err = tls2.StreamTLSConn(c, tlsOpts)
 		}
 	}
 
@@ -345,10 +359,15 @@ func NewVmess(option VmessOption) (*Vmess, error) {
 		option: &option,
 	}
 
+	host := option.Server
+	if option.ServerName != "" {
+		host = option.ServerName
+	}
+
 	switch option.Network {
 	case "h2":
 		if len(option.HTTP2Opts.Host) == 0 {
-			option.HTTP2Opts.Host = append(option.HTTP2Opts.Host, "www.example.com")
+			option.HTTP2Opts.Host = append(option.HTTP2Opts.Host, host)
 		}
 	case "grpc":
 		dialFn := func(network, addr string) (net.Conn, error) {

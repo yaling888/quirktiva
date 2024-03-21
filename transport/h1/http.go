@@ -1,4 +1,4 @@
-package vmess
+package h1
 
 import (
 	"bufio"
@@ -10,18 +10,20 @@ import (
 	"net/textproto"
 )
 
-type httpConn struct {
-	net.Conn
-	cfg        *HTTPConfig
-	reader     *bufio.Reader
-	whandshake bool
-}
-
 type HTTPConfig struct {
 	Method  string
 	Host    string
 	Path    []string
 	Headers map[string][]string
+}
+
+var _ net.Conn = (*httpConn)(nil)
+
+type httpConn struct {
+	net.Conn
+	cfg        *HTTPConfig
+	reader     *bufio.Reader
+	whandshake bool
 }
 
 // Read implements net.Conn.Read()

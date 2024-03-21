@@ -1,4 +1,4 @@
-package vmess
+package tls
 
 import (
 	"context"
@@ -8,13 +8,13 @@ import (
 	C "github.com/yaling888/clash/constant"
 )
 
-type TLSConfig struct {
+type Config struct {
 	Host           string
 	SkipCertVerify bool
 	NextProtos     []string
 }
 
-func StreamTLSConn(conn net.Conn, cfg *TLSConfig) (net.Conn, error) {
+func StreamTLSConn(conn net.Conn, cfg *Config) (net.Conn, error) {
 	tlsConfig := &tls.Config{
 		ServerName:         cfg.Host,
 		InsecureSkipVerify: cfg.SkipCertVerify,
