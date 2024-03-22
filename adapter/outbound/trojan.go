@@ -32,22 +32,24 @@ type Trojan struct {
 
 type TrojanOption struct {
 	BasicOption
-	Name             string      `proxy:"name"`
-	Server           string      `proxy:"server"`
-	Port             int         `proxy:"port"`
-	Password         string      `proxy:"password"`
-	ALPN             []string    `proxy:"alpn,omitempty"`
-	SNI              string      `proxy:"sni,omitempty"`
-	SkipCertVerify   bool        `proxy:"skip-cert-verify,omitempty"`
-	UDP              bool        `proxy:"udp,omitempty"`
-	Network          string      `proxy:"network,omitempty"`
-	GrpcOpts         GrpcOptions `proxy:"grpc-opts,omitempty"`
-	WSOpts           WSOptions   `proxy:"ws-opts,omitempty"`
-	RemoteDnsResolve bool        `proxy:"remote-dns-resolve,omitempty"`
+	Name             string       `proxy:"name"`
+	Server           string       `proxy:"server"`
+	Port             int          `proxy:"port"`
+	Password         string       `proxy:"password"`
+	ALPN             []string     `proxy:"alpn,omitempty"`
+	SNI              string       `proxy:"sni,omitempty"`
+	SkipCertVerify   bool         `proxy:"skip-cert-verify,omitempty"`
+	UDP              bool         `proxy:"udp,omitempty"`
+	Network          string       `proxy:"network,omitempty"`
+	GrpcOpts         GrpcOptions  `proxy:"grpc-opts,omitempty"`
+	WSOpts           WSOptions    `proxy:"ws-opts,omitempty"`
+	HTTP2Opts        HTTP2Options `proxy:"h2-opts,omitempty"`
+	RemoteDnsResolve bool         `proxy:"remote-dns-resolve,omitempty"`
 }
 
-func (t *Trojan) plainStream(c net.Conn) (net.Conn, error) {
-	if t.option.Network == "ws" {
+func (t *Trojan) plainStream(conn net.Conn) (net.Conn, error) {
+	switch t.option.Network {
+	case "ws":
 		host, port, _ := net.SplitHostPort(t.addr)
 		wsOpts := &trojan.WebsocketOption{
 			Host:    host,
@@ -70,10 +72,28 @@ func (t *Trojan) plainStream(c net.Conn) (net.Conn, error) {
 			wsOpts.Headers.Set("User-Agent", convert.RandUserAgent())
 		}
 
-		return t.instance.StreamWebsocketConn(c, wsOpts)
+		return t.instance.StreamWebsocketConn(conn, wsOpts)
+	case "h2":
+		h2Opts := &trojan.HTTPOptions{
+			Hosts:   t.option.HTTP2Opts.Host,
+			Path:    t.option.HTTP2Opts.Path,
+			Headers: http.Header{},
+		}
+
+		if len(t.option.HTTP2Opts.Headers) != 0 {
+			for key, value := range t.option.HTTP2Opts.Headers {
+				h2Opts.Headers.Add(key, value)
+			}
+		}
+
+		if h2Opts.Headers.Get("User-Agent") == "" {
+			h2Opts.Headers.Set("User-Agent", convert.RandUserAgent())
+		}
+
+		return t.instance.StreamH2Conn(conn, h2Opts)
 	}
 
-	return t.instance.StreamConn(c)
+	return t.instance.StreamConn(conn)
 }
 
 func (t *Trojan) trojanStream(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
@@ -225,7 +245,12 @@ func NewTrojan(option TrojanOption) (*Trojan, error) {
 		option:   &option,
 	}
 
-	if option.Network == "grpc" {
+	switch option.Network {
+	case "h2":
+		if len(option.HTTP2Opts.Host) == 0 {
+			option.HTTP2Opts.Host = append(option.HTTP2Opts.Host, tOption.ServerName)
+		}
+	case "grpc":
 		dialFn := func(network, addr string) (net.Conn, error) {
 			c, err := dialer.DialContext(context.Background(), "tcp", t.addr, t.Base.DialOptions()...)
 			if err != nil {

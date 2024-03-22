@@ -15,6 +15,7 @@ import (
 
 	"github.com/yaling888/clash/common/pool"
 	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/clash/transport/h2"
 	"github.com/yaling888/clash/transport/socks5"
 	"github.com/yaling888/clash/transport/vmess"
 )
@@ -43,6 +44,14 @@ type Option struct {
 	ALPN           []string
 	ServerName     string
 	SkipCertVerify bool
+}
+
+type HTTPOptions struct {
+	Host    string
+	Port    int
+	Hosts   []string
+	Path    string
+	Headers http.Header
 }
 
 type WebsocketOption struct {
@@ -80,6 +89,29 @@ func (t *Trojan) StreamConn(conn net.Conn) (net.Conn, error) {
 	}
 
 	return tlsConn, nil
+}
+
+func (t *Trojan) StreamH2Conn(conn net.Conn, h2Option *HTTPOptions) (net.Conn, error) {
+	tlsConfig := &tls.Config{
+		NextProtos:         []string{"h2"},
+		MinVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: t.option.SkipCertVerify,
+		ServerName:         t.option.ServerName,
+	}
+
+	tlsConn := tls.Client(conn, tlsConfig)
+
+	ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTLSTimeout)
+	defer cancel()
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
+		return nil, err
+	}
+
+	return h2.StreamH2Conn(tlsConn, &h2.Config{
+		Hosts:   h2Option.Hosts,
+		Path:    h2Option.Path,
+		Headers: h2Option.Headers,
+	})
 }
 
 func (t *Trojan) StreamWebsocketConn(conn net.Conn, wsOptions *WebsocketOption) (net.Conn, error) {

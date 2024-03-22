@@ -124,6 +124,48 @@ func TestClash_TrojanWebsocket(t *testing.T) {
 	testSuit(t, proxy)
 }
 
+func TestClash_TrojanHTTP2(t *testing.T) {
+	cfg := &container.Config{
+		Image:        ImageVmess,
+		ExposedPorts: defaultExposedPorts,
+		Entrypoint:   []string{"/usr/bin/v2ray"},
+		Cmd:          []string{"run", "-c", "/etc/v2ray/config.json"},
+	}
+	hostCfg := &container.HostConfig{
+		PortBindings: defaultPortBindings,
+		Binds: []string{
+			fmt.Sprintf("%s:/etc/v2ray/config.json", C.Path.Resolve("trojan-http2.json")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/fullchain.pem", C.Path.Resolve("example.org.pem")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/privkey.pem", C.Path.Resolve("example.org-key.pem")),
+		},
+	}
+
+	id, err := startContainer(cfg, hostCfg, "trojan-http2")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = cleanContainer(id)
+	})
+
+	proxy, err := outbound.NewTrojan(outbound.TrojanOption{
+		Name:           "trojan",
+		Server:         localIP.String(),
+		Port:           10002,
+		Password:       "example",
+		SNI:            "example.org",
+		SkipCertVerify: true,
+		UDP:            true,
+		Network:        "h2",
+		HTTP2Opts: outbound.HTTP2Options{
+			Host: []string{"example.org"},
+			Path: "/test",
+		},
+	})
+	require.NoError(t, err)
+
+	time.Sleep(waitTime)
+	testSuit(t, proxy)
+}
+
 func Benchmark_Trojan(b *testing.B) {
 	cfg := &container.Config{
 		Image:        ImageTrojan,

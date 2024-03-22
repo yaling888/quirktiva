@@ -12,7 +12,7 @@ import (
 	C "github.com/yaling888/clash/constant"
 )
 
-func TestWireGuard(t *testing.T) {
+func TestClash_WireGuard(t *testing.T) {
 	cfg := &container.Config{
 		Image:        ImageWireguardGo,
 		ExposedPorts: defaultExposedPorts,
