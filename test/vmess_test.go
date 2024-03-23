@@ -415,6 +415,138 @@ func TestClash_VmessWebsocketXray0RTT(t *testing.T) {
 	testSuit(t, proxy)
 }
 
+func TestClash_VmessQUIC(t *testing.T) {
+	cfg := &container.Config{
+		Image:        ImageVmess,
+		ExposedPorts: defaultExposedPorts,
+		Entrypoint:   []string{"/usr/bin/v2ray"},
+		Cmd:          []string{"run", "-c", "/etc/v2ray/config.json"},
+	}
+	hostCfg := &container.HostConfig{
+		PortBindings: defaultPortBindings,
+		Binds: []string{
+			fmt.Sprintf("%s:/etc/v2ray/config.json", C.Path.Resolve("vmess-quic.json")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/fullchain.pem", C.Path.Resolve("example.org.pem")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/privkey.pem", C.Path.Resolve("example.org-key.pem")),
+		},
+	}
+
+	id, err := startContainer(cfg, hostCfg, "vmess-quic")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		cleanContainer(id)
+	})
+
+	proxy, err := outbound.NewVmess(outbound.VmessOption{
+		Name:           "vmess",
+		Server:         localIP.String(),
+		Port:           10002,
+		UUID:           "b831381d-6324-4d53-ad4f-8cda48b30811",
+		Cipher:         "auto",
+		Network:        "quic",
+		TLS:            true,
+		SkipCertVerify: true,
+		UDP:            true,
+		ServerName:     "example.org",
+		ALPN:           []string{"h3"},
+	})
+	require.NoError(t, err)
+
+	time.Sleep(waitTime)
+	testSuit(t, proxy)
+}
+
+func TestClash_VmessQUIC_Encrypt(t *testing.T) {
+	cfg := &container.Config{
+		Image:        ImageVmess,
+		ExposedPorts: defaultExposedPorts,
+		Entrypoint:   []string{"/usr/bin/v2ray"},
+		Cmd:          []string{"run", "-c", "/etc/v2ray/config.json"},
+	}
+	hostCfg := &container.HostConfig{
+		PortBindings: defaultPortBindings,
+		Binds: []string{
+			fmt.Sprintf("%s:/etc/v2ray/config.json", C.Path.Resolve("vmess-quic-encrypt.json")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/fullchain.pem", C.Path.Resolve("example.org.pem")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/privkey.pem", C.Path.Resolve("example.org-key.pem")),
+		},
+	}
+
+	id, err := startContainer(cfg, hostCfg, "vmess-quic-encrypt")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		cleanContainer(id)
+	})
+
+	proxy, err := outbound.NewVmess(outbound.VmessOption{
+		Name:           "vmess",
+		Server:         localIP.String(),
+		Port:           10002,
+		UUID:           "b831381d-6324-4d53-ad4f-8cda48b30811",
+		Cipher:         "auto",
+		Network:        "quic",
+		TLS:            true,
+		SkipCertVerify: true,
+		UDP:            true,
+		ServerName:     "example.org",
+		ALPN:           []string{"h3"},
+		QUICOpts: outbound.QUICOptions{
+			Security: "aes-128-gcm",
+			Key:      "test",
+		},
+	})
+	require.NoError(t, err)
+
+	time.Sleep(waitTime)
+	testSuit(t, proxy)
+}
+
+func TestClash_VmessQUIC_Encrypt_OBFS(t *testing.T) {
+	cfg := &container.Config{
+		Image:        ImageVmess,
+		ExposedPorts: defaultExposedPorts,
+		Entrypoint:   []string{"/usr/bin/v2ray"},
+		Cmd:          []string{"run", "-c", "/etc/v2ray/config.json"},
+	}
+	hostCfg := &container.HostConfig{
+		PortBindings: defaultPortBindings,
+		Binds: []string{
+			fmt.Sprintf("%s:/etc/v2ray/config.json", C.Path.Resolve("vmess-quic-encrypt-obfs.json")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/fullchain.pem", C.Path.Resolve("example.org.pem")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/privkey.pem", C.Path.Resolve("example.org-key.pem")),
+		},
+	}
+
+	id, err := startContainer(cfg, hostCfg, "vmess-quic-encrypt-obfs")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		cleanContainer(id)
+	})
+
+	proxy, err := outbound.NewVmess(outbound.VmessOption{
+		Name:           "vmess",
+		Server:         localIP.String(),
+		Port:           10002,
+		UUID:           "b831381d-6324-4d53-ad4f-8cda48b30811",
+		Cipher:         "auto",
+		Network:        "quic",
+		TLS:            true,
+		SkipCertVerify: true,
+		UDP:            true,
+		ServerName:     "example.org",
+		ALPN:           []string{"h3"},
+		QUICOpts: outbound.QUICOptions{
+			Security: "aes-128-gcm",
+			Key:      "test",
+			Header:   "wechat-video",
+		},
+	})
+	require.NoError(t, err)
+
+	time.Sleep(waitTime)
+	testSuit(t, proxy)
+}
+
 func Benchmark_Vmess(b *testing.B) {
 	configPath := C.Path.Resolve("vmess.json")
 

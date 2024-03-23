@@ -386,6 +386,41 @@ proxies:
     # mtu: 1420
     udp: true
 
+  # Trojan QUIC
+  - name: "trojan-quic"
+    type: trojan
+    server: server
+    port: 443
+    password: password
+    udp: true
+    alpn:
+      - h3
+    sni: example.com
+    network: quic
+    quic-opts:
+      cipher: none # aes-128-gcm / chacha20-poly1305
+      key: your_key
+      obfs: none # srtp / utp / dtls / wechat-video / wireguard
+
+  # VMess QUIC
+  - name: "vmess-quic"
+    type: vmess
+    server: server
+    port: 443
+    uuid: uuid
+    alterId: 0
+    cipher: auto
+    udp: true
+    tls: true
+    alpn:
+      - h3
+    servername: example.com
+    network: quic
+    quic-opts:
+      cipher: none # aes-128-gcm / chacha20-poly1305
+      key: your_key
+      obfs: none # srtp / utp / dtls / wechat-video / wireguard
+
 proxy-groups:
   # Relay chains the proxies. proxies shall not contain a relay.
   # Support relay UDP traffic.

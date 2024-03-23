@@ -16,9 +16,12 @@ import (
 	"github.com/yaling888/clash/component/dialer"
 	"github.com/yaling888/clash/component/resolver"
 	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/clash/transport/crypto"
 	"github.com/yaling888/clash/transport/gun"
 	"github.com/yaling888/clash/transport/h1"
 	"github.com/yaling888/clash/transport/h2"
+	"github.com/yaling888/clash/transport/header"
+	"github.com/yaling888/clash/transport/quic"
 	"github.com/yaling888/clash/transport/socks5"
 	tls2 "github.com/yaling888/clash/transport/tls"
 	"github.com/yaling888/clash/transport/vmess"
@@ -35,6 +38,8 @@ type Vmess struct {
 	gunTLSConfig *tls.Config
 	gunConfig    *gun.Config
 	transport    *http2.Transport
+
+	quicAEAD *crypto.AEAD
 }
 
 type VmessOption struct {
@@ -49,11 +54,13 @@ type VmessOption struct {
 	Network          string       `proxy:"network,omitempty"`
 	TLS              bool         `proxy:"tls,omitempty"`
 	SkipCertVerify   bool         `proxy:"skip-cert-verify,omitempty"`
+	ALPN             []string     `proxy:"alpn,omitempty"`
 	ServerName       string       `proxy:"servername,omitempty"`
 	HTTPOpts         HTTPOptions  `proxy:"http-opts,omitempty"`
 	HTTP2Opts        HTTP2Options `proxy:"h2-opts,omitempty"`
 	GrpcOpts         GrpcOptions  `proxy:"grpc-opts,omitempty"`
 	WSOpts           WSOptions    `proxy:"ws-opts,omitempty"`
+	QUICOpts         QUICOptions  `proxy:"quic-opts,omitempty"`
 	RandomHost       bool         `proxy:"rand-host,omitempty"`
 	RemoteDnsResolve bool         `proxy:"remote-dns-resolve,omitempty"`
 }
@@ -79,6 +86,12 @@ type WSOptions struct {
 	Headers             map[string]string `proxy:"headers,omitempty"`
 	MaxEarlyData        int               `proxy:"max-early-data,omitempty"`
 	EarlyDataHeaderName string            `proxy:"early-data-header-name,omitempty"`
+}
+
+type QUICOptions struct {
+	Security string `proxy:"cipher,omitempty"`
+	Key      string `proxy:"key,omitempty"`
+	Header   string `proxy:"obfs,omitempty"`
 }
 
 // StreamConn implements C.ProxyAdapter
@@ -199,6 +212,22 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 		c, err = h2.StreamH2Conn(c, h2Opts)
 	case "grpc":
 		c, err = gun.StreamGunWithConn(c, v.gunTLSConfig, v.gunConfig)
+	case "quic":
+		quicOpts := &quic.Config{
+			Host:           v.option.Server,
+			Port:           v.option.Port,
+			ALPN:           v.option.ALPN,
+			ServerName:     v.option.Server,
+			SkipCertVerify: v.option.SkipCertVerify,
+			Header:         v.option.QUICOpts.Header,
+			AEAD:           v.quicAEAD,
+		}
+
+		if v.option.ServerName != "" {
+			quicOpts.ServerName = v.option.ServerName
+		}
+
+		c, err = quic.StreamQUICConn(c, quicOpts)
 	default:
 		// handle TLS
 		if v.option.TLS {
@@ -263,9 +292,9 @@ func (v *Vmess) DialContext(ctx context.Context, metadata *C.Metadata, opts ...d
 		return NewConn(c, v), nil
 	}
 
-	c, err := dialer.DialContext(ctx, "tcp", v.addr, v.Base.DialOptions(opts...)...)
+	c, err := v.dialContext(ctx, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("%s connect error: %w", v.addr, err)
+		return nil, err
 	}
 	tcpKeepAlive(c)
 	defer func(cc net.Conn, e error) {
@@ -306,9 +335,9 @@ func (v *Vmess) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 		return NewPacketConn(&vmessPacketConn{Conn: c, rAddr: metadata.UDPAddr()}, v), nil
 	}
 
-	c, err = dialer.DialContext(ctx, "tcp", v.addr, v.Base.DialOptions(opts...)...)
+	c, err = v.dialContext(ctx, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("%s connect error: %w", v.addr, err)
+		return nil, err
 	}
 
 	tcpKeepAlive(c)
@@ -322,6 +351,23 @@ func (v *Vmess) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 	}
 
 	return NewPacketConn(c.(net.PacketConn), v), nil
+}
+
+func (v *Vmess) dialContext(ctx context.Context, opts ...dialer.Option) (net.Conn, error) {
+	switch v.option.Network {
+	case "quic":
+		c, err := dialer.ListenPacket(ctx, "udp", "", v.Base.DialOptions(opts...)...)
+		if err != nil {
+			return nil, fmt.Errorf("%s connect error: %w", v.addr, err)
+		}
+		return c.(*net.UDPConn), nil
+	}
+
+	c, err := dialer.DialContext(ctx, "tcp", v.addr, v.Base.DialOptions(opts...)...)
+	if err != nil {
+		return nil, fmt.Errorf("%s connect error: %w", v.addr, err)
+	}
+	return c, nil
 }
 
 func NewVmess(option VmessOption) (*Vmess, error) {
@@ -339,9 +385,9 @@ func NewVmess(option VmessOption) (*Vmess, error) {
 	}
 
 	switch option.Network {
-	case "h2", "grpc":
+	case "h2", "grpc", "quic":
 		if !option.TLS {
-			return nil, fmt.Errorf("TLS must be true with h2/grpc network")
+			return nil, fmt.Errorf("TLS must be true with h2/grpc/quic network")
 		}
 	}
 
@@ -397,6 +443,16 @@ func NewVmess(option VmessOption) (*Vmess, error) {
 		v.gunTLSConfig = tlsConfig
 		v.gunConfig = gunConfig
 		v.transport = gun.NewHTTP2Client(dialFn, tlsConfig)
+	case "quic":
+		quicAEAD, err := crypto.NewAEAD(v.option.QUICOpts.Security, v.option.QUICOpts.Key, "v2ray-quic-salt")
+		if err != nil {
+			return nil, fmt.Errorf("invalid quic-opts: %w", err)
+		}
+		v.quicAEAD = quicAEAD
+		_, err = header.New(v.option.QUICOpts.Header)
+		if err != nil {
+			return nil, fmt.Errorf("invalid quic-opts: %w", err)
+		}
 	}
 
 	return v, nil

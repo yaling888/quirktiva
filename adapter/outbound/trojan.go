@@ -13,7 +13,10 @@ import (
 	"github.com/yaling888/clash/common/convert"
 	"github.com/yaling888/clash/component/dialer"
 	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/clash/transport/crypto"
 	"github.com/yaling888/clash/transport/gun"
+	"github.com/yaling888/clash/transport/header"
+	"github.com/yaling888/clash/transport/quic"
 	"github.com/yaling888/clash/transport/trojan"
 )
 
@@ -28,6 +31,8 @@ type Trojan struct {
 	gunTLSConfig *tls.Config
 	gunConfig    *gun.Config
 	transport    *http2.Transport
+
+	quicAEAD *crypto.AEAD
 }
 
 type TrojanOption struct {
@@ -44,6 +49,7 @@ type TrojanOption struct {
 	GrpcOpts         GrpcOptions  `proxy:"grpc-opts,omitempty"`
 	WSOpts           WSOptions    `proxy:"ws-opts,omitempty"`
 	HTTP2Opts        HTTP2Options `proxy:"h2-opts,omitempty"`
+	QUICOpts         QUICOptions  `proxy:"quic-opts,omitempty"`
 	RemoteDnsResolve bool         `proxy:"remote-dns-resolve,omitempty"`
 }
 
@@ -91,6 +97,22 @@ func (t *Trojan) plainStream(conn net.Conn) (net.Conn, error) {
 		}
 
 		return t.instance.StreamH2Conn(conn, h2Opts)
+	case "quic":
+		quicOpts := &quic.Config{
+			Host:           t.option.Server,
+			Port:           t.option.Port,
+			ALPN:           t.option.ALPN,
+			ServerName:     t.option.Server,
+			SkipCertVerify: t.option.SkipCertVerify,
+			Header:         t.option.QUICOpts.Header,
+			AEAD:           t.quicAEAD,
+		}
+
+		if t.option.SNI != "" {
+			quicOpts.ServerName = t.option.SNI
+		}
+
+		return quic.StreamQUICConn(conn, quicOpts)
 	}
 
 	return t.instance.StreamConn(conn)
@@ -156,9 +178,9 @@ func (t *Trojan) DialContext(ctx context.Context, metadata *C.Metadata, opts ...
 		return NewConn(c, t), nil
 	}
 
-	c, err = dialer.DialContext(ctx, "tcp", t.addr, t.Base.DialOptions(opts...)...)
+	c, err = t.dialContext(ctx, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("%s connect error: %w", t.addr, err)
+		return nil, err
 	}
 	tcpKeepAlive(c)
 
@@ -198,9 +220,9 @@ func (t *Trojan) ListenPacketContext(ctx context.Context, metadata *C.Metadata, 
 		return NewPacketConn(pc, t), nil
 	}
 
-	c, err = dialer.DialContext(ctx, "tcp", t.addr, t.Base.DialOptions(opts...)...)
+	c, err = t.dialContext(ctx, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("%s connect error: %w", t.addr, err)
+		return nil, err
 	}
 
 	tcpKeepAlive(c)
@@ -215,6 +237,23 @@ func (t *Trojan) ListenPacketContext(ctx context.Context, metadata *C.Metadata, 
 	}
 
 	return NewPacketConn(c.(net.PacketConn), t), nil
+}
+
+func (t *Trojan) dialContext(ctx context.Context, opts ...dialer.Option) (net.Conn, error) {
+	switch t.option.Network {
+	case "quic":
+		c, err := dialer.ListenPacket(ctx, "udp", "", t.Base.DialOptions(opts...)...)
+		if err != nil {
+			return nil, fmt.Errorf("%s connect error: %w", t.addr, err)
+		}
+		return c.(*net.UDPConn), nil
+	}
+
+	c, err := dialer.DialContext(ctx, "tcp", t.addr, t.Base.DialOptions(opts...)...)
+	if err != nil {
+		return nil, fmt.Errorf("%s connect error: %w", t.addr, err)
+	}
+	return c, nil
 }
 
 func NewTrojan(option TrojanOption) (*Trojan, error) {
@@ -273,6 +312,16 @@ func NewTrojan(option TrojanOption) (*Trojan, error) {
 		t.gunConfig = &gun.Config{
 			ServiceName: option.GrpcOpts.GrpcServiceName,
 			Host:        tOption.ServerName,
+		}
+	case "quic":
+		quicAEAD, err := crypto.NewAEAD(t.option.QUICOpts.Security, t.option.QUICOpts.Key, "v2ray-quic-salt")
+		if err != nil {
+			return nil, fmt.Errorf("invalid quic-opts: %w", err)
+		}
+		t.quicAEAD = quicAEAD
+		_, err = header.New(t.option.QUICOpts.Header)
+		if err != nil {
+			return nil, fmt.Errorf("invalid quic-opts: %w", err)
 		}
 	}
 

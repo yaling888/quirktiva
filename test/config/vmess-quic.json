@@ -1,0 +1,46 @@
+{
+    "inbounds": [
+        {
+            "port": 10002,
+            "listen": "0.0.0.0",
+            "protocol": "vmess",
+            "settings": {
+                "clients": [
+                    {
+                        "id": "b831381d-6324-4d53-ad4f-8cda48b30811"
+                    }
+                ]
+            },
+            "streamSettings": {
+                "network": "quic",
+                "security": "tls",
+                "tlsSettings": {
+                    "alpn": [
+                        "h3"
+                    ],
+                    "certificates": [
+                        {
+                            "certificateFile": "/etc/ssl/v2ray/fullchain.pem",
+                            "keyFile": "/etc/ssl/v2ray/privkey.pem"
+                        }
+                    ]
+                },
+                "quicSettings": {
+                    "security": "none",
+                    "key": "",
+                    "header": {
+                        "type": "none"
+                    }
+                }
+            }
+        }
+    ],
+    "outbounds": [
+        {
+            "protocol": "freedom"
+        }
+    ],
+    "log": {
+        "loglevel": "debug"
+    }
+}

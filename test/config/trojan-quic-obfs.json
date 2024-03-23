@@ -1,0 +1,47 @@
+{
+    "inbounds": [
+        {
+            "port": 10002,
+            "listen": "0.0.0.0",
+            "protocol": "trojan",
+            "settings": {
+                "clients": [
+                    {
+                        "password": "example",
+                        "email": "quic@example.com"
+                    }
+                ]
+            },
+            "streamSettings": {
+                "network": "quic",
+                "security": "tls",
+                "tlsSettings": {
+                    "alpn": [
+                        "h3"
+                    ],
+                    "certificates": [
+                        {
+                            "certificateFile": "/etc/ssl/v2ray/fullchain.pem",
+                            "keyFile": "/etc/ssl/v2ray/privkey.pem"
+                        }
+                    ]
+                },
+                "quicSettings": {
+                    "security": "none",
+                    "key": "",
+                    "header": {
+                        "type": "dtls"
+                    }
+                }
+            }
+        }
+    ],
+    "outbounds": [
+        {
+            "protocol": "freedom"
+        }
+    ],
+    "log": {
+        "loglevel": "debug"
+    }
+}
