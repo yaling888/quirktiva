@@ -40,7 +40,9 @@ type rawConn struct {
 }
 
 func (rc *rawConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
-	if rc.header == nil && rc.cipher == nil {
+	obfs := rc.header
+	cipher := rc.cipher
+	if obfs == nil && cipher == nil {
 		return rc.PacketConn.ReadFrom(p)
 	}
 
@@ -48,13 +50,13 @@ func (rc *rawConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	defer pool.PutBufferWriter(bufP)
 
 	offset := 0
-	if rc.header != nil {
-		offset = rc.header.Size()
+	if obfs != nil {
+		offset = obfs.Size()
 	}
 
 	bufP.Grow(offset + len(p))
-	if rc.cipher != nil {
-		bufP.Grow(rc.cipher.NonceSize() + rc.cipher.Overhead())
+	if cipher != nil {
+		bufP.Grow(cipher.NonceSize() + cipher.Overhead())
 	}
 
 	for {
@@ -66,7 +68,7 @@ func (rc *rawConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 			continue
 		}
 
-		if rc.cipher == nil {
+		if cipher == nil {
 			nr := n - offset
 			n = copy(p, bufP.Bytes()[offset:n])
 			if n < nr && err == nil {
@@ -75,7 +77,7 @@ func (rc *rawConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 			return
 		}
 
-		b, er := rc.cipher.Decrypt(bufP.Bytes()[offset:n])
+		b, er := cipher.Decrypt(bufP.Bytes()[offset:n])
 		if er != nil {
 			if err != nil {
 				return
@@ -92,20 +94,22 @@ func (rc *rawConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 }
 
 func (rc *rawConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
-	if rc.header == nil && rc.cipher == nil {
+	obfs := rc.header
+	cipher := rc.cipher
+	if obfs == nil && cipher == nil {
 		return rc.PacketConn.WriteTo(p, addr)
 	}
 
 	bufP := pool.GetBufferWriter()
 	defer pool.PutBufferWriter(bufP)
 
-	if rc.header != nil {
-		bufP.Grow(rc.header.Size())
-		rc.header.Fill(bufP.Bytes())
+	if obfs != nil {
+		bufP.Grow(obfs.Size())
+		obfs.Fill(bufP.Bytes())
 	}
 
-	if rc.cipher != nil {
-		_, err = rc.cipher.Encrypt(bufP, p)
+	if cipher != nil {
+		_, err = cipher.Encrypt(bufP, p)
 		if err != nil {
 			return
 		}
