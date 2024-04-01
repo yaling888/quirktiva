@@ -53,23 +53,24 @@ type Vless struct {
 
 type VlessOption struct {
 	BasicOption
-	Name             string       `proxy:"name"`
-	Server           string       `proxy:"server"`
-	Port             int          `proxy:"port"`
-	UUID             string       `proxy:"uuid"`
-	UDP              bool         `proxy:"udp,omitempty"`
-	Network          string       `proxy:"network,omitempty"`
-	TLS              bool         `proxy:"tls,omitempty"`
-	SkipCertVerify   bool         `proxy:"skip-cert-verify,omitempty"`
-	ALPN             []string     `proxy:"alpn,omitempty"`
-	ServerName       string       `proxy:"servername,omitempty"`
-	HTTPOpts         HTTPOptions  `proxy:"http-opts,omitempty"`
-	HTTP2Opts        HTTP2Options `proxy:"h2-opts,omitempty"`
-	GrpcOpts         GrpcOptions  `proxy:"grpc-opts,omitempty"`
-	WSOpts           WSOptions    `proxy:"ws-opts,omitempty"`
-	QUICOpts         QUICOptions  `proxy:"quic-opts,omitempty"`
-	RandomHost       bool         `proxy:"rand-host,omitempty"`
-	RemoteDnsResolve bool         `proxy:"remote-dns-resolve,omitempty"`
+	Name             string            `proxy:"name"`
+	Server           string            `proxy:"server"`
+	Port             int               `proxy:"port"`
+	UUID             string            `proxy:"uuid"`
+	UDP              bool              `proxy:"udp,omitempty"`
+	Network          string            `proxy:"network,omitempty"`
+	TLS              bool              `proxy:"tls,omitempty"`
+	SkipCertVerify   bool              `proxy:"skip-cert-verify,omitempty"`
+	ALPN             []string          `proxy:"alpn,omitempty"`
+	ServerName       string            `proxy:"servername,omitempty"`
+	HTTPOpts         HTTPOptions       `proxy:"http-opts,omitempty"`
+	HTTP2Opts        HTTP2Options      `proxy:"h2-opts,omitempty"`
+	GrpcOpts         GrpcOptions       `proxy:"grpc-opts,omitempty"`
+	WSOpts           WSOptions         `proxy:"ws-opts,omitempty"`
+	QUICOpts         QUICOptions       `proxy:"quic-opts,omitempty"`
+	AEADOpts         crypto.AEADOption `proxy:"aead-opts,omitempty"`
+	RandomHost       bool              `proxy:"rand-host,omitempty"`
+	RemoteDnsResolve bool              `proxy:"remote-dns-resolve,omitempty"`
 }
 
 // StreamConn implements C.ProxyAdapter
@@ -223,6 +224,11 @@ func (v *Vless) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 		}
 	}
 
+	if err != nil {
+		return nil, err
+	}
+
+	c, err = crypto.StreamAEADConnOrNot(c, v.option.AEADOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -465,6 +471,10 @@ func writePacket(w io.Writer, b []byte) (n int, err error) {
 func NewVless(option VlessOption) (*Vless, error) {
 	if option.Network != "ws" && !option.TLS {
 		return nil, errors.New("TLS must be true with tcp/http/h2/grpc/quic network")
+	}
+
+	if _, err := crypto.VerifyAEADOption(option.AEADOpts, true); err != nil {
+		return nil, err
 	}
 
 	client, err := vless.NewClient(option.UUID)

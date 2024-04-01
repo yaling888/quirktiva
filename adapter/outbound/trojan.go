@@ -37,20 +37,21 @@ type Trojan struct {
 
 type TrojanOption struct {
 	BasicOption
-	Name             string       `proxy:"name"`
-	Server           string       `proxy:"server"`
-	Port             int          `proxy:"port"`
-	Password         string       `proxy:"password"`
-	ALPN             []string     `proxy:"alpn,omitempty"`
-	SNI              string       `proxy:"sni,omitempty"`
-	SkipCertVerify   bool         `proxy:"skip-cert-verify,omitempty"`
-	UDP              bool         `proxy:"udp,omitempty"`
-	Network          string       `proxy:"network,omitempty"`
-	GrpcOpts         GrpcOptions  `proxy:"grpc-opts,omitempty"`
-	WSOpts           WSOptions    `proxy:"ws-opts,omitempty"`
-	HTTP2Opts        HTTP2Options `proxy:"h2-opts,omitempty"`
-	QUICOpts         QUICOptions  `proxy:"quic-opts,omitempty"`
-	RemoteDnsResolve bool         `proxy:"remote-dns-resolve,omitempty"`
+	Name             string            `proxy:"name"`
+	Server           string            `proxy:"server"`
+	Port             int               `proxy:"port"`
+	Password         string            `proxy:"password"`
+	ALPN             []string          `proxy:"alpn,omitempty"`
+	SNI              string            `proxy:"sni,omitempty"`
+	SkipCertVerify   bool              `proxy:"skip-cert-verify,omitempty"`
+	UDP              bool              `proxy:"udp,omitempty"`
+	Network          string            `proxy:"network,omitempty"`
+	GrpcOpts         GrpcOptions       `proxy:"grpc-opts,omitempty"`
+	WSOpts           WSOptions         `proxy:"ws-opts,omitempty"`
+	HTTP2Opts        HTTP2Options      `proxy:"h2-opts,omitempty"`
+	QUICOpts         QUICOptions       `proxy:"quic-opts,omitempty"`
+	AEADOpts         crypto.AEADOption `proxy:"aead-opts,omitempty"`
+	RemoteDnsResolve bool              `proxy:"remote-dns-resolve,omitempty"`
 }
 
 func (t *Trojan) plainStream(conn net.Conn) (net.Conn, error) {
@@ -124,6 +125,10 @@ func (t *Trojan) trojanStream(c net.Conn, metadata *C.Metadata) (net.Conn, error
 		c, err = gun.StreamGunWithConn(c, t.gunTLSConfig, t.gunConfig)
 	} else {
 		c, err = t.plainStream(c)
+		if err != nil {
+			return nil, fmt.Errorf("%s connect error: %w", t.addr, err)
+		}
+		c, err = crypto.StreamAEADConnOrNot(c, t.option.AEADOpts)
 	}
 
 	if err != nil {
@@ -257,6 +262,10 @@ func (t *Trojan) dialContext(ctx context.Context, opts ...dialer.Option) (net.Co
 }
 
 func NewTrojan(option TrojanOption) (*Trojan, error) {
+	if _, err := crypto.VerifyAEADOption(option.AEADOpts, true); err != nil {
+		return nil, err
+	}
+
 	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 
 	tOption := &trojan.Option{
