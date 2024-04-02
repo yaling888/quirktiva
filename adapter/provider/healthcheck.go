@@ -88,8 +88,7 @@ func (hc *HealthCheck) check(proxies []C.Proxy) {
 		return
 	}
 	b, _ := batch.New[bool](context.Background(), batch.WithConcurrencyNum[bool](10))
-	for _, proxy := range proxies {
-		p := proxy
+	for _, p := range proxies {
 		b.Go(p.Name(), func() (bool, error) {
 			ctx, cancel := context.WithTimeout(context.Background(), defaultURLTestTimeout)
 			defer cancel()

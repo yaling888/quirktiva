@@ -58,24 +58,24 @@ func findProcessPath(network string, from netip.AddrPort, _ netip.AddrPort) (str
 	// skip the first xinpgen(24 bytes) block
 	for i := 24; i+itemSize <= len(buf); i += itemSize {
 		// offset of xinpcb_n and xsocket_n
-		inp, so := i, i+104
+		so := i + 104
 
-		srcPort := binary.BigEndian.Uint16(buf[inp+18 : inp+20])
+		srcPort := binary.BigEndian.Uint16(buf[i+18 : i+20])
 		if from.Port() != srcPort {
 			continue
 		}
 
 		// xinpcb_n.inp_vflag
-		flag := buf[inp+44]
+		flag := buf[i+44]
 
 		var srcIP netip.Addr
 		switch {
 		case flag&0x1 > 0:
 			// ipv4
-			srcIP, _ = netip.AddrFromSlice(buf[inp+76 : inp+80])
+			srcIP, _ = netip.AddrFromSlice(buf[i+76 : i+80])
 		case flag&0x2 > 0:
 			// ipv6
-			srcIP, _ = netip.AddrFromSlice(buf[inp+64 : inp+80])
+			srcIP, _ = netip.AddrFromSlice(buf[i+64 : i+80])
 		default:
 			continue
 		}

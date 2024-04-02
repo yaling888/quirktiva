@@ -117,8 +117,7 @@ startOver:
 		}
 
 		deduplicatedRoutes := make([]*winipcfg.RouteData, 0, len(routes))
-		for route := range routes {
-			r := route
+		for r := range routes {
 			deduplicatedRoutes = append(deduplicatedRoutes, &r)
 		}
 

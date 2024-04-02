@@ -56,8 +56,11 @@ func (r *RewriteRule) ReplaceSubPayload(oldData string) (string, bool) {
 		return oldData, false
 	}
 
-	var ok bool
-	for i, payload, pl := 0, "", len(r.rulePayload); i < len(r.ruleRegx); i++ {
+	var (
+		ok      bool
+		payload string
+	)
+	for i, pl := 0, len(r.rulePayload); i < len(r.ruleRegx); i++ {
 		regx := r.ruleRegx[i]
 		if i < pl {
 			payload = r.rulePayload[i]
