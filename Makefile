@@ -1,7 +1,7 @@
 NAME=clash-plus-pro
 BINDIR=bin
 VERSION=$(shell git describe --tags --always || echo "unknown version")
-BUILDTIME=$(shell date -u)
+BUILDTIME=$(shell date -u +'%FT%TZ')
 GOBUILD=CGO_ENABLED=0 go build -trimpath -ldflags '-X "github.com/yaling888/clash/constant.Version=$(VERSION)" \
 		-X "github.com/yaling888/clash/constant.BuildTime=$(BUILDTIME)" \
 		-w -s -buildid='
@@ -171,11 +171,11 @@ lint_os_list := darwin windows linux freebsd openbsd
 
 lint: $(foreach os,$(lint_os_list),$(os)-lint)
 %-lint:
-	GOOS=$* golangci-lint run --timeout=3m ./...
+	GOOS=$* golangci-lint run ./...
 
 lint-fix: $(foreach os,$(lint_os_list),$(os)-lint-fix)
 %-lint-fix:
-	GOOS=$* golangci-lint run --timeout=3m --fix ./...
+	GOOS=$* golangci-lint run --fix ./...
 
 clean:
 	rm -rf $(BINDIR)/*
