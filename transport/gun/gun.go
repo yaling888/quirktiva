@@ -1,6 +1,3 @@
-// Modified from: https://github.com/Qv2ray/gun-lite
-// License: MIT
-
 package gun
 
 import (
@@ -21,6 +18,7 @@ import (
 	"golang.org/x/net/http2"
 
 	"github.com/yaling888/clash/common/pool"
+	C "github.com/yaling888/clash/constant"
 )
 
 var (
@@ -30,23 +28,25 @@ var (
 		"content-type": []string{"application/grpc"},
 		"user-agent":   []string{"grpc-go/1.36.0"},
 	}
+
+	defaultALPN = []string{"h2", "http/1.1"}
 )
 
 type DialFn = func(network, addr string) (net.Conn, error)
 
-type Conn struct {
-	response  *http.Response
-	request   *http.Request
-	transport *http2.Transport
-	writer    *io.PipeWriter
-	once      sync.Once
-	close     *atomic.Bool
-	err       error
-	remain    int
-	br        *bufio.Reader
+var _ net.Conn = (*Conn)(nil)
 
-	// deadlines
-	deadline *time.Timer
+type Conn struct {
+	net.Conn
+	clientConn *http2.ClientConn
+	response   *http.Response
+	request    *http.Request
+	writer     *io.PipeWriter
+	once       sync.Once
+	close      *atomic.Bool
+	err        error
+	remain     int
+	br         *bufio.Reader
 }
 
 type Config struct {
@@ -55,7 +55,7 @@ type Config struct {
 }
 
 func (g *Conn) initRequest() {
-	response, err := g.transport.RoundTrip(g.request)
+	response, err := g.clientConn.RoundTrip(g.request)
 	if err != nil {
 		g.err = err
 		_ = g.writer.Close()
@@ -162,36 +162,29 @@ func (g *Conn) Close() error {
 		_ = r.Body.Close()
 	}
 
-	return g.writer.Close()
-}
+	_ = g.writer.Close()
 
-func (g *Conn) LocalAddr() net.Addr                { return &net.TCPAddr{IP: net.IPv4zero, Port: 0} }
-func (g *Conn) RemoteAddr() net.Addr               { return &net.TCPAddr{IP: net.IPv4zero, Port: 0} }
-func (g *Conn) SetReadDeadline(t time.Time) error  { return g.SetDeadline(t) }
-func (g *Conn) SetWriteDeadline(t time.Time) error { return g.SetDeadline(t) }
-
-func (g *Conn) SetDeadline(t time.Time) error {
-	d := time.Until(t)
-	if g.deadline != nil {
-		g.deadline.Reset(d)
-		return nil
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := g.clientConn.Shutdown(ctx); err != nil {
+		return err
 	}
-	g.deadline = time.AfterFunc(d, func() {
-		_ = g.Close()
-	})
-	return nil
+
+	return g.Conn.Close()
 }
 
 func NewHTTP2Client(dialFn DialFn, tlsConfig *tls.Config) *http2.Transport {
 	dialFunc := func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
-		pconn, err := dialFn(network, addr)
+		plainConn, err := dialFn(network, addr)
 		if err != nil {
 			return nil, err
 		}
 
-		cn := tls.Client(pconn, cfg)
+		cfg.NextProtos = defaultALPN
+
+		cn := tls.Client(plainConn, cfg)
 		if err = cn.HandshakeContext(ctx); err != nil {
-			_ = pconn.Close()
+			_ = plainConn.Close()
 			return nil, err
 		}
 		state := cn.ConnectionState()
@@ -212,6 +205,18 @@ func NewHTTP2Client(dialFn DialFn, tlsConfig *tls.Config) *http2.Transport {
 }
 
 func StreamGunWithTransport(transport *http2.Transport, cfg *Config) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTLSTimeout)
+	defer cancel()
+	tlsConn, err := transport.DialTLSContext(ctx, "", "", transport.TLSClientConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	clientConn, err := transport.NewClientConn(tlsConn)
+	if err != nil {
+		return nil, err
+	}
+
 	serviceName := "GunService"
 	if cfg.ServiceName != "" {
 		serviceName = cfg.ServiceName
@@ -235,10 +240,11 @@ func StreamGunWithTransport(transport *http2.Transport, cfg *Config) (net.Conn, 
 	}
 
 	conn := &Conn{
-		request:   request,
-		transport: transport,
-		writer:    writer,
-		close:     atomic.NewBool(false),
+		Conn:       tlsConn,
+		clientConn: clientConn,
+		request:    request,
+		writer:     writer,
+		close:      atomic.NewBool(false),
 	}
 
 	go conn.once.Do(conn.initRequest)
@@ -246,7 +252,7 @@ func StreamGunWithTransport(transport *http2.Transport, cfg *Config) (net.Conn, 
 }
 
 func StreamGunWithConn(conn net.Conn, tlsConfig *tls.Config, cfg *Config) (net.Conn, error) {
-	dialFn := func(network, addr string) (net.Conn, error) {
+	dialFn := func(_, _ string) (net.Conn, error) {
 		return conn, nil
 	}
 

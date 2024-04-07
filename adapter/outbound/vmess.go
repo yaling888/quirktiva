@@ -416,8 +416,10 @@ func NewVmess(option VmessOption) (*Vmess, error) {
 			option.HTTP2Opts.Host = append(option.HTTP2Opts.Host, host)
 		}
 	case "grpc":
-		dialFn := func(network, addr string) (net.Conn, error) {
-			c, err := dialer.DialContext(context.Background(), "tcp", v.addr, v.Base.DialOptions()...)
+		dialFn := func(_, _ string) (net.Conn, error) {
+			ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTCPTimeout)
+			defer cancel()
+			c, err := dialer.DialContext(ctx, "tcp", v.addr, v.Base.DialOptions()...)
 			if err != nil {
 				return nil, fmt.Errorf("%s connect error: %w", v.addr, err)
 			}
