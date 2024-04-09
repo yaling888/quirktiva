@@ -21,6 +21,7 @@ import (
 const (
 	// dotMimeType is the DoH mimetype that should be used.
 	dotMimeType = "application/dns-message"
+	userAgent   = "dns"
 )
 
 type contextKey string
@@ -112,6 +113,7 @@ func (dc *dohClient) newRequest(m *D.Msg) (*http.Request, error) {
 
 	req.Header.Set("content-type", dotMimeType)
 	req.Header.Set("accept", dotMimeType)
+	req.Header.Set("user-agent", userAgent)
 	return req, nil
 }
 
@@ -160,6 +162,7 @@ func (dc *dohClient) getTransport(proxy string) *http.Transport {
 
 func newDoHClient(url string, proxy string, r *Resolver) *dohClient {
 	u, _ := urlPkg.Parse(url)
+	u.Scheme = "https"
 	host := u.Hostname()
 	port := u.Port()
 	if port == "" {
@@ -179,7 +182,7 @@ func newDoHClient(url string, proxy string, r *Resolver) *dohClient {
 
 	return &dohClient{
 		r:        r,
-		url:      url,
+		url:      u.String(),
 		addr:     addr,
 		proxy:    proxy,
 		urlLog:   url,
