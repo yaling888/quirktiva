@@ -138,7 +138,10 @@ func transform(servers []NameServer, r *Resolver) []dnsClient {
 	for _, s := range servers {
 		switch s.Net {
 		case "https":
-			ret = append(ret, newDoHClient(s.Addr, s.Proxy, r))
+			ret = append(ret, newDoHClient(s.Addr, s.Proxy, false, r))
+			continue
+		case "http3":
+			ret = append(ret, newDoHClient(s.Addr, s.Proxy, true, r))
 			continue
 		case "dhcp":
 			ret = append(ret, newDHCPClient(s.Addr))
@@ -339,6 +342,64 @@ func getTCPConn(ctx context.Context, addr string) (conn net.Conn, err error) {
 			_ = c.SetKeepAlive(true)
 		}
 	}
+	return
+}
+
+var _ net.PacketConn = (*quicConn)(nil)
+
+type quicConn struct {
+	net.PacketConn
+}
+
+func listenContextByProxyOrInterface(
+	ctx context.Context,
+	dstIP netip.Addr,
+	port string,
+	proxyOrInterface string,
+	opts ...dialer.Option,
+) (net.PacketConn, error) {
+	proxy, ok := tunnel.FindProxyByName(proxyOrInterface)
+	if !ok {
+		opts = []dialer.Option{dialer.WithInterface(proxyOrInterface), dialer.WithRoutingMark(0)}
+		conn, err := dialer.ListenPacket(ctx, "udp", "", opts...)
+		if err == nil {
+			return conn, nil
+		}
+		return nil, fmt.Errorf("proxy %s not found, %w", proxyOrInterface, err)
+	}
+
+	if !proxy.SupportUDP() || proxy.Type() != C.Shadowsocks {
+		return nil, fmt.Errorf("proxy %s UDP is not supported", proxy.Name())
+	}
+
+	p, _ := strconv.ParseUint(port, 10, 16)
+	metadata := &C.Metadata{
+		NetWork: C.UDP,
+		Host:    "",
+		DstIP:   dstIP,
+		DstPort: C.Port(p),
+	}
+
+	packetConn, err := proxy.ListenPacketContext(ctx, metadata, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return &quicConn{PacketConn: packetConn}, nil
+}
+
+func getPacketConn(ctx context.Context, addr string) (conn net.PacketConn, err error) {
+	if proxy, ok := ctx.Value(proxyKey).(string); ok {
+		host, port, _ := net.SplitHostPort(addr)
+		ip, err1 := netip.ParseAddr(host)
+		if err1 != nil {
+			return nil, err1
+		}
+		conn, err = listenContextByProxyOrInterface(ctx, ip, port, proxy)
+		return
+	}
+
+	conn, err = dialer.ListenPacket(ctx, "udp", "")
 	return
 }
 

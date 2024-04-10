@@ -894,6 +894,10 @@ func parseNameServer(servers []string) ([]dns.NameServer, error) {
 			clearURL := url.URL{Scheme: u.Scheme, Host: u.Host, Path: u.Path, User: u.User}
 			addr = clearURL.String()
 			dnsNetType = "https" // DNS over HTTPS
+		case "http3", "h3", "doh3":
+			clearURL := url.URL{Scheme: u.Scheme, Host: u.Host, Path: u.Path, User: u.User}
+			addr = clearURL.String()
+			dnsNetType = "http3" // force DNS over HTTP3
 		case "dhcp":
 			addr = u.Host
 			dnsNetType = "dhcp" // UDP from DHCP
