@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"io"
 	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/netip"
 	urlPkg "net/url"
+	"strconv"
 	"sync"
 	"time"
 
@@ -128,25 +130,25 @@ func (dc *dohClient) newRequest(m *D.Msg) (*http.Request, error) {
 func (dc *dohClient) doRequest(req *http.Request, proxy string) (*D.Msg, error) {
 	if tr, ok := dc.transports.Load(proxy); ok || dc.forceHTTP3 {
 		if tr == nil {
-			tr = newTransport(dc.host, true)
+			tr = dc.newTransport(true)
 			if t, loaded := dc.transports.Swap(proxy, tr); loaded {
 				closeTransport(t)
 			}
 		}
-		return roundTrip(req, tr.(http.RoundTripper), false)
+		return roundTrip(req, tr.(http.RoundTripper))
 	}
 
 	return dc.batchRoundTrip(req, proxy)
 }
 
 func (dc *dohClient) batchRoundTrip(req *http.Request, proxy string) (*D.Msg, error) {
-	ch := dc.asyncRoundTripWithNewTransport(req, proxy, false)
 	ch3 := dc.asyncRoundTripWithNewTransport(req, proxy, true)
+	ch := dc.asyncRoundTripWithNewTransport(req, proxy, false)
 
 	select {
-	case rs := <-ch:
-		return rs.msg, rs.err
 	case rs := <-ch3:
+		return rs.msg, rs.err
+	case rs := <-ch:
 		return rs.msg, rs.err
 	case <-req.Context().Done():
 		return nil, req.Context().Err()
@@ -173,24 +175,28 @@ func (dc *dohClient) asyncRoundTripWithNewTransport(req *http.Request, proxy str
 			if proxy != "" {
 				newCtx = context.WithValue(newCtx, proxyKey, proxy)
 			}
-			ctx1, cancel := context.WithTimeout(newCtx, resolver.DefaultDNSTimeout)
+			newCtx, cancel := context.WithTimeout(newCtx, resolver.DefaultDNSTimeout)
 			defer cancel()
-			newReq = newReq.WithContext(ctx1)
+			newReq = newReq.WithContext(newCtx)
 		}
 
-		tr := newTransport(dc.host, isH3)
+		tr := dc.newTransport(isH3)
 		if proxy != "" && !isH3 {
 			tr.(*http.Transport).IdleConnTimeout = 10 * time.Minute
 		}
 
-		msg, err := roundTrip(newReq, tr, true)
+		msg, err := roundTrip(newReq, tr)
 		if err == nil && isH3 {
 			if t, loaded := dc.transports.Swap(proxy, tr); loaded {
 				closeTransport(t)
 			}
-		} else if !isH3 {
-			if _, loaded := dc.transports.LoadOrStore(proxy, tr); loaded {
+		} else {
+			if isH3 {
 				closeTransport(tr)
+			} else {
+				if _, loaded := dc.transports.LoadOrStore(proxy, tr); loaded {
+					closeTransport(tr)
+				}
 			}
 		}
 
@@ -200,12 +206,26 @@ func (dc *dohClient) asyncRoundTripWithNewTransport(req *http.Request, proxy str
 	return ch
 }
 
-func roundTrip(req *http.Request, transport http.RoundTripper, closed bool) (*D.Msg, error) {
-	client1 := &http.Client{Transport: transport}
-	if closed {
-		defer client1.CloseIdleConnections()
+func (dc *dohClient) newTransport(isH3 bool) http.RoundTripper {
+	if isH3 {
+		return newHttp3Transport(dc.host, dc.forceHTTP3)
 	}
 
+	return &http.Transport{
+		ForceAttemptHTTP2: true,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return getTCPConn(ctx, addr)
+		},
+		TLSClientConfig: &tls.Config{
+			ServerName: dc.host,
+			NextProtos: []string{"dns"},
+		},
+		MaxIdleConnsPerHost: 5,
+	}
+}
+
+func roundTrip(req *http.Request, transport http.RoundTripper) (*D.Msg, error) {
+	client1 := &http.Client{Transport: transport}
 	resp, err := client1.Do(req)
 	if err != nil {
 		return nil, err
@@ -224,55 +244,11 @@ func roundTrip(req *http.Request, transport http.RoundTripper, closed bool) (*D.
 	return msg, err
 }
 
-func newTransport(host string, isH3 bool) http.RoundTripper {
-	if isH3 {
-		return &http3.RoundTripper{
-			TLSClientConfig: &tls.Config{
-				MinVersion: tls.VersionTLS13,
-				ServerName: host,
-				NextProtos: []string{"dns"},
-			},
-			QuicConfig: &quic.Config{
-				MaxIdleTimeout:       10 * time.Minute,
-				KeepAlivePeriod:      15 * time.Second,
-				HandshakeIdleTimeout: resolver.DefaultDNSTimeout,
-			},
-			Dial: func(ctx context.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (quic.EarlyConnection, error) {
-				udpAddr, err := net.ResolveUDPAddr("udp", addr)
-				if err != nil {
-					return nil, err
-				}
-
-				pc, err := getPacketConn(ctx, addr)
-				if err != nil {
-					return nil, err
-				}
-
-				transport := &quic.Transport{Conn: pc}
-
-				return transport.DialEarly(ctx, udpAddr, tlsCfg, cfg)
-			},
-		}
-	}
-
-	return &http.Transport{
-		ForceAttemptHTTP2: true,
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return getTCPConn(ctx, addr)
-		},
-		TLSClientConfig: &tls.Config{
-			ServerName: host,
-			NextProtos: []string{"dns"},
-		},
-		MaxIdleConnsPerHost: 5,
-	}
-}
-
 func closeTransport(transport any) {
 	switch tr := transport.(type) {
 	case *http.Transport:
 		tr.CloseIdleConnections()
-	case *http3.RoundTripper:
+	case *http3Transport:
 		_ = tr.Close()
 	}
 }
@@ -303,4 +279,129 @@ func newDoHClient(url string, proxy string, forceHTTP3 bool, r *Resolver) *dohCl
 		resolved:   resolved,
 		forceHTTP3: forceHTTP3,
 	}
+}
+
+type http3Transport struct {
+	roundTripper *http3.RoundTripper
+	forceHTTP3   bool
+
+	mux        sync.Mutex
+	transports map[string]*quic.Transport
+}
+
+func (t *http3Transport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return t.roundTripper.RoundTrip(req)
+}
+
+func (t *http3Transport) Close() error {
+	_ = t.roundTripper.Close()
+	t.mux.Lock()
+	defer t.mux.Unlock()
+	for _, tr := range t.transports {
+		_ = tr.Close()
+		_ = tr.Conn.Close()
+	}
+	t.transports = nil
+	return nil
+}
+
+func (t *http3Transport) CloseIdleConnections() {
+	t.roundTripper.CloseIdleConnections()
+}
+
+func (t *http3Transport) makeDialer() func(ctx context.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (quic.EarlyConnection, error) {
+	return func(ctx context.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (quic.EarlyConnection, error) {
+		host, port, _ := net.SplitHostPort(addr)
+		ip, err := netip.ParseAddr(host)
+		if err != nil {
+			return nil, err
+		}
+		p, err := strconv.ParseUint(port, 10, 16)
+		if err != nil {
+			return nil, err
+		}
+		udpAddr := &net.UDPAddr{IP: ip.AsSlice(), Port: int(p)}
+
+		key := addr
+		proxy, ok := ctx.Value(proxyKey).(string)
+		if ok {
+			key += proxy
+		}
+
+		t.mux.Lock()
+		if t.transports == nil {
+			t.transports = make(map[string]*quic.Transport)
+		}
+		transport := t.transports[key]
+		t.mux.Unlock()
+
+		var conn quic.EarlyConnection
+		if transport != nil {
+			conn, err = transport.DialEarly(ctx, udpAddr, tlsCfg, cfg)
+			if err == nil {
+				return conn, nil
+			}
+
+			t.mux.Lock()
+			if t.transports != nil {
+				delete(t.transports, key)
+			}
+			t.mux.Unlock()
+
+			_ = transport.Close()
+			_ = transport.Conn.Close()
+
+			if nErr, ok := err.(net.Error); (ok && nErr.Timeout()) || errors.Is(err, context.DeadlineExceeded) {
+				return nil, err
+			}
+		}
+
+		pc, err := getPacketConn(ctx, ip, uint16(p), proxy, t.forceHTTP3)
+		if err != nil {
+			return nil, err
+		}
+
+		transport = &quic.Transport{Conn: pc}
+		conn, err = transport.DialEarly(ctx, udpAddr, tlsCfg, cfg)
+		if err == nil {
+			t.mux.Lock()
+			if t.transports != nil {
+				if tr, exist := t.transports[key]; exist {
+					_ = tr.Close()
+					_ = tr.Conn.Close()
+				}
+				t.transports[key] = transport
+			}
+			t.mux.Unlock()
+		} else {
+			_ = transport.Close()
+			_ = transport.Conn.Close()
+		}
+
+		return conn, err
+	}
+}
+
+func newHttp3Transport(serverName string, forceHTTP3 bool) *http3Transport {
+	h3Transport := &http3Transport{
+		forceHTTP3: forceHTTP3,
+	}
+
+	dial := h3Transport.makeDialer()
+
+	h3Transport.roundTripper = &http3.RoundTripper{
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS13,
+			ServerName: serverName,
+			NextProtos: []string{"dns"},
+		},
+		QuicConfig: &quic.Config{
+			MaxIdleTimeout:       10 * time.Minute,
+			KeepAlivePeriod:      15 * time.Second,
+			HandshakeIdleTimeout: resolver.DefaultDNSTimeout,
+		},
+		Dial: dial,
+	}
+
+	return h3Transport
 }

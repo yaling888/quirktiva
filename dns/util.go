@@ -354,13 +354,13 @@ type quicConn struct {
 func listenContextByProxyOrInterface(
 	ctx context.Context,
 	dstIP netip.Addr,
-	port string,
+	port uint16,
 	proxyOrInterface string,
-	opts ...dialer.Option,
+	forceHTTP3 bool,
 ) (net.PacketConn, error) {
 	proxy, ok := tunnel.FindProxyByName(proxyOrInterface)
 	if !ok {
-		opts = []dialer.Option{dialer.WithInterface(proxyOrInterface), dialer.WithRoutingMark(0)}
+		opts := []dialer.Option{dialer.WithInterface(proxyOrInterface), dialer.WithRoutingMark(0)}
 		conn, err := dialer.ListenPacket(ctx, "udp", "", opts...)
 		if err == nil {
 			return conn, nil
@@ -368,19 +368,18 @@ func listenContextByProxyOrInterface(
 		return nil, fmt.Errorf("proxy %s not found, %w", proxyOrInterface, err)
 	}
 
-	if !proxy.SupportUDP() || proxy.Type() != C.Shadowsocks {
+	if !proxy.SupportUDP() || (!forceHTTP3 && proxy.Type() != C.Shadowsocks) {
 		return nil, fmt.Errorf("proxy %s UDP is not supported", proxy.Name())
 	}
 
-	p, _ := strconv.ParseUint(port, 10, 16)
 	metadata := &C.Metadata{
 		NetWork: C.UDP,
 		Host:    "",
 		DstIP:   dstIP,
-		DstPort: C.Port(p),
+		DstPort: C.Port(port),
 	}
 
-	packetConn, err := proxy.ListenPacketContext(ctx, metadata, opts...)
+	packetConn, err := proxy.ListenPacketContext(ctx, metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -388,19 +387,11 @@ func listenContextByProxyOrInterface(
 	return &quicConn{PacketConn: packetConn}, nil
 }
 
-func getPacketConn(ctx context.Context, addr string) (conn net.PacketConn, err error) {
-	if proxy, ok := ctx.Value(proxyKey).(string); ok {
-		host, port, _ := net.SplitHostPort(addr)
-		ip, err1 := netip.ParseAddr(host)
-		if err1 != nil {
-			return nil, err1
-		}
-		conn, err = listenContextByProxyOrInterface(ctx, ip, port, proxy)
-		return
+func getPacketConn(ctx context.Context, ip netip.Addr, port uint16, proxy string, forceHTTP3 bool) (net.PacketConn, error) {
+	if proxy == "" {
+		return dialer.ListenPacket(ctx, "udp", "")
 	}
-
-	conn, err = dialer.ListenPacket(ctx, "udp", "")
-	return
+	return listenContextByProxyOrInterface(ctx, ip, port, proxy, forceHTTP3)
 }
 
 func logDnsResponse(q D.Question, msg *rMsg, err error) {
