@@ -368,8 +368,8 @@ func listenContextByProxyOrInterface(
 		return nil, fmt.Errorf("proxy %s not found, %w", proxyOrInterface, err)
 	}
 
-	if !proxy.SupportUDP() || (!forceHTTP3 && proxy.Type() != C.Shadowsocks) {
-		return nil, fmt.Errorf("proxy %s UDP is not supported", proxy.Name())
+	if !forceHTTP3 {
+		return nil, fmt.Errorf("http3 transport proxy is disabled")
 	}
 
 	metadata := &C.Metadata{

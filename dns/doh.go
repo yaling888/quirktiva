@@ -371,8 +371,14 @@ func (t *http3Transport) makeDialer() func(ctx context.Context, addr string, tls
 					_ = tr.Conn.Close()
 				}
 				t.transports[key] = transport
+				t.mux.Unlock()
+			} else {
+				t.mux.Unlock()
+				_ = conn.CloseWithError(quic.ApplicationErrorCode(http3.ErrCodeNoError), "")
+				_ = transport.Close()
+				_ = transport.Conn.Close()
+				return nil, net.ErrClosed
 			}
-			t.mux.Unlock()
 		} else {
 			_ = transport.Close()
 			_ = transport.Conn.Close()
