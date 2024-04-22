@@ -402,9 +402,11 @@ func newHttp3Transport(serverName string, forceHTTP3 bool) *http3Transport {
 			NextProtos: []string{"dns"},
 		},
 		QuicConfig: &quic.Config{
-			MaxIdleTimeout:       10 * time.Minute,
-			KeepAlivePeriod:      15 * time.Second,
-			HandshakeIdleTimeout: resolver.DefaultDNSTimeout,
+			MaxIdleTimeout:        10 * time.Minute,
+			KeepAlivePeriod:       15 * time.Second,
+			HandshakeIdleTimeout:  resolver.DefaultDNSTimeout,
+			MaxIncomingStreams:    -1,
+			MaxIncomingUniStreams: 1 << 60,
 		},
 		Dial: dial,
 	}
