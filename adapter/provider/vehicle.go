@@ -76,18 +76,6 @@ func (h *HTTPVehicle) Read() ([]byte, error) {
 		return nil, err
 	}
 
-	q := uri.Query()
-	q.Del("list")
-	q.Del("sub")
-	q.Del("mu")
-	if !q.Has("clash") {
-		q.Set("clash", "1")
-	}
-	if !q.Has("flag") {
-		q.Set("flag", "clash")
-	}
-	uri.RawQuery = q.Encode()
-
 	req, err := http.NewRequest(http.MethodGet, uri.String(), nil)
 	if err != nil {
 		return nil, err
