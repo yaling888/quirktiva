@@ -24,6 +24,7 @@ const (
 	Vless
 	Trojan
 	WireGuard
+	Hysteria2
 
 	Relay
 	Selector
@@ -157,6 +158,8 @@ func (at AdapterType) String() string {
 		return "Trojan"
 	case WireGuard:
 		return "WireGuard"
+	case Hysteria2:
+		return "Hysteria2"
 
 	case Relay:
 		return "Relay"

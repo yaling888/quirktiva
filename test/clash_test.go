@@ -37,6 +37,7 @@ const (
 	ImageSnell           = "ghcr.io/icpz/snell-server:latest"
 	ImageXray            = "teddysun/xray:latest"
 	ImageWireguardGo     = "masipcat/wireguard-go:latest"
+	ImageHysteria2       = "tobyxdd/hysteria:v2"
 )
 
 var (
@@ -105,6 +106,7 @@ func init() {
 		ImageSnell,
 		ImageXray,
 		ImageWireguardGo,
+		ImageHysteria2,
 	}
 
 	for _, image := range images {

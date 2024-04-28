@@ -16,6 +16,9 @@ replace github.com/yaling888/clash => ../
 
 require (
 	github.com/Microsoft/go-winio v0.6.1 // indirect
+	github.com/apernet/hysteria/core v1.3.5-0.20240323220510-7aa0becd8477 // indirect
+	github.com/apernet/hysteria/extras v0.0.0-20240323220510-7aa0becd8477 // indirect
+	github.com/apernet/quic-go v0.42.1-0.20240323215309-32a339817822 // indirect
 	github.com/cilium/ebpf v0.14.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.11.0 // indirect
@@ -40,8 +43,10 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.14 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/quic-go/quic-go v0.42.0 // indirect
+	github.com/quic-go/qpack v0.4.0 // indirect
+	github.com/quic-go/quic-go v0.43.0 // indirect
 	github.com/samber/lo v1.39.0 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/u-root/uio v0.0.0-20230220225925-ffce2a382923 // indirect
 	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240403135643-19057e85f569 // indirect
 	github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae // indirect

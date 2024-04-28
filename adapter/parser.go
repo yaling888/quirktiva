@@ -212,6 +212,21 @@ func ParseProxy(mapping map[string]any, option ProxyOption) (C.Proxy, error) {
 			wireguardOption.UDP = true
 		}
 		proxy, err = outbound.NewWireGuard(*wireguardOption)
+	case "hysteria2":
+		hysteria2Option := &outbound.Hysteria2Option{
+			RemoteDnsResolve: true,
+		}
+		err = decoder.Decode(mapping, hysteria2Option)
+		if err != nil {
+			break
+		}
+		if option.ForceUDP {
+			hysteria2Option.UDP = true
+		}
+		if option.DisableDNS {
+			hysteria2Option.RemoteDnsResolve = false
+		}
+		proxy, err = outbound.NewHysteria2(*hysteria2Option)
 	default:
 		return nil, fmt.Errorf("unsupport proxy type: %s", proxyType)
 	}

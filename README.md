@@ -21,7 +21,7 @@
 ## Features
 
 - Local HTTP/HTTPS/SOCKS server with authentication support
-- Shadowsocks(R), VMess, VLESS, Trojan, Snell, WireGuard, SOCKS5, HTTP(S) outbound support
+- Shadowsocks(R), VMess, VLESS, Trojan, Snell, WireGuard, Hysteria2, SOCKS5, HTTP(S) outbound support
 - Built-in [fake-ip](https://www.rfc-editor.org/rfc/rfc3089) DNS server that aims to minimize DNS pollution attack impact. DoH/DoT upstream supported.
 - Rules based off dynamic scripting, domains, GEOIP, GEOSITE, IP-CIDR or process names to route packets to different destinations
 - Proxy groups allow users to implement powerful rules. Supports automatic fallback, load balancing or auto select proxy based off latency
@@ -351,6 +351,8 @@ interface Context {
 ### Proxies configuration
 Support outbound protocol `VLESS`.
 
+Support outbound protocol `Hysteria2`.
+
 Support userspace `WireGuard` outbound.
 
 Support relay `UDP` traffic.
@@ -385,6 +387,21 @@ proxies:
     # dns: [1.1.1.1, 8.8.8.8]
     # mtu: 1420
     udp: true
+
+  # Hysteria2
+  - name: "hysteria"
+    type: hysteria2
+    server: server
+    port: 443
+    password: password
+    sni: sni
+    # skip-cert-verify: false
+    # pin-sha256: pinSha256
+    # up: 100 # default unit is Mbps
+    # down: 1000 # default unit is Mbps, E.g. "100 Mbps", "512 kbps", "1g" are all valid.
+    # obfs: plain # or salamander
+    # obfs-param: salamander-password
+    # udp: true
 
   # Trojan QUIC
   - name: "trojan-quic"
