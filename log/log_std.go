@@ -28,6 +28,6 @@ func (hl *stdWriter) Write(p []byte) (n int, err error) {
 		s += " " + string(p[:i])
 		i = min(i+2, n-2)
 	}
-	logger.Info().Err(errors.New(string(p[i : n-1]))).Msg(s)
+	logger.Debug().Err(errors.New(string(p[i : n-1]))).Msg(s)
 	return
 }
