@@ -57,6 +57,12 @@ darwin-amd64-v3:
 darwin-amd64-v3-without-gvisor:
 	GOARCH=amd64 GOOS=darwin GOAMD64=v3 $(GOBUILD) -tags nogvisor -o $(BINDIR)/$(NAME)-$@
 
+darwin-amd64-v3-without-hysteria2:
+	GOARCH=amd64 GOOS=darwin GOAMD64=v3 $(GOBUILD) -tags nohy2 -o $(BINDIR)/$(NAME)-$@
+
+darwin-amd64-v3-without-hysteria2-gvisor:
+	GOARCH=amd64 GOOS=darwin GOAMD64=v3 $(GOBUILD) -tags nohy2,nogvisor -o $(BINDIR)/$(NAME)-$@
+
 darwin-arm64:
 	GOARCH=arm64 GOOS=darwin $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
 

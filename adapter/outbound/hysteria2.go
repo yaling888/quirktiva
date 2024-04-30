@@ -1,3 +1,5 @@
+//go:build !nohy2
+
 package outbound
 
 import (
