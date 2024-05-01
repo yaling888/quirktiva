@@ -1,148 +1,219 @@
 package tls
 
 import (
-	"encoding/binary"
-	"errors"
-	"strings"
+	"bufio"
+	"bytes"
+	"context"
+	"crypto/tls"
+	"io"
+	"net"
+	"net/http"
+	"net/netip"
+	"time"
+
+	"github.com/quic-go/quic-go"
 )
 
-var ErrNoClue = errors.New("not enough information for making a decision")
+const sniffTimeout = 5 * time.Millisecond
 
-type SniffHeader struct {
-	domain string
-}
-
-func (h *SniffHeader) Protocol() string {
-	return "tls"
-}
-
-func (h *SniffHeader) Domain() string {
-	return h.domain
-}
-
-var (
-	errNotTLS         = errors.New("not TLS header")
-	errNotClientHello = errors.New("not client hello")
-)
-
-func IsValidTLSVersion(major, minor byte) bool {
-	return major == 3
-}
-
-// ReadClientHello returns server name (if any) from TLS client hello message.
-// https://github.com/golang/go/blob/master/src/crypto/tls/handshake_messages.go#L300
-func ReadClientHello(data []byte, h *SniffHeader) error {
-	if len(data) < 42 {
-		return ErrNoClue
-	}
-	sessionIDLen := int(data[38])
-	if sessionIDLen > 32 || len(data) < 39+sessionIDLen {
-		return ErrNoClue
-	}
-	data = data[39+sessionIDLen:]
-	if len(data) < 2 {
-		return ErrNoClue
-	}
-	// cipherSuiteLen is the number of bytes of cipher suite numbers. Since
-	// they are uint16s, the number must be even.
-	cipherSuiteLen := int(data[0])<<8 | int(data[1])
-	if cipherSuiteLen%2 == 1 || len(data) < 2+cipherSuiteLen {
-		return errNotClientHello
-	}
-	data = data[2+cipherSuiteLen:]
-	if len(data) < 1 {
-		return ErrNoClue
-	}
-	compressionMethodsLen := int(data[0])
-	if len(data) < 1+compressionMethodsLen {
-		return ErrNoClue
-	}
-	data = data[1+compressionMethodsLen:]
-
-	if len(data) == 0 {
-		return errNotClientHello
-	}
-	if len(data) < 2 {
-		return errNotClientHello
-	}
-
-	extensionsLength := int(data[0])<<8 | int(data[1])
-	data = data[2:]
-	if extensionsLength != len(data) {
-		return errNotClientHello
-	}
-
-	for len(data) != 0 {
-		if len(data) < 4 {
-			return errNotClientHello
+func SniffHTTP(b []byte) string {
+	if req, err := http.ReadRequest(bufio.NewReader(bytes.NewReader(b))); err == nil {
+		hostname := req.Host
+		if host, _, err := net.SplitHostPort(req.Host); err == nil {
+			hostname = host
 		}
-		extension := uint16(data[0])<<8 | uint16(data[1])
-		length := int(data[2])<<8 | int(data[3])
-		data = data[4:]
-		if len(data) < length {
-			return errNotClientHello
+		if hostname != "" && hostname[len(hostname)-1] == '.' {
+			hostname = hostname[:len(hostname)-1]
 		}
-
-		if extension == 0x00 { /* extensionServerName */
-			d := data[:length]
-			if len(d) < 2 {
-				return errNotClientHello
-			}
-			namesLen := int(d[0])<<8 | int(d[1])
-			d = d[2:]
-			if len(d) != namesLen {
-				return errNotClientHello
-			}
-			for len(d) > 0 {
-				if len(d) < 3 {
-					return errNotClientHello
-				}
-				nameType := d[0]
-				nameLen := int(d[1])<<8 | int(d[2])
-				d = d[3:]
-				if len(d) < nameLen {
-					return errNotClientHello
-				}
-				if nameType == 0 {
-					serverName := string(d[:nameLen])
-					// An SNI value may not include a
-					// trailing dot. See
-					// https://tools.ietf.org/html/rfc6066#section-3.
-					if strings.HasSuffix(serverName, ".") {
-						return errNotClientHello
-					}
-					h.domain = serverName
-					return nil
-				}
-				d = d[nameLen:]
-			}
-		}
-		data = data[length:]
+		return hostname
 	}
-
-	return errNotTLS
+	return ""
 }
 
-func SniffTLS(b []byte) (*SniffHeader, error) {
-	if len(b) < 5 {
-		return nil, ErrNoClue
+func SniffTLS(b []byte) string {
+	if len(b) < 47 || b[0] != 0x16 {
+		return ""
 	}
 
-	if b[0] != 0x16 /* TLS Handshake */ {
-		return nil, errNotTLS
-	}
-	if !IsValidTLSVersion(b[1], b[2]) {
-		return nil, errNotTLS
-	}
-	headerLen := int(binary.BigEndian.Uint16(b[3:5]))
-	if 5+headerLen > len(b) {
-		return nil, ErrNoClue
+	ctx, cancel := context.WithTimeout(context.Background(), sniffTimeout)
+	defer cancel()
+
+	serverName := ""
+	tlsConfig := &tls.Config{
+		GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
+			serverName = info.ServerName
+			cancel()
+			return nil, nil
+		},
 	}
 
-	h := &SniffHeader{}
-	err := ReadClientHello(b[5:5+headerLen], h)
+	conn := newFakeConn(bytes.NewReader(b))
+	_ = tls.Server(conn, tlsConfig).HandshakeContext(ctx)
+
+	if serverName != "" && serverName[len(serverName)-1] == '.' {
+		serverName = serverName[:len(serverName)-1]
+	}
+	return serverName
+}
+
+func SniffQUIC(b []byte) string {
+	if len(b) < 1200 {
+		return ""
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), sniffTimeout)
+	defer cancel()
+
+	serverName := ""
+	tlsConfig := &tls.Config{
+		GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
+			serverName = info.ServerName
+			cancel()
+			return nil, nil
+		},
+	}
+
+	conn := newFakePacketConn(bytes.NewReader(b), ctx)
+	l, err := quic.Listen(conn, tlsConfig, nil)
 	if err == nil {
-		return h, nil
+		_, _ = l.Accept(ctx)
+		_ = l.Close()
 	}
-	return nil, err
+	return serverName
+}
+
+var _ net.Conn = (*fakeConn)(nil)
+
+type fakeConn struct {
+	r io.Reader
+}
+
+func (f *fakeConn) Read(b []byte) (n int, err error) {
+	return f.r.Read(b)
+}
+
+func (f *fakeConn) Write(_ []byte) (n int, err error) {
+	return 0, net.ErrClosed
+}
+
+func (f *fakeConn) Close() error                       { return nil }
+func (f *fakeConn) LocalAddr() net.Addr                { return nil }
+func (f *fakeConn) RemoteAddr() net.Addr               { return nil }
+func (f *fakeConn) SetDeadline(_ time.Time) error      { return nil }
+func (f *fakeConn) SetReadDeadline(_ time.Time) error  { return nil }
+func (f *fakeConn) SetWriteDeadline(_ time.Time) error { return nil }
+
+func newFakeConn(r io.Reader) *fakeConn {
+	return &fakeConn{
+		r: r,
+	}
+}
+
+var _ net.PacketConn = (*fakePacketConn)(nil)
+
+var localAddr = &net.TCPAddr{Port: 12345}
+
+type fakePacketConn struct {
+	r   io.Reader
+	ctx context.Context
+}
+
+func (pc *fakePacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
+	done := make(chan struct{})
+	go func() {
+		n, err = pc.r.Read(p)
+		if n > 0 {
+			close(done)
+		}
+	}()
+	select {
+	case <-done:
+	case <-pc.ctx.Done():
+		err = pc.ctx.Err()
+	}
+	return
+}
+
+func (pc *fakePacketConn) WriteTo(p []byte, _ net.Addr) (n int, err error) {
+	n = len(p)
+	return
+}
+
+func (pc *fakePacketConn) Close() error                       { return nil }
+func (pc *fakePacketConn) LocalAddr() net.Addr                { return localAddr }
+func (pc *fakePacketConn) SetDeadline(_ time.Time) error      { return nil }
+func (pc *fakePacketConn) SetReadDeadline(_ time.Time) error  { return nil }
+func (pc *fakePacketConn) SetWriteDeadline(_ time.Time) error { return nil }
+func (pc *fakePacketConn) SetReadBuffer(_ int) error          { return nil }
+func (pc *fakePacketConn) SetWriteBuffer(_ int) error         { return nil }
+
+func newFakePacketConn(r io.Reader, ctx context.Context) *fakePacketConn {
+	return &fakePacketConn{
+		r:   r,
+		ctx: ctx,
+	}
+}
+
+// VerifyHostnameInSNI reports whether s is a valid hostname.
+//
+// Literal IP addresses and absolute FQDNs are not permitted as SNI values.
+// See RFC 6066, Section 3.
+func VerifyHostnameInSNI(s string) bool {
+	l := len(s)
+	if l < 4 {
+		return false
+	}
+	if _, err := netip.ParseAddr(s); err == nil {
+		return false
+	}
+	d := -1
+	for i := l - 1; i >= 0; i-- {
+		c := s[i]
+		if !isHostnameChar(c) {
+			return false
+		}
+		if c == '.' {
+			if i > 0 && s[i-1] == '.' {
+				d = -1
+				break
+			}
+			if d == -1 {
+				d = i
+			}
+		}
+	}
+	if s[0] != '.' && 0 < d && d < l-2 {
+		return true
+	}
+	return false
+}
+
+func isHostnameChar(c byte) bool {
+	if c > 0x7a {
+		return false
+	}
+	return 'a' <= c && c <= 'z' || '0' <= c && c <= '9' || c == '.' || c == '-' || 'A' <= c && c <= 'Z'
+}
+
+func ToLowerASCII(s string) string {
+	hasUpper := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if 'A' <= c && c <= 'Z' {
+			hasUpper = true
+			break
+		}
+	}
+	if !hasUpper {
+		return s
+	}
+	b := make([]byte, len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if 'A' <= c && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		b[i] = c
+	}
+	return string(b)
 }

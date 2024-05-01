@@ -116,7 +116,7 @@ func (ut *udpTracker) Close() error {
 	return ut.PacketConn.Close()
 }
 
-func NewUDPTracker(conn C.PacketConn, manager *Manager, metadata *C.Metadata, rule C.Rule) *udpTracker {
+func NewUDPTracker(conn C.PacketConn, manager *Manager, metadata *C.Metadata, rule C.Rule) C.PacketConn {
 	id := uuid.RandomB64Hlf()
 
 	ut := &udpTracker{

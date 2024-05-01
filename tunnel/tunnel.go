@@ -476,6 +476,9 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 
 		pCtx.InjectPacketConn(rawPc)
 		pc := statistic.NewUDPTracker(rawPc, statistic.DefaultManager, metadata, rule)
+		if sniffing {
+			pc = statistic.NewUDPSniffer(pc, metadata, mode == Rule || mode == Script)
+		}
 
 		switch true {
 		case metadata.SpecialProxy != "":
@@ -588,7 +591,7 @@ func handleTCPConn(connCtx C.ConnContext) {
 	if rawProxy.Name() != "REJECT" && !isMitmOutbound {
 		remoteConn = statistic.NewTCPTracker(remoteConn, statistic.DefaultManager, metadata, rule)
 		if sniffing {
-			remoteConn = statistic.NewSniffing(remoteConn, metadata, rule)
+			remoteConn = statistic.NewTCPSniffer(remoteConn, metadata, mode == Rule || mode == Script)
 		}
 	}
 
