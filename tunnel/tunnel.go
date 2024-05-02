@@ -222,7 +222,7 @@ func process() {
 }
 
 func needLookupIP(metadata *C.Metadata) bool {
-	return resolver.MappingEnabled() && metadata.Host == "" && metadata.DstIP.IsValid()
+	return metadata.Host == "" && metadata.DstIP.IsValid()
 }
 
 func preHandleMetadata(metadata *C.Metadata) error {
@@ -237,8 +237,10 @@ func preHandleMetadata(metadata *C.Metadata) error {
 		host, exist := resolver.FindHostByIP(metadata.DstIP)
 		if exist {
 			metadata.Host = host
-			metadata.DNSMode = C.DNSMapping
-			if resolver.FakeIPEnabled() && (metadata.NetWork != C.UDP || resolver.IsFakeIP(metadata.DstIP)) {
+			if resolver.MappingEnabled() {
+				metadata.DNSMode = C.DNSMapping
+			}
+			if resolver.FakeIPEnabled() {
 				metadata.DstIP = netip.Addr{}
 				metadata.DNSMode = C.DNSFakeIP
 			} else if node := resolver.DefaultHosts.Search(host); node != nil {
@@ -288,7 +290,7 @@ func resolveMetadata(_ C.PlainContext, metadata *C.Metadata) (proxy C.Proxy, rul
 }
 
 func resolveDNS(metadata *C.Metadata, proxy, rawProxy C.Proxy) (isRemote bool, err error) {
-	if metadata.Host == "" || metadata.DNSMode == C.DNSMapping {
+	if metadata.Host == "" || (metadata.DNSMode == C.DNSNormal && metadata.DstIP.IsValid()) {
 		return
 	}
 

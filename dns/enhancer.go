@@ -2,6 +2,7 @@ package dns
 
 import (
 	"net/netip"
+	"time"
 
 	"github.com/yaling888/clash/common/cache"
 	"github.com/yaling888/clash/component/fakeip"
@@ -65,24 +66,20 @@ func (h *ResolverEnhancer) FindHostByIP(ip netip.Addr) (string, bool) {
 		}
 	}
 
-	if mapping := h.mapping; mapping != nil {
-		if host, existed := h.mapping.Get(ip); existed {
-			return host, true
-		}
+	if host, existed := h.mapping.Get(ip); existed {
+		return host, true
 	}
 
 	return "", false
 }
 
 func (h *ResolverEnhancer) InsertHostByIP(ip netip.Addr, host string) {
-	if mapping := h.mapping; mapping != nil {
-		h.mapping.Set(ip, host)
-	}
+	h.mapping.SetWithExpire(ip, host, time.Now().Add(20*time.Minute))
 }
 
 func (h *ResolverEnhancer) FlushFakeIP() error {
-	if h.fakePool != nil {
-		return h.fakePool.FlushFakeIP()
+	if pool := h.fakePool; pool != nil {
+		return pool.FlushFakeIP()
 	}
 	return nil
 }
@@ -104,17 +101,9 @@ func (h *ResolverEnhancer) StoreFakePoolState() {
 }
 
 func NewEnhancer(cfg Config) *ResolverEnhancer {
-	var fakePool *fakeip.Pool
-	var mapping *cache.LruCache[netip.Addr, string]
-
-	if cfg.EnhancedMode != C.DNSNormal {
-		fakePool = cfg.Pool
-		mapping = cache.New[netip.Addr, string](cache.WithSize[netip.Addr, string](4096))
-	}
-
 	return &ResolverEnhancer{
 		mode:     cfg.EnhancedMode,
-		fakePool: fakePool,
-		mapping:  mapping,
+		fakePool: cfg.Pool,
+		mapping:  cache.New[netip.Addr, string](cache.WithSize[netip.Addr, string](8192)),
 	}
 }
