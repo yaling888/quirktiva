@@ -110,7 +110,6 @@ func (h *Hysteria2) ListenPacketContext(ctx context.Context, _ *C.Metadata, _ ..
 		return NewPacketConn(&hysteria2PacketConn{
 			conn:  huc,
 			lAddr: h.lAddr,
-			done:  make(chan struct{}),
 		}, h), nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -272,11 +271,6 @@ type hysteria2PacketConn struct {
 	lasR    int
 	lasAddr net.Addr
 
-	closeOnce sync.Once
-
-	done chan struct{}
-	err  error
-
 	mux      sync.Mutex
 	deadline *time.Timer
 }
@@ -285,9 +279,6 @@ func (hp *hysteria2PacketConn) WriteTo(b []byte, addr net.Addr) (n int, err erro
 	hp.wMux.Lock()
 	defer hp.wMux.Unlock()
 
-	if hp.err != nil {
-		return 0, hp.err
-	}
 	if err = hp.conn.Send(b, addr.String()); err == nil {
 		n = len(b)
 	}
@@ -297,17 +288,6 @@ func (hp *hysteria2PacketConn) WriteTo(b []byte, addr net.Addr) (n int, err erro
 func (hp *hysteria2PacketConn) ReadFrom(b []byte) (n int, addr net.Addr, err error) {
 	hp.rMux.Lock()
 	defer hp.rMux.Unlock()
-
-	if hp.err != nil {
-		err = hp.err
-		if hp.bufP != nil {
-			pool.PutBufferWriter(hp.bufP)
-			hp.bufP = nil
-		}
-		hp.lasAddr = nil
-		hp.lasR = 0
-		return
-	}
 
 	if hp.bufP != nil {
 		n = copy(b, hp.bufP.Bytes()[hp.bufP.Len()-hp.lasR:])
@@ -321,54 +301,35 @@ func (hp *hysteria2PacketConn) ReadFrom(b []byte) (n int, addr net.Addr, err err
 		return
 	}
 
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		for {
-			buf, from, er := hp.conn.Receive()
-			if er != nil {
-				err = er
-				return
-			}
-			nr := len(buf)
-			if nr == 0 {
-				continue
-			}
-			ap, er := netip.ParseAddrPort(from)
-			if er != nil {
-				continue
-			}
-			addr = net.UDPAddrFromAddrPort(ap)
-			n = copy(b, buf)
-			if n < nr {
-				select {
-				case <-hp.done:
-					return
-				default:
-				}
-				bufP := pool.GetBufferWriter()
-				bufP.PutSlice(buf[n:])
-				hp.bufP = bufP
-				hp.lasAddr = addr
-				hp.lasR = bufP.Len()
-			}
+	for {
+		buf, from, er := hp.conn.Receive()
+		if er != nil {
+			err = er
 			return
 		}
-	}()
-
-	select {
-	case <-done:
-	case <-hp.done:
-		err = context.DeadlineExceeded
+		nr := len(buf)
+		if nr == 0 {
+			continue
+		}
+		ap, er := netip.ParseAddrPort(from)
+		if er != nil {
+			continue
+		}
+		addr = net.UDPAddrFromAddrPort(ap)
+		n = copy(b, buf)
+		if n < nr {
+			bufP := pool.GetBufferWriter()
+			bufP.PutSlice(buf[n:])
+			hp.bufP = bufP
+			hp.lasAddr = addr
+			hp.lasR = bufP.Len()
+		}
+		return
 	}
-	return
 }
 
 func (hp *hysteria2PacketConn) Close() error {
-	hp.err = net.ErrClosed
-	hp.closeOnce.Do(func() {
-		_ = hp.conn.Close()
-	})
+	_ = hp.conn.Close()
 	return nil
 }
 
@@ -377,24 +338,17 @@ func (hp *hysteria2PacketConn) LocalAddr() net.Addr {
 }
 
 func (hp *hysteria2PacketConn) SetDeadline(t time.Time) error {
-	if hp.err != nil {
-		return hp.err
-	}
 	hp.mux.Lock()
 	defer hp.mux.Unlock()
 	if hp.deadline != nil && !hp.deadline.Stop() {
 		return context.DeadlineExceeded
 	}
 	if t.IsZero() {
+		hp.deadline = nil
 		return nil
 	}
 	hp.deadline = time.AfterFunc(time.Until(t), func() {
-		hp.mux.Lock()
-		defer hp.mux.Unlock()
-		if hp.err == nil {
-			close(hp.done)
-			_ = hp.Close()
-		}
+		_ = hp.conn.Close()
 	})
 	return nil
 }
