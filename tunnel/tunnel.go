@@ -1,10 +1,10 @@
 package tunnel
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"math/rand/v2"
-	"net"
 	"net/netip"
 	"path/filepath"
 	"runtime"
@@ -17,6 +17,7 @@ import (
 
 	A "github.com/yaling888/clash/adapter"
 	"github.com/yaling888/clash/adapter/inbound"
+	"github.com/yaling888/clash/common/sniffer"
 	"github.com/yaling888/clash/component/nat"
 	P "github.com/yaling888/clash/component/process"
 	"github.com/yaling888/clash/component/resolver"
@@ -238,14 +239,16 @@ func preHandleMetadata(metadata *C.Metadata) error {
 		if exist {
 			metadata.Host = host
 			metadata.DNSMode = C.DNSMapping
-			if resolver.FakeIPEnabled() && (metadata.NetWork != C.UDP || resolver.IsFakeIP(metadata.DstIP)) {
+			if resolver.FakeIPEnabled() {
 				metadata.DstIP = netip.Addr{}
 				metadata.DNSMode = C.DNSFakeIP
 			} else if node := resolver.DefaultHosts.Search(host); node != nil {
 				// redir-host should look up the hosts
+				// and should set DNSMode to DNSNormal to prevent resolve dns agan.
 				metadata.DstIP = node.Data
+				metadata.DNSMode = C.DNSNormal
 			}
-		} else if resolver.IsFakeIP(metadata.DstIP) {
+		} else if resolver.IsFakeIP(metadata.DstIP) && !sniffing {
 			return fmt.Errorf("fake DNS record %s missing", metadata.DstIP)
 		}
 	}
@@ -288,7 +291,7 @@ func resolveMetadata(_ C.PlainContext, metadata *C.Metadata) (proxy C.Proxy, rul
 }
 
 func resolveDNS(metadata *C.Metadata, proxy, rawProxy C.Proxy) (isRemote bool, err error) {
-	if metadata.Host == "" || metadata.DNSMode == C.DNSMapping {
+	if metadata.Host == "" || metadata.DNSMode == C.DNSNormal {
 		return
 	}
 
@@ -355,6 +358,72 @@ func localResolveDNS(metadata *C.Metadata, udp bool) (err error) {
 	return nil
 }
 
+func needSniffingSNI(metadata *C.Metadata) bool {
+	return sniffing && metadata.Host == ""
+}
+
+func sniffTCP(connCtx C.ConnContext, metadata *C.Metadata) (sniffer.SniffingType, error) {
+	if !needSniffingSNI(metadata) {
+		return sniffer.OFF, nil
+	}
+
+	sniffingType := sniffer.TLS
+	readOnlyConn := sniffer.StreamReadOnlyConn(connCtx.Conn())
+
+	hostname := sniffer.SniffTLS(readOnlyConn)
+	if hostname == "" {
+		sniffingType = sniffer.HTTP
+		readOnlyConn = sniffer.StreamReadOnlyConn(readOnlyConn)
+		hostname = sniffer.SniffHTTP(readOnlyConn)
+	}
+
+	connCtx.InjectConn(readOnlyConn.UnreadConn())
+
+	if sniffer.VerifyHostnameInSNI(hostname) {
+		metadata.Host = sniffer.ToLowerASCII(hostname)
+		if resolver.FakeIPEnabled() {
+			metadata.DstIP = netip.Addr{}
+			metadata.DNSMode = C.DNSFakeIP
+		}
+		return sniffingType, nil
+	}
+
+	if resolver.IsFakeIP(metadata.DstIP) {
+		return sniffer.OFF, fmt.Errorf("fake DNS record %s missing", metadata.DstIP)
+	}
+	return sniffer.OFF, nil
+}
+
+func sniffUDP(buf []byte, metadata *C.Metadata) (sniffer.SniffingType, error) {
+	if !needSniffingSNI(metadata) || len(buf) < 1200 {
+		return sniffer.OFF, nil
+	}
+
+	tried := false
+	r := bytes.NewReader(buf)
+retry:
+	hostname := sniffer.SniffQUIC(sniffer.NewFakePacketConn(r))
+	if hostname == "" && !tried {
+		tried = true
+		r.Reset(buf)
+		goto retry
+	}
+
+	if sniffer.VerifyHostnameInSNI(hostname) {
+		metadata.Host = sniffer.ToLowerASCII(hostname)
+		if resolver.FakeIPEnabled() {
+			metadata.DstIP = netip.Addr{}
+			metadata.DNSMode = C.DNSFakeIP
+		}
+		return sniffer.QUIC, nil
+	}
+
+	if resolver.IsFakeIP(metadata.DstIP) {
+		return sniffer.OFF, fmt.Errorf("fake DNS record %s missing", metadata.DstIP)
+	}
+	return sniffer.OFF, nil
+}
+
 func handleUDPConn(packet *inbound.PacketAdapter) {
 	metadata := packet.Metadata()
 	if !metadata.Valid() {
@@ -379,8 +448,6 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 		packet.Drop()
 		return
 	}
-
-	log.Debug().EmbedObject(metadata).Any("inbound", metadata.Type).Msg("[UDP] accept session")
 
 	handle := func() bool {
 		pc := natTable.Get(key)
@@ -421,6 +488,28 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 			natTable.Delete(lockKey)
 			cond.Broadcast()
 		}()
+
+		log.Debug().EmbedObject(metadata).Any("inbound", metadata.Type).Msg("[UDP] accept session")
+
+		if packet.Data() == nil {
+			log.Warn().Str("host", metadata.String()).Msg("[UDP] invalid udp payload")
+			return
+		}
+
+		sType, err := sniffUDP(*packet.Data(), metadata)
+		if err != nil {
+			log.Debug().Err(err).Msg("[Sniffer] sniff failed")
+			return
+		}
+		if sType != sniffer.OFF {
+			if e := log.Debug(); e != nil {
+				e.
+					Str("host", metadata.Host).
+					NetIPAddr("ip", metadata.DstIP).
+					Str("port", metadata.DstPort.String()).
+					Msg("[Sniffer] update quic sni")
+			}
+		}
 
 		pCtx := icontext.NewPacketConnContext(metadata)
 		proxy, rule, err := resolveMetadata(pCtx, metadata)
@@ -476,9 +565,6 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 
 		pCtx.InjectPacketConn(rawPc)
 		pc := statistic.NewUDPTracker(rawPc, statistic.DefaultManager, metadata, rule)
-		if sniffing {
-			pc = statistic.NewUDPSniffer(pc, metadata, mode == Rule || mode == Script)
-		}
 
 		switch true {
 		case metadata.SpecialProxy != "":
@@ -511,9 +597,9 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 }
 
 func handleTCPConn(connCtx C.ConnContext) {
-	defer func(conn net.Conn) {
-		_ = conn.Close()
-	}(connCtx.Conn())
+	defer func() {
+		_ = connCtx.Conn().Close()
+	}()
 
 	metadata := connCtx.Metadata()
 	if !metadata.Valid() {
@@ -527,6 +613,21 @@ func handleTCPConn(connCtx C.ConnContext) {
 	}
 
 	log.Debug().EmbedObject(metadata).Any("inbound", metadata.Type).Msg("[TCP] accept connection")
+
+	sType, err := sniffTCP(connCtx, metadata)
+	if err != nil {
+		log.Debug().Err(err).Msg("[Sniffer] sniff failed")
+		return
+	}
+	if sType != sniffer.OFF {
+		if e := log.Debug(); e != nil {
+			e.
+				Str("host", metadata.Host).
+				NetIPAddr("ip", metadata.DstIP).
+				Str("port", metadata.DstPort.String()).
+				Msgf("[Sniffer] update %s", sType.String())
+		}
+	}
 
 	proxy, rule, err := resolveMetadata(connCtx, metadata)
 	if err != nil {
@@ -590,9 +691,6 @@ func handleTCPConn(connCtx C.ConnContext) {
 
 	if rawProxy.Name() != "REJECT" && !isMitmOutbound {
 		remoteConn = statistic.NewTCPTracker(remoteConn, statistic.DefaultManager, metadata, rule)
-		if sniffing {
-			remoteConn = statistic.NewTCPSniffer(remoteConn, metadata, mode == Rule || mode == Script)
-		}
 	}
 
 	defer func(remoteConn C.Conn) {

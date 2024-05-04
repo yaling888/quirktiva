@@ -12,7 +12,6 @@ type Enhancer interface {
 	IsExistFakeIP(netip.Addr) bool
 	FindHostByIP(netip.Addr) (string, bool)
 	FlushFakeIP() error
-	InsertHostByIP(netip.Addr, string)
 	StoreFakePoolState()
 }
 
@@ -54,12 +53,6 @@ func IsExistFakeIP(ip netip.Addr) bool {
 	}
 
 	return false
-}
-
-func InsertHostByIP(ip netip.Addr, host string) {
-	if mapper := DefaultHostMapper; mapper != nil {
-		mapper.InsertHostByIP(ip, host)
-	}
 }
 
 func FindHostByIP(ip netip.Addr) (string, bool) {

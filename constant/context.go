@@ -14,6 +14,7 @@ type ConnContext interface {
 	PlainContext
 	Metadata() *Metadata
 	Conn() net.Conn
+	InjectConn(conn net.Conn)
 }
 
 type PacketConnContext interface {

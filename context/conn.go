@@ -36,3 +36,8 @@ func (c *ConnContext) Metadata() *C.Metadata {
 func (c *ConnContext) Conn() net.Conn {
 	return c.conn
 }
+
+// InjectConn implement C.ConnContext InjectConn
+func (c *ConnContext) InjectConn(conn net.Conn) {
+	c.conn = conn
+}

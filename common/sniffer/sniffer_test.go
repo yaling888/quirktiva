@@ -1,8 +1,37 @@
-package tls
+package sniffer
 
 import (
+	"bytes"
+	"io"
+	"net"
 	"testing"
+	"time"
 )
+
+var _ net.Conn = (*fakeTestConn)(nil)
+
+type fakeTestConn struct {
+	r io.Reader
+}
+
+func (f *fakeTestConn) Read(b []byte) (n int, err error) {
+	return f.r.Read(b)
+}
+
+func (f *fakeTestConn) Write(_ []byte) (n int, err error) {
+	return 0, net.ErrClosed
+}
+
+func (f *fakeTestConn) Close() error                       { return nil }
+func (f *fakeTestConn) LocalAddr() net.Addr                { return nil }
+func (f *fakeTestConn) RemoteAddr() net.Addr               { return nil }
+func (f *fakeTestConn) SetDeadline(_ time.Time) error      { return nil }
+func (f *fakeTestConn) SetReadDeadline(_ time.Time) error  { return nil }
+func (f *fakeTestConn) SetWriteDeadline(_ time.Time) error { return nil }
+
+func newFakeTestConn(r io.Reader) *fakeTestConn {
+	return &fakeTestConn{r: r}
+}
 
 func TestSniffHTTP(t *testing.T) {
 	type args struct {
@@ -42,7 +71,7 @@ func TestSniffHTTP(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := SniffHTTP(tt.args.b); got != tt.want {
+			if got := SniffHTTP(newFakeTestConn(bytes.NewReader(tt.args.b))); got != tt.want {
 				t.Errorf("SniffHTTP() = %v, want %v", got, tt.want)
 			}
 		})
@@ -240,7 +269,7 @@ func TestSniffTLS(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := SniffTLS(tt.args.b); got != tt.want {
+			if got := SniffTLS(newFakeTestConn(bytes.NewReader(tt.args.b))); got != tt.want {
 				t.Errorf("SniffTLS() = [%v], want [%v]", got, tt.want)
 			}
 		})
@@ -363,7 +392,7 @@ func TestSniffQUIC(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 		retry:
-			if got := SniffQUIC(tt.args.b); got != tt.want {
+			if got := SniffQUIC(NewFakePacketConn(bytes.NewReader(tt.args.b))); got != tt.want {
 				if !tt.try {
 					tt.try = true
 					goto retry
@@ -436,6 +465,11 @@ func TestVerifyHostnameInSNI(t *testing.T) {
 		{
 			name: "11",
 			args: args{b: "xn--example.com"},
+			want: true,
+		},
+		{
+			name: "12",
+			args: args{b: "wWw.Example.coM"},
 			want: true,
 		},
 	}

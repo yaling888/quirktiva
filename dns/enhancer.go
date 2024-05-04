@@ -66,7 +66,7 @@ func (h *ResolverEnhancer) FindHostByIP(ip netip.Addr) (string, bool) {
 	}
 
 	if mapping := h.mapping; mapping != nil {
-		if host, existed := h.mapping.Get(ip); existed {
+		if host, existed := mapping.Get(ip); existed {
 			return host, true
 		}
 	}
@@ -74,15 +74,9 @@ func (h *ResolverEnhancer) FindHostByIP(ip netip.Addr) (string, bool) {
 	return "", false
 }
 
-func (h *ResolverEnhancer) InsertHostByIP(ip netip.Addr, host string) {
-	if mapping := h.mapping; mapping != nil {
-		h.mapping.Set(ip, host)
-	}
-}
-
 func (h *ResolverEnhancer) FlushFakeIP() error {
-	if h.fakePool != nil {
-		return h.fakePool.FlushFakeIP()
+	if pool := h.fakePool; pool != nil {
+		return pool.FlushFakeIP()
 	}
 	return nil
 }

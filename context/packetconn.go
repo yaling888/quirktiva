@@ -36,7 +36,7 @@ func (pc *PacketConnContext) PacketConn() net.PacketConn {
 	return pc.packetConn
 }
 
-// InjectPacketConn injectPacketConn manually
-func (pc *PacketConnContext) InjectPacketConn(pconn C.PacketConn) {
-	pc.packetConn = pconn
+// InjectPacketConn manually
+func (pc *PacketConnContext) InjectPacketConn(pConn C.PacketConn) {
+	pc.packetConn = pConn
 }
