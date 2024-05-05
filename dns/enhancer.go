@@ -22,6 +22,10 @@ func (h *ResolverEnhancer) MappingEnabled() bool {
 	return h.mode == C.DNSFakeIP || h.mode == C.DNSMapping
 }
 
+func (h *ResolverEnhancer) SniffingEnabled() bool {
+	return h.mode == C.DNSSniffing
+}
+
 func (h *ResolverEnhancer) IsExistFakeIP(ip netip.Addr) bool {
 	if !h.FakeIPEnabled() {
 		return false

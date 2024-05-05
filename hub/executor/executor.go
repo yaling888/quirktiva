@@ -176,6 +176,7 @@ func updateDNS(c *config.DNS, t *C.Tun) {
 			resolver.DefaultResolver = nil
 			resolver.DefaultHostMapper = nil
 			resolver.DefaultLocalServer = nil
+			resolver.RemoteDnsResolve = false
 		}
 		dns.ReCreateServer("", nil, nil)
 	}
@@ -221,6 +222,7 @@ func updateInbounds(inbounds []C.Inbound, force bool) {
 
 func updateGeneral(general *config.General, force bool) {
 	tunnel.SetMode(general.Mode)
+	tunnel.SetSniffing(general.Sniffing || resolver.SniffingEnabled())
 	resolver.SetDisableIPv6(!general.IPv6)
 
 	defaultInterface := general.Interface
@@ -249,11 +251,6 @@ func updateGeneral(general *config.General, force bool) {
 
 	bindAddress := general.BindAddress
 	listener.SetBindAddress(bindAddress)
-
-	sniffing := general.Sniffing
-	tunnel.SetSniffing(sniffing)
-
-	log.Info().Bool("sniffing", sniffing).Msg("[Config] tls")
 
 	general.Tun.StopRouteListener = true
 

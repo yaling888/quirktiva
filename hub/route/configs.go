@@ -85,7 +85,7 @@ func patchConfigs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if general.Sniffing != nil {
-		tunnel.SetSniffing(*general.Sniffing)
+		tunnel.SetSniffing(*general.Sniffing || resolver.SniffingEnabled())
 	}
 
 	tcpIn := tunnel.TCPIn()

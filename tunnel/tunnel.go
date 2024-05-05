@@ -314,6 +314,10 @@ func resolveDNS(metadata *C.Metadata, proxy, rawProxy C.Proxy) (isRemote bool, e
 			rAddrs, err = resolver.LookupIPv4ByProxy(context.Background(), metadata.Host, rawProxy.Name())
 		}
 		if err != nil {
+			if metadata.DNSMode == C.DNSSniffing && metadata.DstIP.IsValid() {
+				err = nil
+				isRemote = false
+			}
 			return
 		}
 		if isUDP {
@@ -330,15 +334,22 @@ func resolveDNS(metadata *C.Metadata, proxy, rawProxy C.Proxy) (isRemote bool, e
 			metadata.DstIP = rAddrs[rand.IntN(len(rAddrs))]
 		}
 	} else if isUDP {
-		err = localResolveDNS(metadata, true)
+		err = localResolveDNS(metadata, false, true)
 	} else { // tcp
-		metadata.DstIP = netip.Addr{}
+		switch metadata.DNSMode {
+		case C.DNSFakeIP:
+			metadata.DstIP = netip.Addr{}
+		case C.DNSSniffing:
+			if er := localResolveDNS(metadata, true, true); er == nil && rawProxy.Type() != C.Direct {
+				metadata.DstIP = netip.Addr{}
+			}
+		}
 	}
 	return
 }
 
-func localResolveDNS(metadata *C.Metadata, udp bool) (err error) {
-	if metadata.Resolved() {
+func localResolveDNS(metadata *C.Metadata, force, udp bool) (err error) {
+	if !force && metadata.Resolved() {
 		return nil
 	}
 	var rAddrs []netip.Addr
@@ -381,9 +392,20 @@ func sniffTCP(connCtx C.ConnContext, metadata *C.Metadata) (sniffer.SniffingType
 
 	if sniffer.VerifyHostnameInSNI(hostname) {
 		metadata.Host = sniffer.ToLowerASCII(hostname)
-		if resolver.FakeIPEnabled() {
-			metadata.DstIP = netip.Addr{}
-			metadata.DNSMode = C.DNSFakeIP
+		if resolver.SniffingEnabled() {
+			metadata.DNSMode = C.DNSSniffing
+		} else if resolver.MappingEnabled() {
+			metadata.DNSMode = C.DNSMapping
+			if resolver.FakeIPEnabled() {
+				metadata.DstIP = netip.Addr{}
+				metadata.DNSMode = C.DNSFakeIP
+			}
+		}
+		if metadata.DNSMode != C.DNSNormal {
+			if node := resolver.DefaultHosts.Search(metadata.Host); node != nil {
+				metadata.DstIP = node.Data
+				metadata.DNSMode = C.DNSNormal
+			}
 		}
 		return sniffingType, nil
 	}
@@ -411,9 +433,20 @@ retry:
 
 	if sniffer.VerifyHostnameInSNI(hostname) {
 		metadata.Host = sniffer.ToLowerASCII(hostname)
-		if resolver.FakeIPEnabled() {
-			metadata.DstIP = netip.Addr{}
-			metadata.DNSMode = C.DNSFakeIP
+		if resolver.SniffingEnabled() {
+			metadata.DNSMode = C.DNSSniffing
+		} else if resolver.MappingEnabled() {
+			metadata.DNSMode = C.DNSMapping
+			if resolver.FakeIPEnabled() {
+				metadata.DstIP = netip.Addr{}
+				metadata.DNSMode = C.DNSFakeIP
+			}
+		}
+		if metadata.DNSMode != C.DNSNormal {
+			if node := resolver.DefaultHosts.Search(metadata.Host); node != nil {
+				metadata.DstIP = node.Data
+				metadata.DNSMode = C.DNSNormal
+			}
 		}
 		return sniffer.QUIC, nil
 	}
