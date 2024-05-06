@@ -12,6 +12,7 @@ import (
 
 	D "github.com/miekg/dns"
 	"github.com/phuslu/log"
+	"github.com/quic-go/quic-go/http3"
 	"github.com/samber/lo"
 
 	"github.com/yaling888/clash/common/cache"
@@ -402,15 +403,24 @@ func logDnsResponse(q D.Question, msg *rMsg, err error) {
 		return
 	}
 
-	if err != nil && !errors.Is(err, context.Canceled) {
-		log.Debug().
-			Err(err).
-			Str("source", msg.Source).
-			Str("qType", D.Type(q.Qtype).String()).
-			Str("name", q.Name).
-			Msg("[DNS] dns response failed")
-	} else if msg.Msg != nil {
-		log.Debug().
+	if err != nil {
+		if e := log.Debug(); e != nil {
+			var http3Err *http3.Error
+			if !errors.Is(err, context.Canceled) &&
+				!(errors.As(err, &http3Err) && http3Err.ErrorCode == http3.ErrCodeRequestCanceled) {
+				e.
+					Err(err).
+					Str("source", msg.Source).
+					Str("qType", D.Type(q.Qtype).String()).
+					Str("name", q.Name).
+					Msg("[DNS] dns response failed")
+			}
+		}
+		return
+	}
+
+	if e := log.Debug(); e != nil && msg.Msg != nil {
+		e.
 			Str("source", msg.Source).
 			Str("qType", D.Type(q.Qtype).String()).
 			Str("name", q.Name).
