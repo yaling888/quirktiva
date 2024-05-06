@@ -11,6 +11,7 @@ import (
 	"net/netip"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/quic-go/quic-go"
 )
@@ -48,20 +49,17 @@ func (s SniffingType) String() string {
 }
 
 func SniffHTTP(conn net.Conn) string {
+	hostname := ""
 	_ = conn.SetReadDeadline(time.Now().Add(sniffTimeout))
-	if req, err := http.ReadRequest(bufio.NewReader(conn)); err == nil {
-		hostname := req.Host
-		if host, _, err := net.SplitHostPort(req.Host); err == nil {
-			hostname = host
+	if req, err := readRequest(bufio.NewReader(conn)); err == nil {
+		hostname = cutHost(req.Host)
+		if _, err = netip.ParseAddr(hostname); err == nil {
+			hostname = cutHost(req.Header.Get("Host"))
 		}
-		if hostname != "" && hostname[len(hostname)-1] == '.' {
-			hostname = hostname[:len(hostname)-1]
-		}
-		_ = conn.SetReadDeadline(time.Time{})
-		return hostname
+		hostname = trimLastDot(hostname)
 	}
 	_ = conn.SetReadDeadline(time.Time{})
-	return ""
+	return hostname
 }
 
 func SniffTLS(conn net.Conn) string {
@@ -71,7 +69,7 @@ func SniffTLS(conn net.Conn) string {
 	serverName := ""
 	tlsConfig := &tls.Config{
 		GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
-			serverName = info.ServerName
+			serverName = trimLastDot(info.ServerName)
 			cancel()
 			return nil, nil
 		},
@@ -80,9 +78,6 @@ func SniffTLS(conn net.Conn) string {
 	serverConn := tls.Server(conn, tlsConfig)
 	_ = serverConn.HandshakeContext(ctx)
 	_ = serverConn.Close()
-	if serverName != "" && serverName[len(serverName)-1] == '.' {
-		serverName = serverName[:len(serverName)-1]
-	}
 	return serverName
 }
 
@@ -161,7 +156,7 @@ func ToLowerASCII(s string) string {
 		}
 		b[i] = c
 	}
-	return string(b)
+	return unsafe.String(&b[0], len(b))
 }
 
 func isHostnameChar(c byte) bool {
@@ -170,6 +165,23 @@ func isHostnameChar(c byte) bool {
 	}
 	return 'a' <= c && c <= 'z' || '0' <= c && c <= '9' || c == '.' || c == '-' || 'A' <= c && c <= 'Z'
 }
+
+func cutHost(host string) string {
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		return h
+	}
+	return host
+}
+
+func trimLastDot(host string) string {
+	if l := len(host); l > 0 && host[l-1] == '.' {
+		host = host[:l-1]
+	}
+	return host
+}
+
+//go:linkname readRequest net/http.readRequest
+func readRequest(_ *bufio.Reader) (req *http.Request, err error)
 
 var localAddr = net.TCPAddr{Port: 12000 + rand.IntN(5000)}
 
