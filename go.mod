@@ -1,45 +1,45 @@
 module github.com/yaling888/clash
 
-go 1.22
+go 1.22.2
 
 require (
-	github.com/apernet/hysteria/core v1.3.5-0.20240323220510-7aa0becd8477
-	github.com/apernet/hysteria/extras v0.0.0-20240323220510-7aa0becd8477
-	github.com/cilium/ebpf v0.14.0
+	github.com/apernet/hysteria/core v1.3.5-0.20240429032211-b79c43171adb
+	github.com/apernet/hysteria/extras v0.0.0-20240429032211-b79c43171adb
+	github.com/cilium/ebpf v0.15.0
 	github.com/dlclark/regexp2 v1.11.0
-	github.com/expr-lang/expr v1.16.3
+	github.com/expr-lang/expr v1.16.5
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/render v1.0.3
 	github.com/gorilla/websocket v1.5.1
-	github.com/insomniacslk/dhcp v0.0.0-20240227161007-c728f5dd21c8
-	github.com/miekg/dns v1.1.58
+	github.com/insomniacslk/dhcp v0.0.0-20240419123447-f1cffa2c0c49
+	github.com/miekg/dns v1.1.59
 	github.com/oschwald/geoip2-golang v1.9.0
-	github.com/phuslu/log v1.0.89
-	github.com/quic-go/quic-go v0.43.0
+	github.com/phuslu/log v1.0.97
+	github.com/quic-go/quic-go v0.43.1
 	github.com/samber/lo v1.39.0
 	github.com/stretchr/testify v1.9.0
-	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240403135643-19057e85f569
-	go.etcd.io/bbolt v1.3.9
-	go.starlark.net v0.0.0-20240329153429-e6e8e7ce1b7a
+	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240425164735-856e190dd707
+	go.etcd.io/bbolt v1.3.10
+	go.starlark.net v0.0.0-20240411212711-9b43f0afd521
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.5.3
-	golang.org/x/crypto v0.21.0
-	golang.org/x/net v0.23.0
-	golang.org/x/sync v0.6.0
-	golang.org/x/sys v0.18.0
-	golang.org/x/text v0.14.0
+	golang.org/x/crypto v0.23.0
+	golang.org/x/net v0.25.0
+	golang.org/x/sync v0.7.0
+	golang.org/x/sys v0.20.0
+	golang.org/x/text v0.15.0
 	golang.org/x/time v0.5.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b
-	google.golang.org/protobuf v1.33.0
+	google.golang.org/protobuf v1.34.1
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20240403010941-979aae3d2c21
+	gvisor.dev/gvisor v0.0.0-20240503213918-b7c924bc64f8
 )
 
 require (
 	github.com/ajg/form v1.5.1 // indirect
-	github.com/apernet/quic-go v0.42.1-0.20240323215309-32a339817822 // indirect
+	github.com/apernet/quic-go v0.43.1-0.20240429030958-51a0843014d6 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/google/btree v1.1.2 // indirect
@@ -55,7 +55,7 @@ require (
 	github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae // indirect
 	go.uber.org/mock v0.4.0 // indirect
 	golang.org/x/exp v0.0.0-20230725093048-515e97ebf090 // indirect
-	golang.org/x/mod v0.14.0 // indirect
-	golang.org/x/tools v0.17.0 // indirect
+	golang.org/x/mod v0.16.0 // indirect
+	golang.org/x/tools v0.19.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 )
