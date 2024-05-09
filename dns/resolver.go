@@ -203,7 +203,7 @@ func (r *Resolver) ExchangeContextWithoutCache(ctx context.Context, m *D.Msg) (m
 
 // exchangeWithoutCache a batch of dns request, and it does NOT GET from cache
 func (r *Resolver) exchangeWithoutCache(ctx context.Context, m *D.Msg, q D.Question, key string, cache bool) (msg *rMsg, err error) {
-	domain := strings.TrimRight(q.Name, ".")
+	domain := strings.TrimSuffix(q.Name, ".")
 	ret, err, shared := r.group.Do(key, func() (res any, err error) {
 		defer func() {
 			if err != nil || !cache {

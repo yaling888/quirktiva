@@ -19,7 +19,7 @@ func parseSocksAddr(target socks5.Addr) *C.Metadata {
 	switch target[0] {
 	case socks5.AtypDomainName:
 		// trim for FQDN
-		metadata.Host = strings.TrimRight(string(target[2:2+target[1]]), ".")
+		metadata.Host = strings.TrimSuffix(string(target[2:2+target[1]]), ".")
 		metadata.DstPort = C.Port((int(target[2+target[1]]) << 8) | int(target[2+target[1]+1]))
 	case socks5.AtypIPv4:
 		metadata.DstIP, _ = netip.AddrFromSlice(target[1 : 1+net.IPv4len])
@@ -38,7 +38,7 @@ func parseHTTPAddr(request *http.Request) *C.Metadata {
 	port, _ := strconv.ParseUint(util.EmptyOr(request.URL.Port(), "80"), 10, 16)
 
 	// trim FQDN (#737)
-	host = strings.TrimRight(host, ".")
+	host = strings.TrimSuffix(host, ".")
 
 	metadata := &C.Metadata{
 		NetWork: C.TCP,

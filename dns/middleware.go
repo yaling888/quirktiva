@@ -29,7 +29,7 @@ func withHosts(hosts *trie.DomainTrie[netip.Addr], mapping *cache.LruCache[netip
 				return next(ctx, r)
 			}
 
-			host := strings.TrimRight(q.Name, ".")
+			host := strings.TrimSuffix(q.Name, ".")
 
 			record := hosts.Search(host)
 			if record == nil {
@@ -83,7 +83,7 @@ func withMapping(mapping *cache.LruCache[netip.Addr, string]) middleware {
 				return nil, err
 			}
 
-			host := strings.TrimRight(q.Name, ".")
+			host := strings.TrimSuffix(q.Name, ".")
 
 			for _, ans := range msg.Answer {
 				var ip netip.Addr
@@ -120,7 +120,7 @@ func withFakeIP(fakePool *fakeip.Pool) middleware {
 		return func(ctx *context.DNSContext, r *D.Msg) (*D.Msg, error) {
 			q := r.Question[0]
 
-			host := strings.TrimRight(q.Name, ".")
+			host := strings.TrimSuffix(q.Name, ".")
 			if fakePool.ShouldSkipped(host) {
 				return next(ctx, r)
 			}
