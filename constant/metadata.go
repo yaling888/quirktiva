@@ -174,7 +174,28 @@ func (m *Metadata) NetworkFromString(s string) {
 }
 
 func (m *Metadata) MarshalObject(e *log.Entry) {
-	e.Str("lAddr", m.SourceAddress()).Str("rAddr", m.RemoteAddress())
+	if e == nil {
+		return
+	}
+
+	e.Str("lAddr", m.SourceAddress())
+
+	host := ""
+	if m.DstIP.Is4() {
+		host = m.DstIP.String()
+	} else if m.DstIP.Is6() {
+		host = "[" + m.DstIP.String() + "]"
+	}
+
+	if m.Host != "" {
+		if host == "" {
+			host = m.Host
+		} else {
+			host = m.Host + "(" + host + ")"
+		}
+	}
+
+	e.Str("rAddr", host+":"+m.DstPort.String()).Str("dnsMode", m.DNSMode.String())
 
 	if m.Process != "" {
 		e.Str("process", m.Process)

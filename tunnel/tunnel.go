@@ -465,6 +465,11 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 		return
 	}
 
+	if packet.Data() == nil {
+		log.Warn().Str("rAddr", metadata.RemoteAddress()).Msg("[UDP] invalid udp payload")
+		return
+	}
+
 	var (
 		fAddr netip.Addr // make a fAddr if request ip is fakeip
 		rKey  string     // localAddrPort + remoteFakeIP + remotePort
@@ -522,13 +527,6 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 			cond.Broadcast()
 		}()
 
-		log.Debug().EmbedObject(metadata).Any("inbound", metadata.Type).Msg("[UDP] accept session")
-
-		if packet.Data() == nil {
-			log.Warn().Str("host", metadata.String()).Msg("[UDP] invalid udp payload")
-			return
-		}
-
 		sType, err := sniffUDP(*packet.Data(), metadata)
 		if err != nil {
 			log.Debug().Err(err).Msg("[Sniffer] sniff failed")
@@ -542,6 +540,10 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 					Str("port", metadata.DstPort.String()).
 					Msg("[Sniffer] update quic sni")
 			}
+		}
+
+		if e := log.Debug(); e != nil {
+			e.EmbedObject(metadata).Any("inbound", metadata.Type).Msg("[UDP] accept session")
 		}
 
 		pCtx := icontext.NewPacketConnContext(metadata)
@@ -601,20 +603,30 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 
 		switch true {
 		case metadata.SpecialProxy != "":
-			log.Info().
-				EmbedObject(metadata).
-				Any("proxy", rawPc).
-				Msg("[UDP] tunnel connected")
+			if e := log.Info(); e != nil {
+				e.
+					EmbedObject(metadata).
+					Any("proxy", rawPc).
+					Msg("[UDP] tunnel connected")
+			}
 		case rule != nil:
-			log.Info().
-				EmbedObject(metadata).
-				Any("mode", mode).
-				Any("rule", C.LogRule{R: rule}).
-				Any("proxy", rawPc).
-				Any("ruleGroup", rule.RuleGroups()).
-				Msg("[UDP] connected")
+			if e := log.Info(); e != nil {
+				e.
+					EmbedObject(metadata).
+					Any("mode", mode).
+					Any("rule", C.LogRule{R: rule}).
+					Any("proxy", rawPc).
+					Any("ruleGroup", rule.RuleGroups()).
+					Msg("[UDP] connected")
+			}
 		default:
-			log.Info().EmbedObject(metadata).Any("mode", mode).Any("proxy", rawPc).Msg("[UDP] connected")
+			if e := log.Info(); e != nil {
+				e.
+					EmbedObject(metadata).
+					Any("mode", mode).
+					Any("proxy", rawPc).
+					Msg("[UDP] connected")
+			}
 		}
 
 		oAddr := metadata.DstIP
@@ -645,8 +657,6 @@ func handleTCPConn(connCtx C.ConnContext) {
 		return
 	}
 
-	log.Debug().EmbedObject(metadata).Any("inbound", metadata.Type).Msg("[TCP] accept connection")
-
 	sType, err := sniffTCP(connCtx, metadata)
 	if err != nil {
 		log.Debug().Err(err).Msg("[Sniffer] sniff failed")
@@ -660,6 +670,10 @@ func handleTCPConn(connCtx C.ConnContext) {
 				Str("port", metadata.DstPort.String()).
 				Msgf("[Sniffer] update %s", sType.String())
 		}
+	}
+
+	if e := log.Debug(); e != nil {
+		e.EmbedObject(metadata).Any("inbound", metadata.Type).Msg("[TCP] accept connection")
 	}
 
 	proxy, rule, err := resolveMetadata(connCtx, metadata)
@@ -733,24 +747,30 @@ func handleTCPConn(connCtx C.ConnContext) {
 	switch {
 	case isMitmOutbound:
 	case metadata.SpecialProxy != "":
-		log.Info().
-			EmbedObject(metadata).
-			Any("proxy", remoteConn).
-			Msg("[TCP] tunnel connected")
+		if e := log.Info(); e != nil {
+			e.
+				EmbedObject(metadata).
+				Any("proxy", remoteConn).
+				Msg("[TCP] tunnel connected")
+		}
 	case rule != nil:
-		log.Info().
-			EmbedObject(metadata).
-			Any("mode", mode).
-			Any("rule", C.LogRule{R: rule}).
-			Any("proxy", remoteConn).
-			Any("ruleGroup", rule.RuleGroups()).
-			Msg("[TCP] connected")
+		if e := log.Info(); e != nil {
+			e.
+				EmbedObject(metadata).
+				Any("mode", mode).
+				Any("rule", C.LogRule{R: rule}).
+				Any("proxy", remoteConn).
+				Any("ruleGroup", rule.RuleGroups()).
+				Msg("[TCP] connected")
+		}
 	default:
-		log.Info().
-			EmbedObject(metadata).
-			Any("mode", mode).
-			Any("proxy", remoteConn).
-			Msg("[TCP] connected")
+		if e := log.Info(); e != nil {
+			e.
+				EmbedObject(metadata).
+				Any("mode", mode).
+				Any("proxy", remoteConn).
+				Msg("[TCP] connected")
+		}
 	}
 
 	handleSocket(connCtx, remoteConn)
@@ -792,19 +812,23 @@ func matchRule(subRules []C.Rule, metadata *C.Metadata, resolved, processFound *
 		if !*resolved && shouldResolveIP(rule, metadata) {
 			rAddrs, err := resolver.LookupIP(context.Background(), metadata.Host)
 			if err != nil {
-				log.Debug().
-					Err(err).
-					Str("host", metadata.Host).
-					Msg("[Matcher] resolve failed")
+				if e := log.Debug(); e != nil {
+					e.
+						Err(err).
+						Str("host", metadata.Host).
+						Msg("[Matcher] resolve failed")
+				}
 			} else {
 				ip := rAddrs[0]
 				if l := len(rAddrs); l > 1 && metadata.NetWork != C.UDP {
 					ip = rAddrs[rand.IntN(l)]
 				}
-				log.Debug().
-					Str("host", metadata.Host).
-					NetIPAddr("ip", ip).
-					Msg("[Matcher] resolve success")
+				if e := log.Debug(); e != nil {
+					e.
+						Str("host", metadata.Host).
+						NetIPAddr("ip", ip).
+						Msg("[Matcher] resolve success")
+				}
 
 				metadata.DstIP = ip
 			}
@@ -822,15 +846,19 @@ func matchRule(subRules []C.Rule, metadata *C.Metadata, resolved, processFound *
 				)
 
 				if err2 != nil {
-					log.Debug().
-						Err(err2).
-						Any("addr", C.LogAddr{M: *metadata, HostOnly: true}).
-						Msg("[Matcher] find process failed")
+					if e := log.Debug(); e != nil {
+						e.
+							Err(err2).
+							Any("addr", C.LogAddr{M: *metadata, HostOnly: true}).
+							Msg("[Matcher] find process failed")
+					}
 				} else {
-					log.Debug().
-						Any("addr", C.LogAddr{M: *metadata, HostOnly: true}).
-						Str("path", path).
-						Msg("[Matcher] find process success")
+					if e := log.Debug(); e != nil {
+						e.
+							Any("addr", C.LogAddr{M: *metadata, HostOnly: true}).
+							Str("path", path).
+							Msg("[Matcher] find process success")
+					}
 
 					metadata.Process = filepath.Base(path)
 					metadata.ProcessPath = path
