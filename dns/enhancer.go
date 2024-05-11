@@ -19,7 +19,7 @@ func (h *ResolverEnhancer) FakeIPEnabled() bool {
 }
 
 func (h *ResolverEnhancer) MappingEnabled() bool {
-	return h.mode == C.DNSFakeIP || h.mode == C.DNSMapping
+	return h.mode != C.DNSNormal
 }
 
 func (h *ResolverEnhancer) SniffingEnabled() bool {
@@ -105,8 +105,10 @@ func NewEnhancer(cfg Config) *ResolverEnhancer {
 	var fakePool *fakeip.Pool
 	var mapping *cache.LruCache[netip.Addr, string]
 
-	if cfg.EnhancedMode != C.DNSNormal {
+	if cfg.EnhancedMode == C.DNSFakeIP {
 		fakePool = cfg.Pool
+	}
+	if cfg.EnhancedMode != C.DNSNormal {
 		mapping = cache.New[netip.Addr, string](cache.WithSize[netip.Addr, string](4096))
 	}
 

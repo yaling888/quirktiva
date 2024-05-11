@@ -71,7 +71,7 @@ func TestSniffHTTP(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := SniffHTTP(newFakeTestConn(bytes.NewReader(tt.args.b))); got != tt.want {
+			if got := SniffHTTP(newFakeTestConn(bytes.NewReader(tt.args.b)), time.Nanosecond); got != tt.want {
 				t.Errorf("SniffHTTP() = %v, want %v", got, tt.want)
 			}
 		})
@@ -269,7 +269,7 @@ func TestSniffTLS(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := SniffTLS(newFakeTestConn(bytes.NewReader(tt.args.b))); got != tt.want {
+			if got := SniffTLS(newFakeTestConn(bytes.NewReader(tt.args.b)), time.Microsecond); got != tt.want {
 				t.Errorf("SniffTLS() = [%v], want [%v]", got, tt.want)
 			}
 		})
@@ -392,7 +392,7 @@ func TestSniffQUIC(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 		retry:
-			if got := SniffQUIC(NewFakePacketConn(bytes.NewReader(tt.args.b))); got != tt.want {
+			if got := SniffQUIC(NewFakePacketConn(bytes.NewReader(tt.args.b)), 2*time.Millisecond); got != tt.want {
 				if !tt.try {
 					tt.try = true
 					goto retry

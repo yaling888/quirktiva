@@ -30,16 +30,13 @@ func handleUDPToRemote(packet C.UDPPacket, pc C.PacketConn, metadata *C.Metadata
 	return nil
 }
 
-func handleUDPToLocal(packet C.UDPPacket, pc net.PacketConn, key, rKey string, oAddr, fAddr netip.Addr) {
+func handleUDPToLocal(packet C.UDPPacket, pc net.PacketConn, key string, oAddr, fAddr netip.Addr) {
 	bufP := pool.GetNetBuf()
 	defer func() {
 		_ = pc.Close()
 		natTable.Delete(key)
+		addrTable.Delete(key)
 		pool.PutNetBuf(bufP)
-
-		if rKey != "" {
-			addrTable.Delete(rKey)
-		}
 	}()
 
 	for {
@@ -49,17 +46,25 @@ func handleUDPToLocal(packet C.UDPPacket, pc net.PacketConn, key, rKey string, o
 			return
 		}
 
-		fromUDPAddr := *(from.(*net.UDPAddr))
-		if fAddr.IsValid() {
-			fromAddr, _ := netip.AddrFromSlice(fromUDPAddr.IP)
-			fromAddr = fromAddr.Unmap()
-			if oAddr == fromAddr {
-				fromUDPAddr.IP = fAddr.AsSlice()
-				fromUDPAddr.Zone = fAddr.Zone()
+		var rAddrPort netip.AddrPort
+		switch fromAddr := from.(type) {
+		case *net.UDPAddr:
+			ip, _ := netip.AddrFromSlice(fromAddr.IP)
+			rAddrPort = netip.AddrPortFrom(ip.Unmap(), uint16(fromAddr.Port))
+		case *net.TCPAddr:
+			ip, _ := netip.AddrFromSlice(fromAddr.IP)
+			rAddrPort = netip.AddrPortFrom(ip.Unmap(), uint16(fromAddr.Port))
+		default:
+			if rAddrPort, err = netip.ParseAddrPort(fromAddr.String()); err != nil {
+				return
 			}
 		}
 
-		_, err = packet.WriteBack((*bufP)[:n], &fromUDPAddr)
+		if fAddr.IsValid() && oAddr == rAddrPort.Addr() {
+			rAddrPort = netip.AddrPortFrom(fAddr, rAddrPort.Port())
+		}
+
+		_, err = packet.WriteBack((*bufP)[:n], net.UDPAddrFromAddrPort(rAddrPort))
 		if err != nil {
 			return
 		}

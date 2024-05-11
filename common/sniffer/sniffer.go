@@ -9,20 +9,11 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
-	"sync"
 	"time"
 	"unsafe"
 
 	"github.com/quic-go/quic-go"
 )
-
-const sniffTimeout = 3 * time.Millisecond
-
-var defaultQUICConfig = sync.OnceValue[*quic.Config](func() *quic.Config {
-	return &quic.Config{
-		Allow0RTT: true,
-	}
-})
 
 const (
 	OFF SniffingType = iota
@@ -48,9 +39,9 @@ func (s SniffingType) String() string {
 	}
 }
 
-func SniffHTTP(conn net.Conn) string {
+func SniffHTTP(conn net.Conn, timeout time.Duration) string {
 	hostname := ""
-	_ = conn.SetReadDeadline(time.Now().Add(sniffTimeout))
+	_ = conn.SetReadDeadline(time.Now().Add(timeout))
 	if req, err := readRequest(bufio.NewReader(conn)); err == nil {
 		hostname = cutHost(req.Host)
 		if _, err = netip.ParseAddr(hostname); err == nil {
@@ -62,8 +53,8 @@ func SniffHTTP(conn net.Conn) string {
 	return hostname
 }
 
-func SniffTLS(conn net.Conn) string {
-	ctx, cancel := context.WithTimeout(context.Background(), sniffTimeout)
+func SniffTLS(conn net.Conn, timeout time.Duration) string {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	serverName := ""
@@ -81,8 +72,10 @@ func SniffTLS(conn net.Conn) string {
 	return serverName
 }
 
-func SniffQUIC(conn net.PacketConn) string {
-	ctx, cancel := context.WithTimeout(context.Background(), sniffTimeout)
+var defaultQUICConfig = quic.Config{Allow0RTT: true}
+
+func SniffQUIC(conn net.PacketConn, timeout time.Duration) string {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	serverName := ""
@@ -94,7 +87,7 @@ func SniffQUIC(conn net.PacketConn) string {
 		},
 	}
 
-	l, err := quic.Listen(conn, tlsConfig, defaultQUICConfig())
+	l, err := quic.Listen(conn, tlsConfig, &defaultQUICConfig)
 	if err == nil {
 		_, _ = l.Accept(ctx)
 		_ = l.Close()

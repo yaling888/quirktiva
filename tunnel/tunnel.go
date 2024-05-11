@@ -238,15 +238,11 @@ func preHandleMetadata(metadata *C.Metadata) error {
 		host, exist := resolver.FindHostByIP(metadata.DstIP)
 		if exist {
 			metadata.Host = host
-			metadata.DNSMode = C.DNSMapping
 			if resolver.FakeIPEnabled() {
 				metadata.DstIP = netip.Addr{}
 				metadata.DNSMode = C.DNSFakeIP
-			} else if node := resolver.DefaultHosts.Search(host); node != nil {
-				// redir-host should look up the hosts
-				// and should set DNSMode to DNSNormal to prevent resolve dns agan.
-				metadata.DstIP = node.Data
-				metadata.DNSMode = C.DNSNormal
+			} else {
+				metadata.DNSMode = C.DNSMapping
 			}
 		} else if resolver.IsFakeIP(metadata.DstIP) && !sniffing {
 			return fmt.Errorf("fake DNS record %s missing", metadata.DstIP)
@@ -291,7 +287,9 @@ func resolveMetadata(_ C.PlainContext, metadata *C.Metadata) (proxy C.Proxy, rul
 }
 
 func resolveDNS(metadata *C.Metadata, proxy, rawProxy C.Proxy) (isRemote bool, err error) {
-	if metadata.Host == "" || metadata.DNSMode == C.DNSNormal {
+	if metadata.Host == "" ||
+		metadata.DNSMode == C.DNSMapping ||
+		(metadata.DNSMode == C.DNSNormal && metadata.DstIP.IsValid()) {
 		return
 	}
 
@@ -322,27 +320,26 @@ func resolveDNS(metadata *C.Metadata, proxy, rawProxy C.Proxy) (isRemote bool, e
 		}
 		if isUDP {
 			metadata.DstIP = rAddrs[0]
-		} else {
-			if hasV6 {
-				v6 := lo.Filter(rAddrs, func(addr netip.Addr, _ int) bool {
-					return addr.Is6()
-				})
-				if len(v6) > 0 {
-					rAddrs = v6 // priority use ipv6
-				}
-			}
-			metadata.DstIP = rAddrs[rand.IntN(len(rAddrs))]
+			return
 		}
-	} else if isUDP {
-		err = localResolveDNS(metadata, false, true)
-	} else { // tcp
-		switch metadata.DNSMode {
-		case C.DNSFakeIP:
-			metadata.DstIP = netip.Addr{}
-		case C.DNSSniffing:
-			if er := localResolveDNS(metadata, true, true); er == nil && rawProxy.Type() != C.Direct {
-				metadata.DstIP = netip.Addr{}
+		if hasV6 {
+			v6 := lo.Filter(rAddrs, func(addr netip.Addr, _ int) bool {
+				return addr.Is6()
+			})
+			if len(v6) > 0 {
+				rAddrs = v6 // priority use ipv6
 			}
+		}
+		metadata.DstIP = rAddrs[rand.IntN(len(rAddrs))]
+		return
+	}
+	if isUDP {
+		err = localResolveDNS(metadata, false, true)
+		return
+	}
+	if metadata.DNSMode == C.DNSSniffing {
+		if er := localResolveDNS(metadata, true, true); er == nil && rawProxy.Type() != C.Direct {
+			metadata.DstIP = netip.Addr{}
 		}
 	}
 	return
@@ -370,7 +367,7 @@ func localResolveDNS(metadata *C.Metadata, force, udp bool) (err error) {
 }
 
 func needSniffingSNI(metadata *C.Metadata) bool {
-	return sniffing && metadata.Host == ""
+	return sniffing && (metadata.Host == "" || metadata.DNSMode == C.DNSMapping)
 }
 
 func sniffTCP(connCtx C.ConnContext, metadata *C.Metadata) (sniffer.SniffingType, error) {
@@ -378,42 +375,35 @@ func sniffTCP(connCtx C.ConnContext, metadata *C.Metadata) (sniffer.SniffingType
 		return sniffer.OFF, nil
 	}
 
+	const sniffTLSTimeout = 50 * time.Millisecond
+
 	sniffingType := sniffer.TLS
 	readOnlyConn := sniffer.StreamReadOnlyConn(connCtx.Conn())
 
-	hostname := sniffer.SniffTLS(readOnlyConn)
+	hostname := sniffer.SniffTLS(readOnlyConn, sniffTLSTimeout)
 	if hostname == "" {
 		sniffingType = sniffer.HTTP
 		readOnlyConn = sniffer.StreamReadOnlyConn(readOnlyConn)
-		hostname = sniffer.SniffHTTP(readOnlyConn)
+		hostname = sniffer.SniffHTTP(readOnlyConn, time.Millisecond)
 	}
 
 	connCtx.InjectConn(readOnlyConn.UnreadConn())
 
 	if sniffer.VerifyHostnameInSNI(hostname) {
 		metadata.Host = sniffer.ToLowerASCII(hostname)
-		if resolver.SniffingEnabled() {
+		if resolver.MappingEnabled() {
 			metadata.DNSMode = C.DNSSniffing
-		} else if resolver.MappingEnabled() {
-			metadata.DNSMode = C.DNSMapping
 			if resolver.FakeIPEnabled() {
 				metadata.DstIP = netip.Addr{}
-				metadata.DNSMode = C.DNSFakeIP
 			}
 		}
-		if metadata.DNSMode != C.DNSNormal {
-			if node := resolver.DefaultHosts.Search(metadata.Host); node != nil {
-				metadata.DstIP = node.Data
-				metadata.DNSMode = C.DNSNormal
-			}
+	} else {
+		sniffingType = sniffer.OFF
+		if resolver.IsFakeIP(metadata.DstIP) {
+			return sniffer.OFF, fmt.Errorf("fake DNS record %s missing", metadata.DstIP)
 		}
-		return sniffingType, nil
 	}
-
-	if resolver.IsFakeIP(metadata.DstIP) {
-		return sniffer.OFF, fmt.Errorf("fake DNS record %s missing", metadata.DstIP)
-	}
-	return sniffer.OFF, nil
+	return sniffingType, nil
 }
 
 func sniffUDP(buf []byte, metadata *C.Metadata) (sniffer.SniffingType, error) {
@@ -421,40 +411,34 @@ func sniffUDP(buf []byte, metadata *C.Metadata) (sniffer.SniffingType, error) {
 		return sniffer.OFF, nil
 	}
 
+	const sniffQUICTimeout = 3 * time.Millisecond
+
 	tried := false
 	r := bytes.NewReader(buf)
 retry:
-	hostname := sniffer.SniffQUIC(sniffer.NewFakePacketConn(r))
+	hostname := sniffer.SniffQUIC(sniffer.NewFakePacketConn(r), sniffQUICTimeout)
 	if hostname == "" && !tried {
 		tried = true
 		r.Reset(buf)
 		goto retry
 	}
 
+	sniffingType := sniffer.QUIC
 	if sniffer.VerifyHostnameInSNI(hostname) {
 		metadata.Host = sniffer.ToLowerASCII(hostname)
-		if resolver.SniffingEnabled() {
+		if resolver.MappingEnabled() {
 			metadata.DNSMode = C.DNSSniffing
-		} else if resolver.MappingEnabled() {
-			metadata.DNSMode = C.DNSMapping
 			if resolver.FakeIPEnabled() {
 				metadata.DstIP = netip.Addr{}
-				metadata.DNSMode = C.DNSFakeIP
 			}
 		}
-		if metadata.DNSMode != C.DNSNormal {
-			if node := resolver.DefaultHosts.Search(metadata.Host); node != nil {
-				metadata.DstIP = node.Data
-				metadata.DNSMode = C.DNSNormal
-			}
+	} else {
+		sniffingType = sniffer.OFF
+		if resolver.IsFakeIP(metadata.DstIP) {
+			return sniffer.OFF, fmt.Errorf("fake DNS record %s missing", metadata.DstIP)
 		}
-		return sniffer.QUIC, nil
 	}
-
-	if resolver.IsFakeIP(metadata.DstIP) {
-		return sniffer.OFF, fmt.Errorf("fake DNS record %s missing", metadata.DstIP)
-	}
-	return sniffer.OFF, nil
+	return sniffingType, nil
 }
 
 func handleUDPConn(packet *inbound.PacketAdapter) {
@@ -472,13 +456,16 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 
 	var (
 		fAddr netip.Addr // make a fAddr if request ip is fakeip
-		rKey  string     // localAddrPort + remoteFakeIP + remotePort
-		key   = packet.LocalAddr().String()
+		key   = packet.LocalAddr().String() + metadata.RemoteAddress()
 	)
+
+	if ip, err := netip.ParseAddr(metadata.Host); err == nil {
+		metadata.DstIP = ip
+		metadata.Host = ""
+	}
 
 	if resolver.IsExistFakeIP(metadata.DstIP) {
 		fAddr = metadata.DstIP
-		rKey = key + fAddr.String() + metadata.DstPort.String()
 	}
 
 	if err := preHandleMetadata(metadata); err != nil {
@@ -488,14 +475,9 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 	}
 
 	handle := func() bool {
-		pc := natTable.Get(key)
-		if pc != nil {
-			if !metadata.Resolved() {
-				if rAddr := addrTable.Get(rKey); rAddr.IsValid() {
-					metadata.DstIP = rAddr
-				} else {
-					return false
-				}
+		if pc, ok := natTable.Load(key); ok {
+			if metadata.DstIP, ok = addrTable.Load(key); !ok {
+				return false
 			}
 			_ = handleUDPToRemote(packet, pc, metadata)
 			return true
@@ -544,6 +526,11 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 
 		if e := log.Debug(); e != nil {
 			e.EmbedObject(metadata).Any("inbound", metadata.Type).Msg("[UDP] accept session")
+		}
+
+		if node := resolver.DefaultHosts.Search(metadata.Host); node != nil {
+			metadata.DstIP = node.Data
+			metadata.DNSMode = C.DNSNormal
 		}
 
 		pCtx := icontext.NewPacketConnContext(metadata)
@@ -601,41 +588,32 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 		pCtx.InjectPacketConn(rawPc)
 		pc := statistic.NewUDPTracker(rawPc, statistic.DefaultManager, metadata, rule)
 
-		switch true {
+		switch e := log.Info(); e != nil {
 		case metadata.SpecialProxy != "":
-			if e := log.Info(); e != nil {
-				e.
-					EmbedObject(metadata).
-					Any("proxy", rawPc).
-					Msg("[UDP] tunnel connected")
-			}
+			e.
+				EmbedObject(metadata).
+				Any("proxy", rawPc).
+				Msg("[UDP] tunnel connected")
 		case rule != nil:
-			if e := log.Info(); e != nil {
-				e.
-					EmbedObject(metadata).
-					Any("mode", mode).
-					Any("rule", C.LogRule{R: rule}).
-					Any("proxy", rawPc).
-					Any("ruleGroup", rule.RuleGroups()).
-					Msg("[UDP] connected")
-			}
+			e.
+				EmbedObject(metadata).
+				Any("mode", mode).
+				Any("rule", C.LogRule{R: rule}).
+				Any("proxy", rawPc).
+				Any("ruleGroup", rule.RuleGroups()).
+				Msg("[UDP] connected")
 		default:
-			if e := log.Info(); e != nil {
-				e.
-					EmbedObject(metadata).
-					Any("mode", mode).
-					Any("proxy", rawPc).
-					Msg("[UDP] connected")
-			}
+			e.
+				EmbedObject(metadata).
+				Any("mode", mode).
+				Any("proxy", rawPc).
+				Msg("[UDP] connected")
 		}
 
 		oAddr := metadata.DstIP
-		go handleUDPToLocal(packet.UDPPacket, pc, key, rKey, oAddr, fAddr)
+		go handleUDPToLocal(packet.UDPPacket, pc, key, oAddr, fAddr)
 
-		if rKey != "" {
-			addrTable.Set(rKey, oAddr)
-		}
-
+		addrTable.Set(key, oAddr)
 		natTable.Set(key, pc)
 		handle()
 	}()
@@ -674,6 +652,11 @@ func handleTCPConn(connCtx C.ConnContext) {
 
 	if e := log.Debug(); e != nil {
 		e.EmbedObject(metadata).Any("inbound", metadata.Type).Msg("[TCP] accept connection")
+	}
+
+	if node := resolver.DefaultHosts.Search(metadata.Host); node != nil {
+		metadata.DstIP = node.Data
+		metadata.DNSMode = C.DNSNormal
 	}
 
 	proxy, rule, err := resolveMetadata(connCtx, metadata)
