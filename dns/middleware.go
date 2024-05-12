@@ -69,7 +69,7 @@ func withHosts(hosts *trie.DomainTrie[netip.Addr], mapping *cache.LruCache[netip
 	}
 }
 
-func withMapping(mapping *cache.LruCache[netip.Addr, string]) middleware {
+func withMapping(mapping *cache.LruCache[netip.Addr, string], cnameCache *cache.LruCache[string, bool]) middleware {
 	return func(next handler) handler {
 		return func(ctx *context.DNSContext, r *D.Msg) (*D.Msg, error) {
 			q := r.Question[0]
@@ -84,24 +84,36 @@ func withMapping(mapping *cache.LruCache[netip.Addr, string]) middleware {
 			}
 
 			host := strings.TrimSuffix(q.Name, ".")
-
+			_, isCNAME := cnameCache.Get(q.Name)
 			for _, ans := range msg.Answer {
-				var ip netip.Addr
-				var ttl uint32
+				var (
+					ip  netip.Addr
+					ttl uint32
+				)
 
 				switch a := ans.(type) {
 				case *D.A:
+					if isCNAME {
+						continue
+					}
 					ip, _ = netip.AddrFromSlice(a.A.To4())
-					ttl = a.Hdr.Ttl
 					if !ip.IsGlobalUnicast() {
 						continue
 					}
+					ttl = a.Hdr.Ttl
 				case *D.AAAA:
+					if isCNAME {
+						continue
+					}
 					ip, _ = netip.AddrFromSlice(a.AAAA)
-					ttl = a.Hdr.Ttl
 					if !ip.IsGlobalUnicast() {
 						continue
 					}
+					ttl = a.Hdr.Ttl
+				case *D.CNAME:
+					ttl = max(a.Hdr.Ttl, 2)
+					cnameCache.SetWithExpire(a.Target, true, time.Now().Add(time.Second*time.Duration(ttl)))
+					continue
 				default:
 					continue
 				}
@@ -201,7 +213,7 @@ func newHandler(resolver *Resolver, mapper *ResolverEnhancer) handler {
 	}
 
 	if mapper.mode != C.DNSNormal {
-		middlewares = append(middlewares, withMapping(mapper.mapping))
+		middlewares = append(middlewares, withMapping(mapper.mapping, mapper.cnameCache))
 	}
 
 	return compose(middlewares, withResolver(resolver))

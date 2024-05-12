@@ -9,9 +9,10 @@ import (
 )
 
 type ResolverEnhancer struct {
-	mode     C.DNSMode
-	fakePool *fakeip.Pool
-	mapping  *cache.LruCache[netip.Addr, string]
+	mode       C.DNSMode
+	fakePool   *fakeip.Pool
+	mapping    *cache.LruCache[netip.Addr, string]
+	cnameCache *cache.LruCache[string, bool]
 }
 
 func (h *ResolverEnhancer) FakeIPEnabled() bool {
@@ -102,19 +103,24 @@ func (h *ResolverEnhancer) StoreFakePoolState() {
 }
 
 func NewEnhancer(cfg Config) *ResolverEnhancer {
-	var fakePool *fakeip.Pool
-	var mapping *cache.LruCache[netip.Addr, string]
+	var (
+		fakePool   *fakeip.Pool
+		mapping    *cache.LruCache[netip.Addr, string]
+		cnameCache *cache.LruCache[string, bool]
+	)
 
 	if cfg.EnhancedMode == C.DNSFakeIP {
 		fakePool = cfg.Pool
 	}
 	if cfg.EnhancedMode != C.DNSNormal {
 		mapping = cache.New[netip.Addr, string](cache.WithSize[netip.Addr, string](4096))
+		cnameCache = cache.New[string, bool](cache.WithSize[string, bool](2048))
 	}
 
 	return &ResolverEnhancer{
-		mode:     cfg.EnhancedMode,
-		fakePool: fakePool,
-		mapping:  mapping,
+		mode:       cfg.EnhancedMode,
+		fakePool:   fakePool,
+		mapping:    mapping,
+		cnameCache: cnameCache,
 	}
 }
