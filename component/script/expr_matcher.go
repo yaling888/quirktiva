@@ -47,7 +47,6 @@ func NewExprMatcher(name, code string) (*ExprMatcher, error) {
 	options := []expr.Option{
 		expr.Env(shortcutEnvironment{}),
 		expr.Patch(inStringPatch),
-		expr.DisableBuiltin("now"),
 		expr.AsBool(),
 	}
 
