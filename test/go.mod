@@ -16,9 +16,9 @@ replace github.com/yaling888/clash => ../
 
 require (
 	github.com/Microsoft/go-winio v0.6.1 // indirect
-	github.com/apernet/hysteria/core v1.3.5-0.20240429032211-b79c43171adb // indirect
-	github.com/apernet/hysteria/extras v0.0.0-20240429032211-b79c43171adb // indirect
-	github.com/apernet/quic-go v0.43.1-0.20240429030958-51a0843014d6 // indirect
+	github.com/apernet/hysteria/core/v2 v2.0.0-20240518032847-0c198abd2e47 // indirect
+	github.com/apernet/hysteria/extras/v2 v2.0.0-20240518032847-0c198abd2e47 // indirect
+	github.com/apernet/quic-go v0.43.1-0.20240515053213-5e9e635fd9f0 // indirect
 	github.com/cilium/ebpf v0.15.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.11.0 // indirect

@@ -220,6 +220,9 @@ func ParseProxy(mapping map[string]any, option ProxyOption) (C.Proxy, error) {
 		if err != nil {
 			break
 		}
+		if option.ForceCertVerify {
+			hysteria2Option.SkipCertVerify = false
+		}
 		if option.ForceUDP {
 			hysteria2Option.UDP = true
 		}

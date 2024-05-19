@@ -83,6 +83,7 @@ func TestClash_Hysteria2Obfs(t *testing.T) {
 		Port:           10002,
 		Password:       "password",
 		SNI:            "example.org",
+		Fingerprint:    "8A:8A:D4:06:6D:4A:92:7D:3D:12:03:D1:10:AC:F5:20:35:9A:5D:F3:CB:77:0B:DD:03:79:1C:B4:7D:F1:3D:C8",
 		SkipCertVerify: true,
 		UDP:            true,
 		Up:             "100 mbps",

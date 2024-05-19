@@ -16,10 +16,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apernet/hysteria/core/client"
-	"github.com/apernet/hysteria/extras/obfs"
+	"github.com/apernet/hysteria/core/v2/client"
+	"github.com/apernet/hysteria/extras/v2/obfs"
 
 	"github.com/yaling888/clash/common/pool"
+	"github.com/yaling888/clash/common/util"
 	"github.com/yaling888/clash/component/dialer"
 	"github.com/yaling888/clash/component/resolver"
 	C "github.com/yaling888/clash/constant"
@@ -34,6 +35,7 @@ type Hysteria2Option struct {
 	SkipCertVerify   bool   `proxy:"skip-cert-verify,omitempty"`
 	SNI              string `proxy:"sni,omitempty"`
 	PinSHA256        string `proxy:"pin-sha256,omitempty"`
+	Fingerprint      string `proxy:"fingerprint,omitempty"`
 	Obfs             string `proxy:"obfs,omitempty"`
 	ObfsParam        string `proxy:"obfs-param,omitempty"`
 	Up               string `proxy:"up,omitempty"`
@@ -135,6 +137,10 @@ func (h *Hysteria2) makeDialer() func(addr net.Addr) (net.PacketConn, error) {
 }
 
 func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
+	pinSHA256 := util.EmptyOr(option.PinSHA256, option.Fingerprint)
+	if option.SkipCertVerify && pinSHA256 == "" {
+		return nil, errors.New("skip-cert-verify can not be true when pin-sha256 is empty")
+	}
 	var (
 		ob  obfs.Obfuscator
 		err error
@@ -202,8 +208,8 @@ func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
 		},
 	}
 
-	if h.option.PinSHA256 != "" {
-		nHash := normalizeCertHash(h.option.PinSHA256)
+	if pinSHA256 != "" {
+		nHash := normalizeCertHash(pinSHA256)
 		config.TLSConfig.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
 			for _, cert := range rawCerts {
 				hash := sha256.Sum256(cert)
@@ -212,7 +218,6 @@ func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
 					return nil
 				}
 			}
-			// No match
 			return errors.New("no certificate matches the pinned hash")
 		}
 	}

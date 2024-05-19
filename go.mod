@@ -3,8 +3,8 @@ module github.com/yaling888/clash
 go 1.22.2
 
 require (
-	github.com/apernet/hysteria/core v1.3.5-0.20240429032211-b79c43171adb
-	github.com/apernet/hysteria/extras v0.0.0-20240429032211-b79c43171adb
+	github.com/apernet/hysteria/core/v2 v2.0.0-20240518032847-0c198abd2e47
+	github.com/apernet/hysteria/extras/v2 v2.0.0-20240518032847-0c198abd2e47
 	github.com/cilium/ebpf v0.15.0
 	github.com/dlclark/regexp2 v1.11.0
 	github.com/expr-lang/expr v1.16.5
@@ -39,7 +39,7 @@ require (
 
 require (
 	github.com/ajg/form v1.5.1 // indirect
-	github.com/apernet/quic-go v0.43.1-0.20240429030958-51a0843014d6 // indirect
+	github.com/apernet/quic-go v0.43.1-0.20240515053213-5e9e635fd9f0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/google/btree v1.1.2 // indirect

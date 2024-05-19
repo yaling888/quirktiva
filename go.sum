@@ -1,11 +1,11 @@
 github.com/ajg/form v1.5.1 h1:t9c7v8JUKu/XxOGBU0yjNpaMloxGEJhUkqFRq0ibGeU=
 github.com/ajg/form v1.5.1/go.mod h1:uL1WgH+h2mgNtvBq0339dVnzXdBETtL2LeUXaIv25UY=
-github.com/apernet/hysteria/core v1.3.5-0.20240429032211-b79c43171adb h1:a8XJe6L+Ig2g/uojyg/xRQrL2NSTSxuB2pGA+qkFVqM=
-github.com/apernet/hysteria/core v1.3.5-0.20240429032211-b79c43171adb/go.mod h1:hXzocobDhOky7Gy6r5s0xnfdVSlPDRd9RecnkbHVf10=
-github.com/apernet/hysteria/extras v0.0.0-20240429032211-b79c43171adb h1:mcnh6+pCTSwsfbOYlyUMdZe3CCEcZcBZI1FFhVmi4n4=
-github.com/apernet/hysteria/extras v0.0.0-20240429032211-b79c43171adb/go.mod h1:+1IHQ7B6H4BgIISP+Uf5kQrcZOVpoOhrXj8gyHFtbw8=
-github.com/apernet/quic-go v0.43.1-0.20240429030958-51a0843014d6 h1:ZfaQo52EyyhNCxfMNk64W1YHcIh+0rCkp3e0gR7BO5E=
-github.com/apernet/quic-go v0.43.1-0.20240429030958-51a0843014d6/go.mod h1:j3QaAM7sVJqptDQyIQRWA6mASCfuxoHJszn67JQh1GE=
+github.com/apernet/hysteria/core/v2 v2.0.0-20240518032847-0c198abd2e47 h1:mMQPRsz+rVsb2dhoBrY9AZf11RpkR+EmiC33/hHP9JI=
+github.com/apernet/hysteria/core/v2 v2.0.0-20240518032847-0c198abd2e47/go.mod h1:9RjPDyC77agmKO5E2TRK/DNNoZoAeIuywwcAQenm9Aw=
+github.com/apernet/hysteria/extras/v2 v2.0.0-20240518032847-0c198abd2e47 h1:uWJmvdR730nTmHmDmObGabUPDBKoM/CkcKqmzW3tePQ=
+github.com/apernet/hysteria/extras/v2 v2.0.0-20240518032847-0c198abd2e47/go.mod h1:TcpGqovdWbhgyRCIGjGBrHZQhDTMVIQnhCUHk2O19WY=
+github.com/apernet/quic-go v0.43.1-0.20240515053213-5e9e635fd9f0 h1:zilb2vx37DiBV5tfJRapxbXJqKavuCBKUl6kE4guShQ=
+github.com/apernet/quic-go v0.43.1-0.20240515053213-5e9e635fd9f0/go.mod h1:j3QaAM7sVJqptDQyIQRWA6mASCfuxoHJszn67JQh1GE=
 github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=
 github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e/go.mod h1:nSuG5e5PlCu98SY8svDHJxuZscDgtXS6KTTbou5AhLI=
 github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1/go.mod h1:Q3SI9o4m/ZMnBNeIyt5eFwwo7qiLfzFZmjNmxjkiQlU=
