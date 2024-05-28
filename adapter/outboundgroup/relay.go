@@ -7,14 +7,14 @@ import (
 	"net"
 	"time"
 
-	"github.com/yaling888/clash/adapter"
-	"github.com/yaling888/clash/adapter/outbound"
-	"github.com/yaling888/clash/common/singledo"
-	"github.com/yaling888/clash/component/dialer"
-	"github.com/yaling888/clash/component/resolver"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/constant/provider"
-	"github.com/yaling888/clash/tunnel"
+	"github.com/yaling888/quirktiva/adapter"
+	"github.com/yaling888/quirktiva/adapter/outbound"
+	"github.com/yaling888/quirktiva/common/singledo"
+	"github.com/yaling888/quirktiva/component/dialer"
+	"github.com/yaling888/quirktiva/component/resolver"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/constant/provider"
+	"github.com/yaling888/quirktiva/tunnel"
 )
 
 var _ C.ProxyAdapter = (*Relay)(nil)

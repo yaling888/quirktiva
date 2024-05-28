@@ -19,7 +19,7 @@ import (
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
 
-	"github.com/yaling888/clash/component/resolver"
+	"github.com/yaling888/quirktiva/component/resolver"
 )
 
 const (

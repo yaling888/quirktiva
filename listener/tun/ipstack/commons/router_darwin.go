@@ -17,8 +17,8 @@ import (
 	"golang.org/x/net/route"
 	"golang.org/x/sys/unix"
 
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/listener/tun/device"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/listener/tun/device"
 )
 
 var (

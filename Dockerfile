@@ -11,13 +11,13 @@ RUN --mount=target=. \
     --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     make BINDIR= ${TARGETOS}-${TARGETARCH}${TARGETVARIANT} && \
-    mv /clash* /clash
+    mv /quirktiva* /quirktiva
 
 FROM alpine:latest
-LABEL org.opencontainers.image.source="https://github.com/yaling888/clash"
+LABEL org.opencontainers.image.source="https://github.com/yaling888/quirktiva"
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /Country.mmdb /root/.config/clash/
-COPY --from=builder /geosite.dat /root/.config/clash/
-COPY --from=builder /clash /
-ENTRYPOINT ["/clash"]
+COPY --from=builder /Country.mmdb /root/.config/quirktiva/
+COPY --from=builder /geosite.dat /root/.config/quirktiva/
+COPY --from=builder /quirktiva /
+ENTRYPOINT ["/quirktiva"]

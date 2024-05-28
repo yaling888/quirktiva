@@ -7,9 +7,9 @@ import (
 	"net"
 	"sync"
 
-	"github.com/yaling888/clash/common/pool"
-	"github.com/yaling888/clash/transport/shadowsocks/shadowaead"
-	"github.com/yaling888/clash/transport/socks5"
+	"github.com/yaling888/quirktiva/common/pool"
+	"github.com/yaling888/quirktiva/transport/shadowsocks/shadowaead"
+	"github.com/yaling888/quirktiva/transport/socks5"
 )
 
 const (

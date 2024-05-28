@@ -4,7 +4,7 @@ import (
 	"crypto/tls"
 	"sync"
 
-	"github.com/yaling888/clash/component/trie"
+	"github.com/yaling888/quirktiva/component/trie"
 )
 
 // DomainTrieCertsStorage cache wildcard certificates

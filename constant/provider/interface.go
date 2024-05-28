@@ -3,8 +3,8 @@ package provider
 import (
 	"net"
 
-	"github.com/yaling888/clash/component/resolver"
-	"github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/component/resolver"
+	"github.com/yaling888/quirktiva/constant"
 )
 
 // Vehicle Type

@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/yaling888/clash/component/dialer"
+	"github.com/yaling888/quirktiva/component/dialer"
 )
 
 // Adapter Type

@@ -8,9 +8,9 @@ import (
 
 	"github.com/phuslu/log"
 
-	"github.com/yaling888/clash/common/convert"
-	"github.com/yaling888/clash/component/mmdb"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/common/convert"
+	"github.com/yaling888/quirktiva/component/mmdb"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 func downloadMMDB(path string) (err error) {

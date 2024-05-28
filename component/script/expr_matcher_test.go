@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	C "github.com/yaling888/clash/constant"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 func TestStringInString(t *testing.T) {

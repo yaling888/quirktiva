@@ -1,9 +1,9 @@
-NAME=clash-plus-pro
+NAME=quirktiva
 BINDIR=bin
 VERSION=$(shell git describe --tags --always || echo "unknown version")
 BUILDTIME=$(shell date -u +'%FT%TZ')
-GOBUILD=CGO_ENABLED=0 go build -trimpath -ldflags '-X "github.com/yaling888/clash/constant.Version=$(VERSION)" \
-		-X "github.com/yaling888/clash/constant.BuildTime=$(BUILDTIME)" \
+GOBUILD=CGO_ENABLED=0 go build -trimpath -ldflags '-X "github.com/yaling888/quirktiva/constant.Version=$(VERSION)" \
+		-X "github.com/yaling888/quirktiva/constant.BuildTime=$(BUILDTIME)" \
 		-w -s -buildid='
 
 PLATFORM_LIST = \

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/yaling888/clash/component/geodata"
-	"github.com/yaling888/clash/component/geodata/router"
+	"github.com/yaling888/quirktiva/component/geodata"
+	"github.com/yaling888/quirktiva/component/geodata/router"
 )
 
 type memConservativeLoader struct {

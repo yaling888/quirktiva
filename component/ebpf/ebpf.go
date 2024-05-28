@@ -3,10 +3,10 @@ package ebpf
 import (
 	"net/netip"
 
-	"github.com/yaling888/clash/common/cmd"
-	"github.com/yaling888/clash/component/resolver"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/transport/socks5"
+	"github.com/yaling888/quirktiva/common/cmd"
+	"github.com/yaling888/quirktiva/component/resolver"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/transport/socks5"
 )
 
 type option struct {

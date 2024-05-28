@@ -8,8 +8,8 @@ import (
 
 	"github.com/insomniacslk/dhcp/dhcpv4"
 
-	"github.com/yaling888/clash/common/nnip"
-	"github.com/yaling888/clash/component/iface"
+	"github.com/yaling888/quirktiva/common/nnip"
+	"github.com/yaling888/quirktiva/component/iface"
 )
 
 var (

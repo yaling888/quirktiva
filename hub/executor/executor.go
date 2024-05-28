@@ -10,23 +10,23 @@ import (
 	"github.com/phuslu/log"
 	"github.com/samber/lo"
 
-	"github.com/yaling888/clash/adapter"
-	"github.com/yaling888/clash/adapter/outboundgroup"
-	"github.com/yaling888/clash/component/auth"
-	"github.com/yaling888/clash/component/dialer"
-	"github.com/yaling888/clash/component/iface"
-	"github.com/yaling888/clash/component/profile"
-	"github.com/yaling888/clash/component/profile/cachefile"
-	"github.com/yaling888/clash/component/resolver"
-	"github.com/yaling888/clash/component/trie"
-	"github.com/yaling888/clash/config"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/constant/provider"
-	"github.com/yaling888/clash/dns"
-	"github.com/yaling888/clash/listener"
-	authStore "github.com/yaling888/clash/listener/auth"
-	L "github.com/yaling888/clash/log"
-	"github.com/yaling888/clash/tunnel"
+	"github.com/yaling888/quirktiva/adapter"
+	"github.com/yaling888/quirktiva/adapter/outboundgroup"
+	"github.com/yaling888/quirktiva/component/auth"
+	"github.com/yaling888/quirktiva/component/dialer"
+	"github.com/yaling888/quirktiva/component/iface"
+	"github.com/yaling888/quirktiva/component/profile"
+	"github.com/yaling888/quirktiva/component/profile/cachefile"
+	"github.com/yaling888/quirktiva/component/resolver"
+	"github.com/yaling888/quirktiva/component/trie"
+	"github.com/yaling888/quirktiva/config"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/constant/provider"
+	"github.com/yaling888/quirktiva/dns"
+	"github.com/yaling888/quirktiva/listener"
+	authStore "github.com/yaling888/quirktiva/listener/auth"
+	L "github.com/yaling888/quirktiva/log"
+	"github.com/yaling888/quirktiva/tunnel"
 )
 
 var mux sync.Mutex
@@ -321,5 +321,5 @@ func Shutdown() {
 	resolver.StoreFakePoolState()
 
 	L.SetLevel(L.INFO)
-	log.Info().Msg("[Main] Clash shutting down")
+	log.Info().Msg("[Main] Quirktiva shutting down")
 }

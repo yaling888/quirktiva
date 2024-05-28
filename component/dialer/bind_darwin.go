@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/yaling888/clash/component/iface"
+	"github.com/yaling888/quirktiva/component/iface"
 )
 
 type controlFn = func(network, address string, c syscall.RawConn) error

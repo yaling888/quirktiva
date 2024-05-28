@@ -15,13 +15,13 @@ import (
 	"github.com/quic-go/quic-go/http3"
 	"github.com/samber/lo"
 
-	"github.com/yaling888/clash/common/cache"
-	"github.com/yaling888/clash/common/errors2"
-	"github.com/yaling888/clash/common/picker"
-	"github.com/yaling888/clash/component/dialer"
-	"github.com/yaling888/clash/component/resolver"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/tunnel"
+	"github.com/yaling888/quirktiva/common/cache"
+	"github.com/yaling888/quirktiva/common/errors2"
+	"github.com/yaling888/quirktiva/common/picker"
+	"github.com/yaling888/quirktiva/component/dialer"
+	"github.com/yaling888/quirktiva/component/resolver"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/tunnel"
 )
 
 const (

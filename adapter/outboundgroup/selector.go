@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/yaling888/clash/adapter/outbound"
-	"github.com/yaling888/clash/common/singledo"
-	"github.com/yaling888/clash/component/dialer"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/constant/provider"
+	"github.com/yaling888/quirktiva/adapter/outbound"
+	"github.com/yaling888/quirktiva/common/singledo"
+	"github.com/yaling888/quirktiva/component/dialer"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/constant/provider"
 )
 
 var _ C.ProxyAdapter = (*Selector)(nil)

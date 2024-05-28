@@ -7,8 +7,8 @@ import (
 
 	"github.com/oschwald/geoip2-golang"
 
-	"github.com/yaling888/clash/component/geodata"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/component/geodata"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 func UpdateGeoDatabases() error {

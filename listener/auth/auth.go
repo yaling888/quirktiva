@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"github.com/yaling888/clash/component/auth"
+	"github.com/yaling888/quirktiva/component/auth"
 )
 
 var authenticator auth.Authenticator

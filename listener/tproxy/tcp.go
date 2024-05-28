@@ -3,9 +3,9 @@ package tproxy
 import (
 	"net"
 
-	"github.com/yaling888/clash/adapter/inbound"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/transport/socks5"
+	"github.com/yaling888/quirktiva/adapter/inbound"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/transport/socks5"
 )
 
 type Listener struct {

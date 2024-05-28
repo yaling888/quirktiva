@@ -3,7 +3,7 @@ package vless
 import (
 	"net"
 
-	"github.com/yaling888/clash/common/uuid"
+	"github.com/yaling888/quirktiva/common/uuid"
 )
 
 // Version of vmess

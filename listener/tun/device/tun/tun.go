@@ -2,7 +2,7 @@
 package tun
 
 import (
-	"github.com/yaling888/clash/listener/tun/device"
+	"github.com/yaling888/quirktiva/listener/tun/device"
 )
 
 const Driver = "tun"

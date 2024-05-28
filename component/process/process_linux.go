@@ -11,7 +11,7 @@ import (
 	"github.com/vishvananda/netlink/nl"
 	"golang.org/x/sys/unix"
 
-	"github.com/yaling888/clash/common/pool"
+	"github.com/yaling888/quirktiva/common/pool"
 )
 
 const (

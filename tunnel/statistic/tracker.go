@@ -7,8 +7,8 @@ import (
 	"github.com/samber/lo"
 	"go.uber.org/atomic"
 
-	"github.com/yaling888/clash/common/uuid"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/common/uuid"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 type tracker interface {

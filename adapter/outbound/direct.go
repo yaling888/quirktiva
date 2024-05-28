@@ -5,8 +5,8 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/yaling888/clash/component/dialer"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/component/dialer"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 var _ C.ProxyAdapter = (*Direct)(nil)

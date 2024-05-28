@@ -3,9 +3,9 @@ package dns
 import (
 	"net/netip"
 
-	"github.com/yaling888/clash/common/cache"
-	"github.com/yaling888/clash/component/fakeip"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/common/cache"
+	"github.com/yaling888/quirktiva/component/fakeip"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 type ResolverEnhancer struct {

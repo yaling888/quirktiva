@@ -1,6 +1,6 @@
 <!--
 Install:
-curl -LO https://github.com/yaling888/clash/raw/plus-pro/examples/daemon/macos/org.eu.clashplus.plist
+curl -LO https://github.com/yaling888/quirktiva/raw/plus/examples/daemon/macos/org.eu.clashplus.plist
 cp org.eu.clashplus.plist ~/Library/LaunchAgents/
 launchctl load -w ~/Library/LaunchAgents/org.eu.clashplus.plist
 launchctl start org.eu.clashplus

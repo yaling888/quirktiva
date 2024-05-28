@@ -7,14 +7,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/yaling888/clash/common/convert"
-	"github.com/yaling888/clash/component/dialer"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/transport/shadowsocks/core"
-	"github.com/yaling888/clash/transport/shadowsocks/shadowaead"
-	"github.com/yaling888/clash/transport/shadowsocks/shadowstream"
-	"github.com/yaling888/clash/transport/ssr/obfs"
-	"github.com/yaling888/clash/transport/ssr/protocol"
+	"github.com/yaling888/quirktiva/common/convert"
+	"github.com/yaling888/quirktiva/component/dialer"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/transport/shadowsocks/core"
+	"github.com/yaling888/quirktiva/transport/shadowsocks/shadowaead"
+	"github.com/yaling888/quirktiva/transport/shadowsocks/shadowstream"
+	"github.com/yaling888/quirktiva/transport/ssr/obfs"
+	"github.com/yaling888/quirktiva/transport/ssr/protocol"
 )
 
 var _ C.ProxyAdapter = (*ShadowSocksR)(nil)
@@ -114,7 +114,7 @@ func (ssr *ShadowSocksR) ListenPacketContext(ctx context.Context, metadata *C.Me
 
 func NewShadowSocksR(option ShadowSocksROption) (*ShadowSocksR, error) {
 	// SSR protocol compatibility
-	// https://github.com/yaling888/clash/pull/2056
+	// https://github.com/yaling888/quirktiva/pull/2056
 	if strings.EqualFold(option.Cipher, "none") {
 		option.Cipher = "dummy"
 	}

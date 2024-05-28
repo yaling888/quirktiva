@@ -10,7 +10,7 @@ import (
 	"github.com/phuslu/log"
 	"github.com/samber/lo"
 
-	types "github.com/yaling888/clash/constant/provider"
+	types "github.com/yaling888/quirktiva/constant/provider"
 )
 
 var (

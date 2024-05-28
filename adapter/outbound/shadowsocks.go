@@ -7,13 +7,13 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/yaling888/clash/common/structure"
-	"github.com/yaling888/clash/component/dialer"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/transport/shadowsocks/core"
-	obfs "github.com/yaling888/clash/transport/simple-obfs"
-	"github.com/yaling888/clash/transport/socks5"
-	v2rayObfs "github.com/yaling888/clash/transport/v2ray-plugin"
+	"github.com/yaling888/quirktiva/common/structure"
+	"github.com/yaling888/quirktiva/component/dialer"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/transport/shadowsocks/core"
+	obfs "github.com/yaling888/quirktiva/transport/simple-obfs"
+	"github.com/yaling888/quirktiva/transport/socks5"
+	v2rayObfs "github.com/yaling888/quirktiva/transport/v2ray-plugin"
 )
 
 var _ C.ProxyAdapter = (*ShadowSocks)(nil)

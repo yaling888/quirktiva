@@ -4,10 +4,10 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/yaling888/clash/adapter/inbound"
-	"github.com/yaling888/clash/common/pool"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/transport/socks5"
+	"github.com/yaling888/quirktiva/adapter/inbound"
+	"github.com/yaling888/quirktiva/common/pool"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/transport/socks5"
 )
 
 type UDPListener struct {

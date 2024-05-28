@@ -50,7 +50,7 @@ jobs:
       - name: Build
         if: startsWith(github.ref, 'refs/tags/')
         env:
-          NAME: clash-plus-pro
+          NAME: quirktiva
           BINDIR: bin
         run: make -j $(go run ./test/main.go) releases
 
@@ -63,7 +63,7 @@ jobs:
       #  uses: actions/upload-artifact@v2
       #  if: startsWith(github.ref, 'refs/tags/') == false
       #  with:
-      #    name: clash_${{ env.FILE_SHA }}${{ env.FILE_DATE }}
+      #    name: quirktiva_${{ env.FILE_SHA }}${{ env.FILE_DATE }}
       #    path: |
       #      bin/*
 

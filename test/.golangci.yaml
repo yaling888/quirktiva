@@ -10,5 +10,5 @@ linters-settings:
   gci:
     sections:
       - standard
-      - prefix(github.com/yaling888/clash)
+      - prefix(github.com/yaling888/quirktiva)
       - default

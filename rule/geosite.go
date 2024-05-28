@@ -5,9 +5,9 @@ import (
 
 	"github.com/phuslu/log"
 
-	"github.com/yaling888/clash/component/geodata"
-	"github.com/yaling888/clash/component/geodata/router"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/component/geodata"
+	"github.com/yaling888/quirktiva/component/geodata/router"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 type GEOSITE struct {

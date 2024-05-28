@@ -8,7 +8,7 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 
-	"github.com/yaling888/clash/listener/tun/device/iobased"
+	"github.com/yaling888/quirktiva/listener/tun/device/iobased"
 )
 
 var _ stack.LinkEndpoint = (*TUN)(nil)

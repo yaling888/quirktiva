@@ -7,8 +7,8 @@ import (
 	"os"
 	"sync"
 
-	dev "github.com/yaling888/clash/listener/tun/device"
-	"github.com/yaling888/clash/listener/tun/ipstack/system/mars/tcpip"
+	dev "github.com/yaling888/quirktiva/listener/tun/device"
+	"github.com/yaling888/quirktiva/listener/tun/ipstack/system/mars/tcpip"
 )
 
 const bufSize = 64 << 10

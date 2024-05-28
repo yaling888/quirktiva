@@ -2,7 +2,7 @@ name: CodeQL
 
 on:
   push:
-    branches: [plus-pro]
+    branches: [plus]
 
 jobs:
   analyze:
@@ -48,7 +48,7 @@ jobs:
 
       - name: Build
         env:
-          NAME: clash-plus-pro
+          NAME: quirktiva
           BINDIR: bin
         run: make docker
 

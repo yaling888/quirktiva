@@ -9,9 +9,9 @@ import (
 	"github.com/phuslu/log"
 	"github.com/samber/lo"
 
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/constant/provider"
-	"github.com/yaling888/clash/tunnel"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/constant/provider"
+	"github.com/yaling888/quirktiva/tunnel"
 )
 
 func proxyProviderRouter() http.Handler {

@@ -5,7 +5,7 @@ import (
 
 	"go.starlark.net/starlark"
 
-	C "github.com/yaling888/clash/constant"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 var _ starlark.Mapping = (*ProxyProviders)(nil)

@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/yaling888/clash/component/iface"
+	"github.com/yaling888/quirktiva/component/iface"
 )
 
 const (

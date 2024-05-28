@@ -1,6 +1,6 @@
 ############################################################################
 # Install:
-# curl -LO https://github.com/yaling888/clash/raw/plus-pro/examples/daemon/linux/clash.service
+# curl -LO https://github.com/yaling888/quirktiva/raw/plus/examples/daemon/linux/clash.service
 # cp clash.service /etc/systemd/system/
 # systemctl enable clash.service
 # systemctl start clash

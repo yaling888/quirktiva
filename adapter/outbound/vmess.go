@@ -12,19 +12,19 @@ import (
 
 	"golang.org/x/net/http2"
 
-	"github.com/yaling888/clash/common/convert"
-	"github.com/yaling888/clash/component/dialer"
-	"github.com/yaling888/clash/component/resolver"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/transport/crypto"
-	"github.com/yaling888/clash/transport/gun"
-	"github.com/yaling888/clash/transport/h1"
-	"github.com/yaling888/clash/transport/h2"
-	"github.com/yaling888/clash/transport/header"
-	"github.com/yaling888/clash/transport/quic"
-	"github.com/yaling888/clash/transport/socks5"
-	tls2 "github.com/yaling888/clash/transport/tls"
-	"github.com/yaling888/clash/transport/vmess"
+	"github.com/yaling888/quirktiva/common/convert"
+	"github.com/yaling888/quirktiva/component/dialer"
+	"github.com/yaling888/quirktiva/component/resolver"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/transport/crypto"
+	"github.com/yaling888/quirktiva/transport/gun"
+	"github.com/yaling888/quirktiva/transport/h1"
+	"github.com/yaling888/quirktiva/transport/h2"
+	"github.com/yaling888/quirktiva/transport/header"
+	"github.com/yaling888/quirktiva/transport/quic"
+	"github.com/yaling888/quirktiva/transport/socks5"
+	tls2 "github.com/yaling888/quirktiva/transport/tls"
+	"github.com/yaling888/quirktiva/transport/vmess"
 )
 
 var _ C.ProxyAdapter = (*Vmess)(nil)

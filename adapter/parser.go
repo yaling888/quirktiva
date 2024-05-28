@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/yaling888/clash/adapter/outbound"
-	"github.com/yaling888/clash/common/structure"
-	"github.com/yaling888/clash/common/util"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/adapter/outbound"
+	"github.com/yaling888/quirktiva/common/structure"
+	"github.com/yaling888/quirktiva/common/util"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 type ProxyOption struct {

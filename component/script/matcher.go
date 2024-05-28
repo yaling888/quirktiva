@@ -9,7 +9,7 @@ import (
 	"go.starlark.net/starlark"
 	"go.starlark.net/syntax"
 
-	C "github.com/yaling888/clash/constant"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 const metadataLocalKey = "local.metadata_key"

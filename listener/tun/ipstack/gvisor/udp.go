@@ -13,8 +13,8 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 
-	"github.com/yaling888/clash/listener/tun/ipstack/gvisor/adapter"
-	"github.com/yaling888/clash/listener/tun/ipstack/gvisor/option"
+	"github.com/yaling888/quirktiva/listener/tun/ipstack/gvisor/adapter"
+	"github.com/yaling888/quirktiva/listener/tun/ipstack/gvisor/option"
 )
 
 type packet struct {

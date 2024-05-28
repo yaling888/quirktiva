@@ -7,7 +7,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/yaling888/clash/common/pool"
+	"github.com/yaling888/quirktiva/common/pool"
 )
 
 type aeadWriter struct {

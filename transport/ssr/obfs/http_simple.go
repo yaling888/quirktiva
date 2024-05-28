@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/yaling888/clash/common/convert"
-	"github.com/yaling888/clash/common/pool"
+	"github.com/yaling888/quirktiva/common/convert"
+	"github.com/yaling888/quirktiva/common/pool"
 )
 
 func init() {

@@ -3,7 +3,7 @@ package tun
 import (
 	"fmt"
 
-	"github.com/yaling888/clash/listener/tun/device"
+	"github.com/yaling888/quirktiva/listener/tun/device"
 )
 
 func Open(name string, mtu uint32) (_ device.Device, err error) {

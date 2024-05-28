@@ -16,10 +16,10 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/yaling888/clash/common/queue"
-	"github.com/yaling888/clash/component/dialer"
-	"github.com/yaling888/clash/component/resolver"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/common/queue"
+	"github.com/yaling888/quirktiva/component/dialer"
+	"github.com/yaling888/quirktiva/component/resolver"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 type Proxy struct {

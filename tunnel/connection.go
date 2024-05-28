@@ -6,9 +6,9 @@ import (
 	"net/netip"
 	"time"
 
-	N "github.com/yaling888/clash/common/net"
-	"github.com/yaling888/clash/common/pool"
-	C "github.com/yaling888/clash/constant"
+	N "github.com/yaling888/quirktiva/common/net"
+	"github.com/yaling888/quirktiva/common/pool"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 func handleUDPToRemote(packet C.UDPPacket, pc C.PacketConn, metadata *C.Metadata) error {

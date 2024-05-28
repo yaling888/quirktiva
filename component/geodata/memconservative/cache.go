@@ -8,8 +8,8 @@ import (
 	"github.com/phuslu/log"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/yaling888/clash/component/geodata/router"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/component/geodata/router"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 type GeoIPCache map[string]*router.GeoIP

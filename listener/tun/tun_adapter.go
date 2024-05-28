@@ -10,17 +10,17 @@ import (
 
 	"github.com/phuslu/log"
 
-	"github.com/yaling888/clash/adapter/inbound"
-	"github.com/yaling888/clash/common/cmd"
-	"github.com/yaling888/clash/component/dialer"
-	"github.com/yaling888/clash/component/resolver"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/listener/tun/device"
-	"github.com/yaling888/clash/listener/tun/device/tun"
-	"github.com/yaling888/clash/listener/tun/ipstack"
-	"github.com/yaling888/clash/listener/tun/ipstack/commons"
-	"github.com/yaling888/clash/listener/tun/ipstack/gvisor"
-	"github.com/yaling888/clash/listener/tun/ipstack/system"
+	"github.com/yaling888/quirktiva/adapter/inbound"
+	"github.com/yaling888/quirktiva/common/cmd"
+	"github.com/yaling888/quirktiva/component/dialer"
+	"github.com/yaling888/quirktiva/component/resolver"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/listener/tun/device"
+	"github.com/yaling888/quirktiva/listener/tun/device/tun"
+	"github.com/yaling888/quirktiva/listener/tun/ipstack"
+	"github.com/yaling888/quirktiva/listener/tun/ipstack/commons"
+	"github.com/yaling888/quirktiva/listener/tun/ipstack/gvisor"
+	"github.com/yaling888/quirktiva/listener/tun/ipstack/system"
 )
 
 // New TunAdapter
@@ -143,9 +143,9 @@ func generateDeviceName() string {
 	case "darwin":
 		return tun.Driver + "://utun"
 	case "windows":
-		return tun.Driver + "://Clash"
+		return tun.Driver + "://Quirktiva"
 	default:
-		return tun.Driver + "://clash0"
+		return tun.Driver + "://quirktiva"
 	}
 }
 

@@ -8,9 +8,9 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/yaling888/clash/component/geodata"
-	"github.com/yaling888/clash/component/geodata/router"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/component/geodata"
+	"github.com/yaling888/quirktiva/component/geodata/router"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 func ReadFile(path string) ([]byte, error) {

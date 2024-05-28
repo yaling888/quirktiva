@@ -6,9 +6,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/yaling888/clash/common/cache"
-	"github.com/yaling888/clash/component/dialer"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/common/cache"
+	"github.com/yaling888/quirktiva/component/dialer"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 const (

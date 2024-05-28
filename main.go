@@ -13,11 +13,11 @@ import (
 	"github.com/phuslu/log"
 	"go.uber.org/automaxprocs/maxprocs"
 
-	"github.com/yaling888/clash/config"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/hub"
-	"github.com/yaling888/clash/hub/executor"
-	cLog "github.com/yaling888/clash/log"
+	"github.com/yaling888/quirktiva/config"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/hub"
+	"github.com/yaling888/quirktiva/hub/executor"
+	cLog "github.com/yaling888/quirktiva/log"
 )
 
 var (
@@ -39,7 +39,7 @@ func init() {
 		"override external controller address")
 	flag.StringVar(&secret, "secret", os.Getenv("CLASH_OVERRIDE_SECRET"),
 		"override secret for RESTful API")
-	flag.BoolVar(&version, "v", false, "show current version of clash")
+	flag.BoolVar(&version, "v", false, "show current version of Quirktiva")
 	flag.BoolVar(&testConfig, "t", false, "test configuration and exit")
 	flag.Parse()
 }
@@ -47,7 +47,7 @@ func init() {
 func main() {
 	_, _ = maxprocs.Set(maxprocs.Logger(func(string, ...any) {}))
 	if version {
-		fmt.Printf("Clash Plus Pro %s %s %s with %s %s\n",
+		fmt.Printf("Quirktiva %s %s %s with %s on %s\n",
 			C.Version,
 			runtime.GOOS,
 			runtime.GOARCH,
@@ -118,14 +118,14 @@ func main() {
 	oldLevel := cLog.Level()
 	cLog.SetLevel(cLog.INFO)
 	log.Info().
-		Str("version", fmt.Sprintf("%s %s %s with %s %s",
+		Str("version", fmt.Sprintf("%s %s %s with %s on %s",
 			C.Version,
 			runtime.GOOS,
 			runtime.GOARCH,
 			runtime.Version(),
 			C.BuildTime,
 		)).
-		Msg("[Main] Clash Plus started")
+		Msg("[Main] Quirktiva started")
 	cLog.SetLevel(oldLevel)
 
 	defer executor.Shutdown()

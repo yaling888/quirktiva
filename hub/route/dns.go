@@ -12,8 +12,8 @@ import (
 	"github.com/miekg/dns"
 	"github.com/samber/lo"
 
-	"github.com/yaling888/clash/common/util"
-	"github.com/yaling888/clash/component/resolver"
+	"github.com/yaling888/quirktiva/common/util"
+	"github.com/yaling888/quirktiva/component/resolver"
 )
 
 func dnsRouter() http.Handler {

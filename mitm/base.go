@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"io"
 
-	C "github.com/yaling888/clash/constant"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 var (

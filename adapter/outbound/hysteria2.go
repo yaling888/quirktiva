@@ -19,11 +19,11 @@ import (
 	"github.com/apernet/hysteria/core/v2/client"
 	"github.com/apernet/hysteria/extras/v2/obfs"
 
-	"github.com/yaling888/clash/common/pool"
-	"github.com/yaling888/clash/common/util"
-	"github.com/yaling888/clash/component/dialer"
-	"github.com/yaling888/clash/component/resolver"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/common/pool"
+	"github.com/yaling888/quirktiva/common/util"
+	"github.com/yaling888/quirktiva/component/dialer"
+	"github.com/yaling888/quirktiva/component/resolver"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 type Hysteria2Option struct {

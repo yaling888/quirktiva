@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	C "github.com/yaling888/clash/constant"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 type PortType int

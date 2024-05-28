@@ -16,15 +16,15 @@ import (
 	"github.com/samber/lo"
 	"gopkg.in/yaml.v3"
 
-	"github.com/yaling888/clash/adapter"
-	"github.com/yaling888/clash/adapter/outbound"
-	"github.com/yaling888/clash/common/convert"
-	"github.com/yaling888/clash/common/singledo"
-	"github.com/yaling888/clash/common/structure"
-	"github.com/yaling888/clash/component/resolver"
-	C "github.com/yaling888/clash/constant"
-	types "github.com/yaling888/clash/constant/provider"
-	"github.com/yaling888/clash/tunnel/statistic"
+	"github.com/yaling888/quirktiva/adapter"
+	"github.com/yaling888/quirktiva/adapter/outbound"
+	"github.com/yaling888/quirktiva/common/convert"
+	"github.com/yaling888/quirktiva/common/singledo"
+	"github.com/yaling888/quirktiva/common/structure"
+	"github.com/yaling888/quirktiva/component/resolver"
+	C "github.com/yaling888/quirktiva/constant"
+	types "github.com/yaling888/quirktiva/constant/provider"
+	"github.com/yaling888/quirktiva/tunnel/statistic"
 )
 
 var (

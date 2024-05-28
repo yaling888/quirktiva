@@ -1,27 +1,27 @@
-module github.com/yaling888/clash
+module github.com/yaling888/quirktiva
 
 go 1.22.2
 
 require (
-	github.com/apernet/hysteria/core/v2 v2.0.0-20240518032847-0c198abd2e47
-	github.com/apernet/hysteria/extras/v2 v2.0.0-20240518032847-0c198abd2e47
+	github.com/apernet/hysteria/core/v2 v2.0.0-20240520222031-adee547c215b
+	github.com/apernet/hysteria/extras/v2 v2.0.0-20240520222031-adee547c215b
 	github.com/cilium/ebpf v0.15.0
 	github.com/dlclark/regexp2 v1.11.0
-	github.com/expr-lang/expr v1.16.5
+	github.com/expr-lang/expr v1.16.9
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/render v1.0.3
 	github.com/gorilla/websocket v1.5.1
-	github.com/insomniacslk/dhcp v0.0.0-20240419123447-f1cffa2c0c49
+	github.com/insomniacslk/dhcp v0.0.0-20240524104655-6ac7581c8098
 	github.com/miekg/dns v1.1.59
 	github.com/oschwald/geoip2-golang v1.9.0
-	github.com/phuslu/log v1.0.97
+	github.com/phuslu/log v1.0.101
 	github.com/quic-go/quic-go v0.44.0
 	github.com/samber/lo v1.39.0
 	github.com/stretchr/testify v1.9.0
-	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240425164735-856e190dd707
+	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240524165444-4d4ba1473f21
 	go.etcd.io/bbolt v1.3.10
-	go.starlark.net v0.0.0-20240411212711-9b43f0afd521
+	go.starlark.net v0.0.0-20240520160348-046347dcd104
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.5.3
 	golang.org/x/crypto v0.23.0
@@ -34,12 +34,12 @@ require (
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b
 	google.golang.org/protobuf v1.34.1
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20240503213918-b7c924bc64f8
+	gvisor.dev/gvisor v0.0.0-20240524213522-f2b01a6e47ff
 )
 
 require (
 	github.com/ajg/form v1.5.1 // indirect
-	github.com/apernet/quic-go v0.43.1-0.20240515053213-5e9e635fd9f0 // indirect
+	github.com/apernet/quic-go v0.44.1-0.20240520215222-bb2e53664023 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/google/btree v1.1.2 // indirect

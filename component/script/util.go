@@ -8,11 +8,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/yaling888/clash/component/ipset"
-	"github.com/yaling888/clash/component/mmdb"
-	P "github.com/yaling888/clash/component/process"
-	"github.com/yaling888/clash/component/resolver"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/component/ipset"
+	"github.com/yaling888/quirktiva/component/mmdb"
+	P "github.com/yaling888/quirktiva/component/process"
+	"github.com/yaling888/quirktiva/component/resolver"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 func uResolveIP(mtd *C.Metadata, host string) string {

@@ -8,10 +8,10 @@ import (
 	"github.com/go-chi/render"
 	"github.com/phuslu/log"
 
-	"github.com/yaling888/clash/config"
-	"github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/hub/executor"
-	L "github.com/yaling888/clash/log"
+	"github.com/yaling888/quirktiva/config"
+	"github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/hub/executor"
+	L "github.com/yaling888/quirktiva/log"
 )
 
 var (

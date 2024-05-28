@@ -3,7 +3,7 @@ package nat
 import (
 	"net/netip"
 
-	"github.com/yaling888/clash/common/generics/list"
+	"github.com/yaling888/quirktiva/common/generics/list"
 )
 
 const (

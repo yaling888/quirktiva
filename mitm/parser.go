@@ -5,7 +5,7 @@ import (
 
 	regexp "github.com/dlclark/regexp2"
 
-	C "github.com/yaling888/clash/constant"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 const payloadSeparator = "<and>"

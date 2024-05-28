@@ -10,14 +10,14 @@ import (
 
 	"golang.org/x/net/http2"
 
-	"github.com/yaling888/clash/common/convert"
-	"github.com/yaling888/clash/component/dialer"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/transport/crypto"
-	"github.com/yaling888/clash/transport/gun"
-	"github.com/yaling888/clash/transport/header"
-	"github.com/yaling888/clash/transport/quic"
-	"github.com/yaling888/clash/transport/trojan"
+	"github.com/yaling888/quirktiva/common/convert"
+	"github.com/yaling888/quirktiva/component/dialer"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/transport/crypto"
+	"github.com/yaling888/quirktiva/transport/gun"
+	"github.com/yaling888/quirktiva/transport/header"
+	"github.com/yaling888/quirktiva/transport/quic"
+	"github.com/yaling888/quirktiva/transport/trojan"
 )
 
 var _ C.ProxyAdapter = (*Trojan)(nil)

@@ -4,9 +4,9 @@ import (
 	"net"
 	"net/netip"
 
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/context"
-	"github.com/yaling888/clash/transport/socks5"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/context"
+	"github.com/yaling888/quirktiva/transport/socks5"
 )
 
 // NewSocket receive TCP inbound and return ConnContext

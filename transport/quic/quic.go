@@ -12,11 +12,11 @@ import (
 
 	"github.com/quic-go/quic-go"
 
-	"github.com/yaling888/clash/common/pool"
-	"github.com/yaling888/clash/component/resolver"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/transport/crypto"
-	"github.com/yaling888/clash/transport/header"
+	"github.com/yaling888/quirktiva/common/pool"
+	"github.com/yaling888/quirktiva/component/resolver"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/transport/crypto"
+	"github.com/yaling888/quirktiva/transport/header"
 )
 
 var defaultALPN = []string{"h3", "h3-29", "h3-Q050", "h3-Q046", "h3-Q043", "hq-interop", "quic"}

@@ -8,12 +8,12 @@ import (
 
 	"github.com/phuslu/log"
 
-	"github.com/yaling888/clash/adapter/inbound"
-	"github.com/yaling888/clash/common/cache"
-	N "github.com/yaling888/clash/common/net"
-	"github.com/yaling888/clash/component/auth"
-	C "github.com/yaling888/clash/constant"
-	authStore "github.com/yaling888/clash/listener/auth"
+	"github.com/yaling888/quirktiva/adapter/inbound"
+	"github.com/yaling888/quirktiva/common/cache"
+	N "github.com/yaling888/quirktiva/common/net"
+	"github.com/yaling888/quirktiva/component/auth"
+	C "github.com/yaling888/quirktiva/constant"
+	authStore "github.com/yaling888/quirktiva/listener/auth"
 )
 
 func HandleConn(c net.Conn, in chan<- C.ConnContext, cache *cache.LruCache[string, bool], auth auth.Authenticator) {

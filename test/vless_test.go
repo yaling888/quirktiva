@@ -8,8 +8,8 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/require"
 
-	"github.com/yaling888/clash/adapter/outbound"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/adapter/outbound"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 func TestClash_VlessTLS(t *testing.T) {

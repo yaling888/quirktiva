@@ -8,8 +8,8 @@ import (
 	"github.com/phuslu/log"
 	"go.etcd.io/bbolt"
 
-	"github.com/yaling888/clash/component/profile"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/component/profile"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 var (

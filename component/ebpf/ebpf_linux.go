@@ -6,11 +6,11 @@ import (
 
 	"github.com/vishvananda/netlink"
 
-	"github.com/yaling888/clash/common/cmd"
-	"github.com/yaling888/clash/component/dialer"
-	"github.com/yaling888/clash/component/ebpf/redir"
-	"github.com/yaling888/clash/component/ebpf/tc"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/common/cmd"
+	"github.com/yaling888/quirktiva/component/dialer"
+	"github.com/yaling888/quirktiva/component/ebpf/redir"
+	"github.com/yaling888/quirktiva/component/ebpf/tc"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 // NewTcEBpfProgram new redirect to tun ebpf program

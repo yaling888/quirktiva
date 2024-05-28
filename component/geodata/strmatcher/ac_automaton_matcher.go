@@ -1,7 +1,7 @@
 package strmatcher
 
 import (
-	"github.com/yaling888/clash/common/generics/list"
+	"github.com/yaling888/quirktiva/common/generics/list"
 )
 
 const validCharCount = 53

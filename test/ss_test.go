@@ -8,7 +8,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/require"
 
-	"github.com/yaling888/clash/adapter/outbound"
+	"github.com/yaling888/quirktiva/adapter/outbound"
 )
 
 func TestClash_Shadowsocks(t *testing.T) {

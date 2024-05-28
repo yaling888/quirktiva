@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yaling888/clash/adapter/inbound"
-	N "github.com/yaling888/clash/common/net"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/transport/socks5"
+	"github.com/yaling888/quirktiva/adapter/inbound"
+	N "github.com/yaling888/quirktiva/common/net"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/transport/socks5"
 )
 
 func isUpgradeRequest(req *http.Request) bool {

@@ -14,9 +14,9 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/waiter"
 
-	"github.com/yaling888/clash/common/pool"
-	"github.com/yaling888/clash/listener/tun/ipstack/gvisor/adapter"
-	"github.com/yaling888/clash/listener/tun/ipstack/gvisor/option"
+	"github.com/yaling888/quirktiva/common/pool"
+	"github.com/yaling888/quirktiva/listener/tun/ipstack/gvisor/adapter"
+	"github.com/yaling888/quirktiva/listener/tun/ipstack/gvisor/option"
 )
 
 const (

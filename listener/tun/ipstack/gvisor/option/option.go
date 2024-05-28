@@ -12,7 +12,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 
-	"github.com/yaling888/clash/common/pool"
+	"github.com/yaling888/quirktiva/common/pool"
 )
 
 const (

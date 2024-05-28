@@ -10,9 +10,9 @@ import (
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 
-	"github.com/yaling888/clash/common/nnip"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/listener/tun/device"
+	"github.com/yaling888/quirktiva/common/nnip"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/listener/tun/device"
 )
 
 var (

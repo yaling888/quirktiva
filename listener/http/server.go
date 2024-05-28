@@ -3,9 +3,9 @@ package http
 import (
 	"net"
 
-	"github.com/yaling888/clash/common/cache"
-	"github.com/yaling888/clash/component/auth"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/common/cache"
+	"github.com/yaling888/quirktiva/component/auth"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 type Listener struct {

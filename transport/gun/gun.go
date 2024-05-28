@@ -17,8 +17,8 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/net/http2"
 
-	"github.com/yaling888/clash/common/pool"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/common/pool"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 var (

@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/yaling888/clash/common/pool"
+	"github.com/yaling888/quirktiva/common/pool"
 )
 
 var (

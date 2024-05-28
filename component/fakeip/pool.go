@@ -6,9 +6,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/yaling888/clash/common/nnip"
-	"github.com/yaling888/clash/component/profile/cachefile"
-	"github.com/yaling888/clash/component/trie"
+	"github.com/yaling888/quirktiva/common/nnip"
+	"github.com/yaling888/quirktiva/component/profile/cachefile"
+	"github.com/yaling888/quirktiva/component/trie"
 )
 
 const (

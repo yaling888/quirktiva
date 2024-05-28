@@ -15,11 +15,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yaling888/clash/common/cache"
-	N "github.com/yaling888/clash/common/net"
-	"github.com/yaling888/clash/component/auth"
-	C "github.com/yaling888/clash/constant"
-	H "github.com/yaling888/clash/listener/http"
+	"github.com/yaling888/quirktiva/common/cache"
+	N "github.com/yaling888/quirktiva/common/net"
+	"github.com/yaling888/quirktiva/component/auth"
+	C "github.com/yaling888/quirktiva/constant"
+	H "github.com/yaling888/quirktiva/listener/http"
 )
 
 func HandleConn(c net.Conn, opt *C.MitmOption, in chan<- C.ConnContext, cache *cache.LruCache[string, bool], auth auth.Authenticator) {

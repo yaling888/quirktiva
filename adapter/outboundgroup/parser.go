@@ -7,11 +7,11 @@ import (
 
 	regexp "github.com/dlclark/regexp2"
 
-	"github.com/yaling888/clash/adapter/outbound"
-	"github.com/yaling888/clash/adapter/provider"
-	"github.com/yaling888/clash/common/structure"
-	C "github.com/yaling888/clash/constant"
-	types "github.com/yaling888/clash/constant/provider"
+	"github.com/yaling888/quirktiva/adapter/outbound"
+	"github.com/yaling888/quirktiva/adapter/provider"
+	"github.com/yaling888/quirktiva/common/structure"
+	C "github.com/yaling888/quirktiva/constant"
+	types "github.com/yaling888/quirktiva/constant/provider"
 )
 
 var (

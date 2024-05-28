@@ -7,8 +7,8 @@ import (
 	"github.com/samber/lo"
 	"go.uber.org/atomic"
 
-	"github.com/yaling888/clash/common/batch"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/common/batch"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 const (

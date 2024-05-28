@@ -6,11 +6,11 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/yaling888/clash/common/structure"
-	"github.com/yaling888/clash/component/dialer"
-	C "github.com/yaling888/clash/constant"
-	obfs "github.com/yaling888/clash/transport/simple-obfs"
-	"github.com/yaling888/clash/transport/snell"
+	"github.com/yaling888/quirktiva/common/structure"
+	"github.com/yaling888/quirktiva/component/dialer"
+	C "github.com/yaling888/quirktiva/constant"
+	obfs "github.com/yaling888/quirktiva/transport/simple-obfs"
+	"github.com/yaling888/quirktiva/transport/snell"
 )
 
 var _ C.ProxyAdapter = (*Snell)(nil)

@@ -12,8 +12,8 @@ import (
 
 	"github.com/phuslu/log"
 
-	"github.com/yaling888/clash/common/pool"
-	"github.com/yaling888/clash/transport/ssr/tools"
+	"github.com/yaling888/quirktiva/common/pool"
+	"github.com/yaling888/quirktiva/transport/ssr/tools"
 )
 
 type (

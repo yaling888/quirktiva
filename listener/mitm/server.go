@@ -12,14 +12,14 @@ import (
 	"github.com/phuslu/log"
 	"go.uber.org/atomic"
 
-	"github.com/yaling888/clash/adapter/outbound"
-	"github.com/yaling888/clash/common/cache"
-	"github.com/yaling888/clash/common/cert"
-	"github.com/yaling888/clash/component/auth"
-	C "github.com/yaling888/clash/constant"
-	authStore "github.com/yaling888/clash/listener/auth"
-	"github.com/yaling888/clash/mitm"
-	"github.com/yaling888/clash/tunnel"
+	"github.com/yaling888/quirktiva/adapter/outbound"
+	"github.com/yaling888/quirktiva/common/cache"
+	"github.com/yaling888/quirktiva/common/cert"
+	"github.com/yaling888/quirktiva/component/auth"
+	C "github.com/yaling888/quirktiva/constant"
+	authStore "github.com/yaling888/quirktiva/listener/auth"
+	"github.com/yaling888/quirktiva/mitm"
+	"github.com/yaling888/quirktiva/tunnel"
 )
 
 var proxyDone = atomic.NewUint32(0)

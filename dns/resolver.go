@@ -16,12 +16,12 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sync/singleflight"
 
-	"github.com/yaling888/clash/common/cache"
-	"github.com/yaling888/clash/component/fakeip"
-	"github.com/yaling888/clash/component/geodata/router"
-	"github.com/yaling888/clash/component/resolver"
-	"github.com/yaling888/clash/component/trie"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/common/cache"
+	"github.com/yaling888/quirktiva/component/fakeip"
+	"github.com/yaling888/quirktiva/component/geodata/router"
+	"github.com/yaling888/quirktiva/component/resolver"
+	"github.com/yaling888/quirktiva/component/trie"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 type dnsClient interface {

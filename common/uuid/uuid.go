@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/yaling888/clash/common/encoding/base58"
+	"github.com/yaling888/quirktiva/common/encoding/base58"
 )
 
 const (

@@ -10,15 +10,15 @@ import (
 
 	"github.com/phuslu/log"
 
-	"github.com/yaling888/clash/adapter/inbound"
-	"github.com/yaling888/clash/common/nnip"
-	"github.com/yaling888/clash/common/pool"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/listener/tun/device"
-	"github.com/yaling888/clash/listener/tun/ipstack"
-	D "github.com/yaling888/clash/listener/tun/ipstack/commons"
-	"github.com/yaling888/clash/listener/tun/ipstack/system/mars"
-	"github.com/yaling888/clash/listener/tun/ipstack/system/mars/nat"
+	"github.com/yaling888/quirktiva/adapter/inbound"
+	"github.com/yaling888/quirktiva/common/nnip"
+	"github.com/yaling888/quirktiva/common/pool"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/listener/tun/device"
+	"github.com/yaling888/quirktiva/listener/tun/ipstack"
+	D "github.com/yaling888/quirktiva/listener/tun/ipstack/commons"
+	"github.com/yaling888/quirktiva/listener/tun/ipstack/system/mars"
+	"github.com/yaling888/quirktiva/listener/tun/ipstack/system/mars/nat"
 )
 
 type sysStack struct {

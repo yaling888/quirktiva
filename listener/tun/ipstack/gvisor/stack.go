@@ -13,13 +13,13 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 
-	"github.com/yaling888/clash/adapter/inbound"
-	"github.com/yaling888/clash/common/nnip"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/listener/tun/device"
-	"github.com/yaling888/clash/listener/tun/ipstack"
-	"github.com/yaling888/clash/listener/tun/ipstack/commons"
-	"github.com/yaling888/clash/listener/tun/ipstack/gvisor/option"
+	"github.com/yaling888/quirktiva/adapter/inbound"
+	"github.com/yaling888/quirktiva/common/nnip"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/listener/tun/device"
+	"github.com/yaling888/quirktiva/listener/tun/ipstack"
+	"github.com/yaling888/quirktiva/listener/tun/ipstack/commons"
+	"github.com/yaling888/quirktiva/listener/tun/ipstack/gvisor/option"
 )
 
 type gvStack struct {

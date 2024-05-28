@@ -7,7 +7,7 @@ import (
 	"github.com/expr-lang/expr/vm"
 	"github.com/expr-lang/expr/vm/runtime"
 
-	C "github.com/yaling888/clash/constant"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 var inStringPatch = &stringInString{}

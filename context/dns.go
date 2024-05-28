@@ -3,7 +3,7 @@ package context
 import (
 	"github.com/miekg/dns"
 
-	"github.com/yaling888/clash/common/uuid"
+	"github.com/yaling888/quirktiva/common/uuid"
 )
 
 const (

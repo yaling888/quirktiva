@@ -13,9 +13,9 @@ import (
 
 	"github.com/phuslu/log"
 
-	"github.com/yaling888/clash/common/pool"
-	"github.com/yaling888/clash/transport/shadowsocks/core"
-	"github.com/yaling888/clash/transport/ssr/tools"
+	"github.com/yaling888/quirktiva/common/pool"
+	"github.com/yaling888/quirktiva/transport/shadowsocks/core"
+	"github.com/yaling888/quirktiva/transport/ssr/tools"
 )
 
 func init() {

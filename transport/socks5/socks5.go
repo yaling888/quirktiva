@@ -9,8 +9,8 @@ import (
 	"net/netip"
 	"strconv"
 
-	"github.com/yaling888/clash/common/pool"
-	"github.com/yaling888/clash/component/auth"
+	"github.com/yaling888/quirktiva/common/pool"
+	"github.com/yaling888/quirktiva/component/auth"
 )
 
 // Error represents a SOCKS error

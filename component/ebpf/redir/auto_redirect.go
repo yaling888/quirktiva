@@ -16,9 +16,9 @@ import (
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 
-	"github.com/yaling888/clash/common/pool"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/transport/socks5"
+	"github.com/yaling888/quirktiva/common/pool"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/transport/socks5"
 )
 
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS bpf ../bpf/redir.c

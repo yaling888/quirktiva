@@ -1,9 +1,9 @@
 syntax = "proto3";
 
-package clash.component.geodata.router;
-option csharp_namespace = "Clash.Component.Geodata.Router";
-option go_package = "github.com/yaling888/clash/component/geodata/router";
-option java_package = "com.clash.component.geodata.router";
+package quirktiva.component.geodata.router;
+option csharp_namespace = "Quirktiva.Component.Geodata.Router";
+option go_package = "github.com/yaling888/quirktiva/component/geodata/router";
+option java_package = "com.quirktiva.component.geodata.router";
 option java_multiple_files = true;
 
 // Domain for routing decision.

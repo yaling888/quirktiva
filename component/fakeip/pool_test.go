@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/bbolt"
 
-	"github.com/yaling888/clash/component/profile/cachefile"
-	"github.com/yaling888/clash/component/trie"
+	"github.com/yaling888/quirktiva/component/profile/cachefile"
+	"github.com/yaling888/quirktiva/component/trie"
 )
 
 func createPools(options Options) ([]*Pool, string, error) {
@@ -32,7 +32,7 @@ func createCachefileStore(options Options) (*Pool, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	f, err := os.CreateTemp("", "clash")
+	f, err := os.CreateTemp("", "quirktiva")
 	if err != nil {
 		return nil, "", err
 	}

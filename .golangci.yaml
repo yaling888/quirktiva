@@ -17,16 +17,10 @@ linters-settings:
   gci:
     sections:
       - standard
-      - prefix(github.com/yaling888/clash)
+      - prefix(github.com/yaling888/quirktiva)
       - default
 
 run:
-  # default concurrency is a available CPU number
   concurrency: 4
-
-  # Define the Go version limit.
-  # Default: use Go version from the go.mod file, fallback on the env var `GOVERSION`, fallback on 1.17
   # go: '1.22'
-
-  # timeout for analysis, e.g. 30s, 5m, default is 1m
   timeout: 5m

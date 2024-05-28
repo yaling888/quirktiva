@@ -3,8 +3,8 @@ package mars
 import (
 	"net/netip"
 
-	dev "github.com/yaling888/clash/listener/tun/device"
-	"github.com/yaling888/clash/listener/tun/ipstack/system/mars/nat"
+	dev "github.com/yaling888/quirktiva/listener/tun/device"
+	"github.com/yaling888/quirktiva/listener/tun/ipstack/system/mars/nat"
 )
 
 type StackListener struct {

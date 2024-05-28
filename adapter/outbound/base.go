@@ -7,8 +7,8 @@ import (
 	"io"
 	"net"
 
-	"github.com/yaling888/clash/component/dialer"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/component/dialer"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 type Base struct {

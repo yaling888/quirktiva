@@ -7,7 +7,7 @@ import (
 	"net/netip"
 	"runtime"
 
-	"github.com/yaling888/clash/listener/tun/device"
+	"github.com/yaling888/quirktiva/listener/tun/device"
 )
 
 func ConfigInterfaceAddress(_ device.Device, _ netip.Prefix, _ int, _ bool) error {

@@ -5,11 +5,11 @@ import (
 
 	"github.com/phuslu/log"
 
-	"github.com/yaling888/clash/adapter/inbound"
-	"github.com/yaling888/clash/common/pool"
-	"github.com/yaling888/clash/common/sockopt"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/transport/socks5"
+	"github.com/yaling888/quirktiva/adapter/inbound"
+	"github.com/yaling888/quirktiva/common/pool"
+	"github.com/yaling888/quirktiva/common/sockopt"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/transport/socks5"
 )
 
 type UDPListener struct {

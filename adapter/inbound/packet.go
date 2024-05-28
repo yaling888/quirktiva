@@ -4,8 +4,8 @@ import (
 	"net"
 	"net/netip"
 
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/transport/socks5"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/transport/socks5"
 )
 
 // PacketAdapter is a UDP Packet adapter for socks/redir/tun

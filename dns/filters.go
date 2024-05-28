@@ -4,9 +4,9 @@ import (
 	"net/netip"
 	"strings"
 
-	"github.com/yaling888/clash/component/geodata/router"
-	"github.com/yaling888/clash/component/mmdb"
-	"github.com/yaling888/clash/component/trie"
+	"github.com/yaling888/quirktiva/component/geodata/router"
+	"github.com/yaling888/quirktiva/component/mmdb"
+	"github.com/yaling888/quirktiva/component/trie"
 )
 
 type fallbackIPFilter interface {

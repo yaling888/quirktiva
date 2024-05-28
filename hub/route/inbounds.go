@@ -6,9 +6,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/listener"
-	"github.com/yaling888/clash/tunnel"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/listener"
+	"github.com/yaling888/quirktiva/tunnel"
 )
 
 func inboundRouter() http.Handler {

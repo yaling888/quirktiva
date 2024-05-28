@@ -4,10 +4,10 @@ import (
 	"net"
 	"time"
 
-	"github.com/yaling888/clash/common/pool"
-	"github.com/yaling888/clash/component/resolver"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/transport/socks5"
+	"github.com/yaling888/quirktiva/common/pool"
+	"github.com/yaling888/quirktiva/component/resolver"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/transport/socks5"
 )
 
 func tcpKeepAlive(c net.Conn) {

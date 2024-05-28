@@ -3,9 +3,9 @@ package rules
 import (
 	"strings"
 
-	"github.com/yaling888/clash/component/mmdb"
-	"github.com/yaling888/clash/component/resolver"
-	C "github.com/yaling888/clash/constant"
+	"github.com/yaling888/quirktiva/component/mmdb"
+	"github.com/yaling888/quirktiva/component/resolver"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 type GEOIP struct {

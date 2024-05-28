@@ -14,7 +14,7 @@ import (
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/transform"
 
-	"github.com/yaling888/clash/common/cert"
+	"github.com/yaling888/quirktiva/common/cert"
 )
 
 var (
@@ -123,7 +123,7 @@ func NewErrorResponse(req *http.Request, err error) *http.Response {
 		date = time.Now().Format(http.TimeFormat)
 	}
 
-	w := fmt.Sprintf(`199 "clash" %s %s`, err.Error(), date)
+	w := fmt.Sprintf(`199 "quirktiva" %s %s`, err.Error(), date)
 	res.Header.Add("Warning", w)
 	return res
 }

@@ -12,7 +12,7 @@ import (
 	"golang.org/x/sys/windows"
 	T "golang.zx2c4.com/wireguard/tun"
 
-	wintun "github.com/yaling888/clash/listener/tun/device/tun/driver"
+	wintun "github.com/yaling888/quirktiva/listener/tun/device/tun/driver"
 )
 
 const (
@@ -71,7 +71,7 @@ type NativeTun struct {
 }
 
 var (
-	WintunTunnelType          = "Clash"
+	WintunTunnelType          = "Quirktiva"
 	WintunStaticRequestedGUID *windows.GUID
 )
 

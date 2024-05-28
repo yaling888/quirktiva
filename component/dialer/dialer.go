@@ -6,7 +6,7 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/yaling888/clash/component/resolver"
+	"github.com/yaling888/quirktiva/component/resolver"
 )
 
 func DialContext(ctx context.Context, network, address string, options ...Option) (net.Conn, error) {

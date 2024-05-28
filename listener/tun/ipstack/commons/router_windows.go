@@ -11,10 +11,10 @@ import (
 	"golang.zx2c4.com/wireguard/windows/services"
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
 
-	"github.com/yaling888/clash/common/nnip"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/listener/tun/device"
-	"github.com/yaling888/clash/listener/tun/device/tun"
+	"github.com/yaling888/quirktiva/common/nnip"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/listener/tun/device"
+	"github.com/yaling888/quirktiva/listener/tun/device/tun"
 )
 
 var (

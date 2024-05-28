@@ -8,11 +8,11 @@ import (
 	D "github.com/miekg/dns"
 	"github.com/phuslu/log"
 
-	"github.com/yaling888/clash/common/cache"
-	"github.com/yaling888/clash/component/fakeip"
-	"github.com/yaling888/clash/component/trie"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/context"
+	"github.com/yaling888/quirktiva/common/cache"
+	"github.com/yaling888/quirktiva/component/fakeip"
+	"github.com/yaling888/quirktiva/component/trie"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/context"
 )
 
 type (

@@ -1,9 +1,9 @@
 package hub
 
 import (
-	"github.com/yaling888/clash/config"
-	"github.com/yaling888/clash/hub/executor"
-	"github.com/yaling888/clash/hub/route"
+	"github.com/yaling888/quirktiva/config"
+	"github.com/yaling888/quirktiva/hub/executor"
+	"github.com/yaling888/quirktiva/hub/route"
 )
 
 type Option func(*config.Config)

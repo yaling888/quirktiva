@@ -56,7 +56,7 @@ func TestClash_DNSHostAndFakeIP(t *testing.T) {
 	basic := `
 log-level: silent
 hosts:
-  foo.clash.dev: 1.1.1.1
+  foo.quirktiva.dev: 1.1.1.1
 dns:
   enable: true
   listen: 0.0.0.0:8553
@@ -84,7 +84,7 @@ dns:
 		{"foo.org", "198.18.0.3"},
 		{"bar.org", "198.18.0.4"},
 		{"foo.org", "198.18.0.3"},
-		{"foo.clash.dev", "1.1.1.1"},
+		{"foo.quirktiva.dev", "1.1.1.1"},
 	}
 
 	for _, pair := range list {

@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/yaling888/clash/transport/header/dtls"
-	"github.com/yaling888/clash/transport/header/srtp"
-	"github.com/yaling888/clash/transport/header/utp"
-	"github.com/yaling888/clash/transport/header/wechat"
-	"github.com/yaling888/clash/transport/header/wireguard"
+	"github.com/yaling888/quirktiva/transport/header/dtls"
+	"github.com/yaling888/quirktiva/transport/header/srtp"
+	"github.com/yaling888/quirktiva/transport/header/utp"
+	"github.com/yaling888/quirktiva/transport/header/wechat"
+	"github.com/yaling888/quirktiva/transport/header/wireguard"
 )
 
 type Header interface {

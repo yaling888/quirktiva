@@ -9,9 +9,9 @@ import (
 
 	D "github.com/miekg/dns"
 
-	"github.com/yaling888/clash/component/dhcp"
-	"github.com/yaling888/clash/component/iface"
-	"github.com/yaling888/clash/component/resolver"
+	"github.com/yaling888/quirktiva/component/dhcp"
+	"github.com/yaling888/quirktiva/component/iface"
+	"github.com/yaling888/quirktiva/component/resolver"
 )
 
 const (

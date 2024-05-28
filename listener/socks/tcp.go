@@ -4,13 +4,13 @@ import (
 	"io"
 	"net"
 
-	"github.com/yaling888/clash/adapter/inbound"
-	N "github.com/yaling888/clash/common/net"
-	"github.com/yaling888/clash/component/auth"
-	C "github.com/yaling888/clash/constant"
-	authStore "github.com/yaling888/clash/listener/auth"
-	"github.com/yaling888/clash/transport/socks4"
-	"github.com/yaling888/clash/transport/socks5"
+	"github.com/yaling888/quirktiva/adapter/inbound"
+	N "github.com/yaling888/quirktiva/common/net"
+	"github.com/yaling888/quirktiva/component/auth"
+	C "github.com/yaling888/quirktiva/constant"
+	authStore "github.com/yaling888/quirktiva/listener/auth"
+	"github.com/yaling888/quirktiva/transport/socks4"
+	"github.com/yaling888/quirktiva/transport/socks5"
 )
 
 type Listener struct {

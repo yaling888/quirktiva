@@ -11,7 +11,7 @@ import (
 	"github.com/miekg/dns"
 	"github.com/samber/lo"
 
-	"github.com/yaling888/clash/component/trie"
+	"github.com/yaling888/quirktiva/component/trie"
 )
 
 var (

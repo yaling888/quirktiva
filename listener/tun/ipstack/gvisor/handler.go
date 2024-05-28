@@ -11,11 +11,11 @@ import (
 	"github.com/phuslu/log"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 
-	"github.com/yaling888/clash/adapter/inbound"
-	"github.com/yaling888/clash/common/pool"
-	C "github.com/yaling888/clash/constant"
-	D "github.com/yaling888/clash/listener/tun/ipstack/commons"
-	"github.com/yaling888/clash/listener/tun/ipstack/gvisor/adapter"
+	"github.com/yaling888/quirktiva/adapter/inbound"
+	"github.com/yaling888/quirktiva/common/pool"
+	C "github.com/yaling888/quirktiva/constant"
+	D "github.com/yaling888/quirktiva/listener/tun/ipstack/commons"
+	"github.com/yaling888/quirktiva/listener/tun/ipstack/gvisor/adapter"
 )
 
 var _ adapter.Handler = (*gvHandler)(nil)

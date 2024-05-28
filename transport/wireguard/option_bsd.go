@@ -5,8 +5,8 @@ package wireguard
 import (
 	"net/netip"
 
-	"github.com/yaling888/clash/component/dialer"
-	"github.com/yaling888/clash/component/iface"
+	"github.com/yaling888/quirktiva/component/dialer"
+	"github.com/yaling888/quirktiva/component/iface"
 )
 
 func getListenIP(network string, interfaceName string) (string, error) {

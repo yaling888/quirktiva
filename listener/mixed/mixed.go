@@ -3,14 +3,14 @@ package mixed
 import (
 	"net"
 
-	"github.com/yaling888/clash/common/cache"
-	N "github.com/yaling888/clash/common/net"
-	"github.com/yaling888/clash/component/auth"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/listener/http"
-	"github.com/yaling888/clash/listener/socks"
-	"github.com/yaling888/clash/transport/socks4"
-	"github.com/yaling888/clash/transport/socks5"
+	"github.com/yaling888/quirktiva/common/cache"
+	N "github.com/yaling888/quirktiva/common/net"
+	"github.com/yaling888/quirktiva/component/auth"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/listener/http"
+	"github.com/yaling888/quirktiva/listener/socks"
+	"github.com/yaling888/quirktiva/transport/socks4"
+	"github.com/yaling888/quirktiva/transport/socks5"
 )
 
 type Listener struct {

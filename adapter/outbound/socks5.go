@@ -10,9 +10,9 @@ import (
 	"net/netip"
 	"strconv"
 
-	"github.com/yaling888/clash/component/dialer"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/transport/socks5"
+	"github.com/yaling888/quirktiva/component/dialer"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/transport/socks5"
 )
 
 var _ C.ProxyAdapter = (*Socks5)(nil)

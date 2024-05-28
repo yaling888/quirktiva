@@ -3,7 +3,7 @@ package tunnel
 import (
 	"net"
 
-	"github.com/yaling888/clash/common/pool"
+	"github.com/yaling888/quirktiva/common/pool"
 )
 
 type packet struct {

@@ -6,10 +6,10 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/yaling888/clash/adapter/inbound"
-	N "github.com/yaling888/clash/common/net"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/transport/socks5"
+	"github.com/yaling888/quirktiva/adapter/inbound"
+	N "github.com/yaling888/quirktiva/common/net"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/transport/socks5"
 )
 
 func getServerConn(serverConn *N.BufferedConn, request *http.Request, srcAddr net.Addr, originTarget net.Addr, in chan<- C.ConnContext) (*N.BufferedConn, error) {

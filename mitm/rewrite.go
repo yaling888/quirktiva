@@ -7,7 +7,7 @@ import (
 
 	regexp "github.com/dlclark/regexp2"
 
-	C "github.com/yaling888/clash/constant"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 var errInvalid = errors.New("invalid rewrite rule")

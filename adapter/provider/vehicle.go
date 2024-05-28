@@ -11,12 +11,12 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/yaling888/clash/common/convert"
-	"github.com/yaling888/clash/component/dialer"
-	"github.com/yaling888/clash/component/profile/cachefile"
-	"github.com/yaling888/clash/constant"
-	types "github.com/yaling888/clash/constant/provider"
-	"github.com/yaling888/clash/listener/auth"
+	"github.com/yaling888/quirktiva/common/convert"
+	"github.com/yaling888/quirktiva/component/dialer"
+	"github.com/yaling888/quirktiva/component/profile/cachefile"
+	"github.com/yaling888/quirktiva/constant"
+	types "github.com/yaling888/quirktiva/constant/provider"
+	"github.com/yaling888/quirktiva/listener/auth"
 )
 
 var _ types.Vehicle = (*FileVehicle)(nil)
@@ -102,16 +102,12 @@ func (h *HTTPVehicle) Read() ([]byte, error) {
 		ExpectContinueTimeout: 1 * time.Second,
 		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
 			if h.urlProxy {
-				// forward to tun if tun enabled
-				// do not reject the Clash’s own traffic by rule `PROCESS-NAME`
 				return (&net.Dialer{}).DialContext(ctx, network, address)
 			}
 			return dialer.DialContext(ctx, network, address, dialer.WithDirect()) // with direct
 		},
 	}
 
-	// fallback to proxy url if tun disabled, make sure enable at least one inbound port
-	// do not reject the Clash’s own traffic by rule `PROCESS-NAME`
 	if h.urlProxy && !constant.GetTunConf().Enable {
 		transport.Proxy = constant.ProxyURL(auth.Authenticator())
 	}

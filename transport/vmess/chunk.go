@@ -5,7 +5,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/yaling888/clash/common/pool"
+	"github.com/yaling888/quirktiva/common/pool"
 )
 
 const (

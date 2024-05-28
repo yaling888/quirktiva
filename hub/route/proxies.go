@@ -10,11 +10,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/yaling888/clash/adapter"
-	"github.com/yaling888/clash/adapter/outboundgroup"
-	"github.com/yaling888/clash/component/profile/cachefile"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/tunnel"
+	"github.com/yaling888/quirktiva/adapter"
+	"github.com/yaling888/quirktiva/adapter/outboundgroup"
+	"github.com/yaling888/quirktiva/component/profile/cachefile"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/tunnel"
 )
 
 func proxyRouter() http.Handler {

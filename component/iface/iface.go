@@ -6,7 +6,7 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/yaling888/clash/common/singledo"
+	"github.com/yaling888/quirktiva/common/singledo"
 )
 
 type Interface struct {

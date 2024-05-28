@@ -8,7 +8,7 @@ import (
 
 	"github.com/samber/lo"
 
-	"github.com/yaling888/clash/common/generics/list"
+	"github.com/yaling888/quirktiva/common/generics/list"
 )
 
 // Option is part of Functional Options Pattern

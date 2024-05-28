@@ -4,7 +4,7 @@ import (
 	"net"
 	"sort"
 
-	"github.com/yaling888/clash/transport/ssr/tools"
+	"github.com/yaling888/quirktiva/transport/ssr/tools"
 )
 
 func init() {

@@ -22,10 +22,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/yaling888/clash/adapter/outbound"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/hub/executor"
-	"github.com/yaling888/clash/transport/socks5"
+	"github.com/yaling888/quirktiva/adapter/outbound"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/hub/executor"
+	"github.com/yaling888/quirktiva/transport/socks5"
 )
 
 const (

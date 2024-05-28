@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/yaling888/clash/common/util"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/transport/socks5"
+	"github.com/yaling888/quirktiva/common/util"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/transport/socks5"
 )
 
 func parseSocksAddr(target socks5.Addr) *C.Metadata {

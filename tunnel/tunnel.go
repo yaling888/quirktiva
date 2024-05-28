@@ -15,17 +15,17 @@ import (
 	"github.com/samber/lo"
 	"go.uber.org/atomic"
 
-	A "github.com/yaling888/clash/adapter"
-	"github.com/yaling888/clash/adapter/inbound"
-	"github.com/yaling888/clash/common/sniffer"
-	"github.com/yaling888/clash/component/nat"
-	P "github.com/yaling888/clash/component/process"
-	"github.com/yaling888/clash/component/resolver"
-	"github.com/yaling888/clash/component/trie"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/constant/provider"
-	icontext "github.com/yaling888/clash/context"
-	"github.com/yaling888/clash/tunnel/statistic"
+	A "github.com/yaling888/quirktiva/adapter"
+	"github.com/yaling888/quirktiva/adapter/inbound"
+	"github.com/yaling888/quirktiva/common/sniffer"
+	"github.com/yaling888/quirktiva/component/nat"
+	P "github.com/yaling888/quirktiva/component/process"
+	"github.com/yaling888/quirktiva/component/resolver"
+	"github.com/yaling888/quirktiva/component/trie"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/constant/provider"
+	icontext "github.com/yaling888/quirktiva/context"
+	"github.com/yaling888/quirktiva/tunnel/statistic"
 )
 
 var (

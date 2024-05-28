@@ -17,7 +17,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/yaling888/clash/common/errors2"
+	"github.com/yaling888/quirktiva/common/errors2"
 )
 
 type websocketConn struct {

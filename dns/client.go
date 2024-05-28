@@ -12,8 +12,8 @@ import (
 
 	D "github.com/miekg/dns"
 
-	"github.com/yaling888/clash/component/dialer"
-	"github.com/yaling888/clash/component/resolver"
+	"github.com/yaling888/quirktiva/component/dialer"
+	"github.com/yaling888/quirktiva/component/resolver"
 )
 
 var _ dnsClient = (*client)(nil)

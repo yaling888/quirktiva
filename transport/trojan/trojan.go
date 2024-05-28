@@ -13,11 +13,11 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/yaling888/clash/common/pool"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/transport/h2"
-	"github.com/yaling888/clash/transport/socks5"
-	"github.com/yaling888/clash/transport/vmess"
+	"github.com/yaling888/quirktiva/common/pool"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/transport/h2"
+	"github.com/yaling888/quirktiva/transport/socks5"
+	"github.com/yaling888/quirktiva/transport/vmess"
 )
 
 const (

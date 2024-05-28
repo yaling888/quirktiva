@@ -6,7 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/yaling888/clash/component/resolver"
+	"github.com/yaling888/quirktiva/component/resolver"
 )
 
 func cacheRouter() http.Handler {

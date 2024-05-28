@@ -1,20 +1,20 @@
 <h1 align="center">
-  <img src="https://github.com/yaling888/clash/raw/plus-pro/docs/logo.png" alt="Clash" width="200">
-  <br>Clash<br>
+  <img src="https://github.com/yaling888/quirktiva/raw/plus/docs/logo.png" alt="Quirktiva" width="200">
+  <br>Quirktiva<br>
 </h1>
 
 <h4 align="center">A rule-based tunnel in Go.</h4>
 
 <p align="center">
-  <a href="https://github.com/yaling888/clash/actions">
-    <img src="https://img.shields.io/github/actions/workflow/status/yaling888/clash/release.yml?branch=plus-pro&style=flat-square" alt="Github Actions">
+  <a href="https://github.com/yaling888/quirktiva/actions">
+    <img src="https://img.shields.io/github/actions/workflow/status/yaling888/quirktiva/release.yml?branch=plus&style=flat-square" alt="Github Actions">
   </a>
-  <a href="https://goreportcard.com/report/github.com/yaling888/clash">
-    <img src="https://goreportcard.com/badge/github.com/yaling888/clash?style=flat-square">
+  <a href="https://goreportcard.com/report/github.com/yaling888/quirktiva">
+    <img src="https://goreportcard.com/badge/github.com/yaling888/quirktiva?style=flat-square">
   </a>
-  <img src="https://img.shields.io/github/go-mod/go-version/yaling888/clash/plus-pro?style=flat-square">
-  <a href="https://github.com/yaling888/clash/releases">
-    <img src="https://img.shields.io/github/release/yaling888/clash/all.svg?style=flat-square">
+  <img src="https://img.shields.io/github/go-mod/go-version/yaling888/quirktiva/plus?style=flat-square">
+  <a href="https://github.com/yaling888/quirktiva/releases">
+    <img src="https://img.shields.io/github/release/yaling888/quirktiva/all.svg?style=flat-square">
   </a>
 </p>
 
@@ -32,7 +32,7 @@
 - Policy routing with Scripts
 
 ## Getting Started
-Documentations are available at [GitHub Wiki](https://yaling888.github.io/clash/).
+Documentations are available at [GitHub Wiki](https://yaling888.github.io/quirktiva/).
 
 ## Advanced usage for this branch
 ### General configuration
@@ -55,8 +55,6 @@ MITM proxy server will generate a CA certificate file and a CA private key file 
 Need to install and trust the CA certificate on the client device, open this URL [http://mitm.clash/cert.crt](http://mitm.clash/cert.crt) by the web browser to install the CA certificate, the host name 'mitm.clash' was always been hijacked.
 
 NOTE: this feature cannot work on tls pinning
-
-WARNING: DO NOT USE THIS FEATURE TO BREAK LOCAL LAWS
 
 ```yaml
 # Port of MITM proxy server on the local end
@@ -149,11 +147,11 @@ tun:
 ```
 It's recommended to use fake-ip mode for the DNS server.
 
-Clash needs elevated permission to create TUN device:
+Quirktiva needs elevated permission to create TUN device:
 ```sh
-$ sudo ./clash
+$ sudo ./quirktiva
 ```
-Then manually create the default route and DNS server. If your device already has some TUN device, Clash TUN might not work. In this case, fake-ip-filter may helpful.
+Then manually create the default route and DNS server. If your device already has some TUN device, Quirktiva TUN might not work. In this case, fake-ip-filter may helpful.
 
 Enjoy! :)
 
@@ -168,7 +166,7 @@ tun:
   # It is recommended to use `interface-name`
   auto-detect-interface: true # auto detect interface, conflict with `interface-name`
 ```
-Finally, open the Clash
+Finally, open the Quirktiva
 
 ### Rules configuration
 - Support rule `SCRIPT` shortcuts.
@@ -441,7 +439,7 @@ proxies:
 proxy-groups:
   # Relay chains the proxies. proxies shall not contain a relay.
   # Support relay UDP traffic.
-  # Traffic: clash <-> ss1 <-> trojan <-> vmess <-> ss2 <-> Internet
+  # Traffic: quirktiva <-> ss1 <-> trojan <-> vmess <-> ss2 <-> Internet
   - name: "relay-udp-over-tcp"
     type: relay
     proxies:
@@ -550,13 +548,13 @@ tun:
 ```
 
 ### Template
-* [General](https://github.com/yaling888/clash/blob/plus-pro/examples/template/local-client.yaml), usually used as a local client.
-* [Auto redirect](https://github.com/yaling888/clash/blob/plus-pro/examples/template/auto-redir-transparent-gateway.yaml), usually used as a transparent proxy gateway.
-* [Redirect to tun](https://github.com/yaling888/clash/blob/plus-pro/examples/template/redirect-to-tun-transparent-gateway.yaml), usually used as a transparent proxy gateway.
+* [General](https://github.com/yaling888/quirktiva/blob/plus/examples/template/local-client.yaml), usually used as a local client.
+* [Auto redirect](https://github.com/yaling888/quirktiva/blob/plus/examples/template/auto-redir-transparent-gateway.yaml), usually used as a transparent proxy gateway.
+* [Redirect to tun](https://github.com/yaling888/quirktiva/blob/plus/examples/template/redirect-to-tun-transparent-gateway.yaml), usually used as a transparent proxy gateway.
 
 ### Daemon
-* For [macOS](https://github.com/yaling888/clash/blob/plus-pro/examples/daemon/macos/org.eu.clashplus.plist).
-* For [Linux](https://github.com/yaling888/clash/blob/plus-pro/examples/daemon/linux/clash.service).
+* For [macOS](https://github.com/yaling888/quirktiva/blob/plus/examples/daemon/macos/org.eu.clashplus.plist).
+* For [Linux](https://github.com/yaling888/quirktiva/blob/plus/examples/daemon/linux/clash.service).
 * For [Windows](https://github.com/yaling888/SoulX).
 
 ### Web GUI

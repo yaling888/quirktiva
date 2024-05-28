@@ -10,8 +10,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/gorilla/websocket"
 
-	"github.com/yaling888/clash/common/pool"
-	"github.com/yaling888/clash/tunnel/statistic"
+	"github.com/yaling888/quirktiva/common/pool"
+	"github.com/yaling888/quirktiva/tunnel/statistic"
 )
 
 func connectionRouter() http.Handler {

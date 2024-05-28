@@ -5,8 +5,8 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/yaling888/clash/common/convert"
-	"github.com/yaling888/clash/transport/vmess"
+	"github.com/yaling888/quirktiva/common/convert"
+	"github.com/yaling888/quirktiva/transport/vmess"
 )
 
 // Option is options of websocket obfs

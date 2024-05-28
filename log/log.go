@@ -9,7 +9,7 @@ import (
 
 	logger "github.com/phuslu/log"
 
-	"github.com/yaling888/clash/common/observable"
+	"github.com/yaling888/quirktiva/common/observable"
 )
 
 var (

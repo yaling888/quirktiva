@@ -3,7 +3,7 @@ package geodata
 import (
 	"strings"
 
-	"github.com/yaling888/clash/component/geodata/router"
+	"github.com/yaling888/quirktiva/component/geodata/router"
 )
 
 func loadGeoSiteMatcher(countryCode string, not bool) (*router.DomainMatcher, int, error) {

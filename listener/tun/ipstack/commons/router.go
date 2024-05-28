@@ -8,13 +8,13 @@ import (
 
 	"github.com/phuslu/log"
 
-	A "github.com/yaling888/clash/adapter"
-	"github.com/yaling888/clash/adapter/outbound"
-	"github.com/yaling888/clash/component/dialer"
-	"github.com/yaling888/clash/component/iface"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/constant/provider"
-	"github.com/yaling888/clash/tunnel"
+	A "github.com/yaling888/quirktiva/adapter"
+	"github.com/yaling888/quirktiva/adapter/outbound"
+	"github.com/yaling888/quirktiva/component/dialer"
+	"github.com/yaling888/quirktiva/component/iface"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/constant/provider"
+	"github.com/yaling888/quirktiva/tunnel"
 )
 
 //nolint:unused

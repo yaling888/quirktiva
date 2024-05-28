@@ -11,13 +11,13 @@ import (
 	"github.com/phuslu/log"
 	"github.com/samber/lo"
 
-	"github.com/yaling888/clash/component/resolver"
-	"github.com/yaling888/clash/config"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/hub/executor"
-	"github.com/yaling888/clash/listener"
-	L "github.com/yaling888/clash/log"
-	"github.com/yaling888/clash/tunnel"
+	"github.com/yaling888/quirktiva/component/resolver"
+	"github.com/yaling888/quirktiva/config"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/hub/executor"
+	"github.com/yaling888/quirktiva/listener"
+	L "github.com/yaling888/quirktiva/log"
+	"github.com/yaling888/quirktiva/tunnel"
 )
 
 func configRouter() http.Handler {

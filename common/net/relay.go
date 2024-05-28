@@ -5,7 +5,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/yaling888/clash/common/pool"
+	"github.com/yaling888/quirktiva/common/pool"
 )
 
 // Relay copies between left and right bidirectionally.

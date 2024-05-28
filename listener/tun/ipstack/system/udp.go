@@ -4,7 +4,7 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/yaling888/clash/listener/tun/ipstack/system/mars/nat"
+	"github.com/yaling888/quirktiva/listener/tun/ipstack/system/mars/nat"
 )
 
 type packet struct {

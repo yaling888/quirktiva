@@ -7,7 +7,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 
-	"github.com/yaling888/clash/listener/tun/ipstack/gvisor/option"
+	"github.com/yaling888/quirktiva/listener/tun/ipstack/gvisor/option"
 )
 
 func withRouteTable(nicID tcpip.NICID) option.Option {

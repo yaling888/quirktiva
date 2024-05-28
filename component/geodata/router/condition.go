@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/yaling888/clash/component/geodata/strmatcher"
+	"github.com/yaling888/quirktiva/component/geodata/strmatcher"
 )
 
 var matcherTypeMap = map[Domain_Type]strmatcher.Type{

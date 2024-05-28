@@ -3,8 +3,8 @@ package outboundgroup
 import (
 	"time"
 
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/constant/provider"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/constant/provider"
 )
 
 const (

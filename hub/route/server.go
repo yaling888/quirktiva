@@ -15,11 +15,11 @@ import (
 	"github.com/phuslu/log"
 	"go.uber.org/atomic"
 
-	"github.com/yaling888/clash/common/observable"
-	"github.com/yaling888/clash/common/pool"
-	C "github.com/yaling888/clash/constant"
-	L "github.com/yaling888/clash/log"
-	"github.com/yaling888/clash/tunnel/statistic"
+	"github.com/yaling888/quirktiva/common/observable"
+	"github.com/yaling888/quirktiva/common/pool"
+	C "github.com/yaling888/quirktiva/constant"
+	L "github.com/yaling888/quirktiva/log"
+	"github.com/yaling888/quirktiva/tunnel/statistic"
 )
 
 var (

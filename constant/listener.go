@@ -11,7 +11,7 @@ import (
 
 	"github.com/samber/lo"
 
-	"github.com/yaling888/clash/component/auth"
+	"github.com/yaling888/quirktiva/component/auth"
 )
 
 type Listener interface {

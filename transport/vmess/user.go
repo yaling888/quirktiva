@@ -3,7 +3,7 @@ package vmess
 import (
 	"crypto/md5"
 
-	"github.com/yaling888/clash/common/uuid"
+	"github.com/yaling888/quirktiva/common/uuid"
 )
 
 // ID cmdKey length

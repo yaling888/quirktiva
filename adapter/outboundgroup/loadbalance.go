@@ -9,12 +9,12 @@ import (
 
 	"golang.org/x/net/publicsuffix"
 
-	"github.com/yaling888/clash/adapter/outbound"
-	"github.com/yaling888/clash/common/murmur3"
-	"github.com/yaling888/clash/common/singledo"
-	"github.com/yaling888/clash/component/dialer"
-	C "github.com/yaling888/clash/constant"
-	"github.com/yaling888/clash/constant/provider"
+	"github.com/yaling888/quirktiva/adapter/outbound"
+	"github.com/yaling888/quirktiva/common/murmur3"
+	"github.com/yaling888/quirktiva/common/singledo"
+	"github.com/yaling888/quirktiva/component/dialer"
+	C "github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/constant/provider"
 )
 
 type strategyFn = func(proxies []C.Proxy, metadata *C.Metadata) C.Proxy

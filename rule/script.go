@@ -3,7 +3,7 @@ package rules
 import (
 	"github.com/phuslu/log"
 
-	C "github.com/yaling888/clash/constant"
+	C "github.com/yaling888/quirktiva/constant"
 )
 
 type Script struct {

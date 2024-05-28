@@ -3,7 +3,7 @@ package fakeip
 import (
 	"net/netip"
 
-	"github.com/yaling888/clash/component/profile/cachefile"
+	"github.com/yaling888/quirktiva/component/profile/cachefile"
 )
 
 type cachefileStore struct {

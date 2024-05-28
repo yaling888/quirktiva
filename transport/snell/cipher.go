@@ -7,7 +7,7 @@ import (
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/chacha20poly1305"
 
-	"github.com/yaling888/clash/transport/shadowsocks/shadowaead"
+	"github.com/yaling888/quirktiva/transport/shadowsocks/shadowaead"
 )
 
 type snellCipher struct {

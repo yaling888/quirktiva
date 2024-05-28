@@ -1,7 +1,7 @@
 package geodata
 
 import (
-	"github.com/yaling888/clash/component/geodata/router"
+	"github.com/yaling888/quirktiva/component/geodata/router"
 )
 
 type LoaderImplementation interface {

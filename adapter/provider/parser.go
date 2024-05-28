@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yaling888/clash/adapter"
-	"github.com/yaling888/clash/common/structure"
-	C "github.com/yaling888/clash/constant"
-	types "github.com/yaling888/clash/constant/provider"
+	"github.com/yaling888/quirktiva/adapter"
+	"github.com/yaling888/quirktiva/common/structure"
+	C "github.com/yaling888/quirktiva/constant"
+	types "github.com/yaling888/quirktiva/constant/provider"
 )
 
 var errVehicleType = errors.New("unsupport vehicle type")

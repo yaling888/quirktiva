@@ -93,7 +93,7 @@ func CreateNetTUN(localAddresses, dnsServers []netip.Addr, mtu int) (tun.Device,
 }
 
 func (tun *netTun) Name() (string, error) {
-	return "Clash-WireGuard", nil
+	return "Quirktiva-WireGuard", nil
 }
 
 func (tun *netTun) File() *os.File {
