@@ -9,10 +9,8 @@ require (
 	github.com/stretchr/testify v1.9.0
 	github.com/yaling888/quirktiva v0.0.0
 	go.uber.org/automaxprocs v1.5.3
-	golang.org/x/net v0.25.0
+	golang.org/x/net v0.26.0
 )
-
-replace github.com/yaling888/quirktiva => ../
 
 require (
 	github.com/Microsoft/go-winio v0.6.1 // indirect
@@ -21,8 +19,9 @@ require (
 	github.com/apernet/quic-go v0.44.1-0.20240520215222-bb2e53664023 // indirect
 	github.com/cilium/ebpf v0.15.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/distribution/reference v0.6.0 // indirect
 	github.com/dlclark/regexp2 v1.11.0 // indirect
-	github.com/docker/distribution v2.8.2+incompatible // indirect
+	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/expr-lang/expr v1.16.9 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
@@ -30,15 +29,15 @@ require (
 	github.com/google/btree v1.1.2 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
-	github.com/insomniacslk/dhcp v0.0.0-20240524104655-6ac7581c8098 // indirect
+	github.com/insomniacslk/dhcp v0.0.0-20240529192340-51bc6136a0a6 // indirect
 	github.com/josharian/native v1.1.0 // indirect
 	github.com/moby/term v0.5.0 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/onsi/ginkgo/v2 v2.9.5 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
-	github.com/opencontainers/image-spec v1.0.2 // indirect
-	github.com/oschwald/geoip2-golang v1.9.0 // indirect
-	github.com/oschwald/maxminddb-golang v1.11.0 // indirect
+	github.com/opencontainers/image-spec v1.1.0 // indirect
+	github.com/oschwald/geoip2-golang v1.11.0 // indirect
+	github.com/oschwald/maxminddb-golang v1.13.0 // indirect
 	github.com/phuslu/log v1.0.101 // indirect
 	github.com/pierrec/lz4/v4 v4.1.14 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -54,18 +53,20 @@ require (
 	go.starlark.net v0.0.0-20240520160348-046347dcd104 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/mock v0.4.0 // indirect
-	golang.org/x/crypto v0.23.0 // indirect
+	golang.org/x/crypto v0.24.0 // indirect
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842 // indirect
 	golang.org/x/mod v0.17.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.20.0 // indirect
-	golang.org/x/text v0.15.0 // indirect
+	golang.org/x/sys v0.21.0 // indirect
+	golang.org/x/text v0.16.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
-	golang.org/x/tools v0.21.0 // indirect
+	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173 // indirect
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b // indirect
 	google.golang.org/protobuf v1.34.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	gvisor.dev/gvisor v0.0.0-20240524213522-f2b01a6e47ff // indirect
+	gvisor.dev/gvisor v0.0.0-20240601000839-2607065bd125 // indirect
 )
+
+replace github.com/yaling888/quirktiva => ../
