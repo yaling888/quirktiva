@@ -48,7 +48,7 @@ func New(
 			if tunStack != nil {
 				_ = tunStack.Close()
 			} else if tunDevice != nil {
-				_ = tunDevice.Close()
+				_ = tunDevice.Close2()
 			}
 		}
 	}()

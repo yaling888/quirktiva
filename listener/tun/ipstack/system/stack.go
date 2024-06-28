@@ -35,7 +35,7 @@ func (s *sysStack) Close() error {
 
 	defer func() {
 		if s.device != nil {
-			_ = s.device.Close()
+			_ = s.device.Close2()
 		}
 	}()
 
@@ -57,7 +57,7 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 
 	stack, err := mars.StartListener(device, gateway, portal, broadcast)
 	if err != nil {
-		_ = device.Close()
+		_ = device.Close2()
 
 		return nil, err
 	}

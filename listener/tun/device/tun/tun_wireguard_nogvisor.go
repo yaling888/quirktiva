@@ -15,9 +15,13 @@ type TUN struct {
 	offset int
 }
 
-func (t *TUN) Close() error {
+func (t *TUN) Close2() error {
 	t.close()
 	return t.nt.Close()
+}
+
+func (t *TUN) Close() {
+	_ = t.Close2()
 }
 
 func (t *TUN) UseEndpoint() error {

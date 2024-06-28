@@ -21,8 +21,8 @@ type Device interface {
 	// each packet contained within the buffs slice.
 	Write(buffs [][]byte, offset int) (int, error)
 
-	// Close stops and closes the device.
-	Close() error
+	// Close2 stops and closes the device.
+	Close2() error
 
 	// UseEndpoint work for gVisor stack
 	UseEndpoint() error

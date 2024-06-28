@@ -5,7 +5,6 @@ package gvisor
 import (
 	"net/netip"
 
-	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -32,7 +31,7 @@ func (s *gvStack) Close() error {
 
 	var err error
 	if s.device != nil {
-		err = s.device.Close()
+		err = s.device.Close2()
 	}
 	if s.Stack != nil {
 		s.Stack.Destroy()
@@ -68,7 +67,7 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 	}
 
 	// Generate unique NIC id.
-	nicID := tcpip.NICID(s.Stack.UniqueID())
+	nicID := s.Stack.NextNICID()
 
 	opts := []option.Option{option.WithDefault()}
 
