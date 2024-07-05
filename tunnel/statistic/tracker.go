@@ -78,7 +78,7 @@ func NewTCPTracker(conn C.Conn, manager *Manager, metadata *C.Metadata, rule C.R
 	if rule != nil {
 		t.trackerInfo.Rule = rule.RuleType().String()
 		t.trackerInfo.RulePayload = rule.Payload()
-		t.trackerInfo.RuleGroup = lo.WithoutEmpty(rule.RuleGroups())
+		t.trackerInfo.RuleGroup = lo.Compact(rule.RuleGroups())
 	}
 
 	manager.Join(t)
@@ -135,7 +135,7 @@ func NewUDPTracker(conn C.PacketConn, manager *Manager, metadata *C.Metadata, ru
 	if rule != nil {
 		ut.trackerInfo.Rule = rule.RuleType().String()
 		ut.trackerInfo.RulePayload = rule.Payload()
-		ut.trackerInfo.RuleGroup = lo.WithoutEmpty(rule.RuleGroups())
+		ut.trackerInfo.RuleGroup = lo.Compact(rule.RuleGroups())
 	}
 
 	manager.Join(ut)
