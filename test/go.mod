@@ -9,17 +9,17 @@ require (
 	github.com/stretchr/testify v1.9.0
 	github.com/yaling888/quirktiva v0.0.0
 	go.uber.org/automaxprocs v1.5.3
-	golang.org/x/net v0.26.1-0.20240612203916-9617c6335bca
+	golang.org/x/net v0.27.0
 )
 
 require (
 	github.com/Microsoft/go-winio v0.6.1 // indirect
-	github.com/apernet/hysteria/core/v2 v2.4.6-0.20240610233022-d318903783c1 // indirect
-	github.com/apernet/hysteria/extras/v2 v2.4.6-0.20240610233022-d318903783c1 // indirect
-	github.com/apernet/quic-go v0.44.1-0.20240520215222-bb2e53664023 // indirect
+	github.com/apernet/hysteria/core/v2 v2.5.1-0.20240702222448-8d9c7fa04c7e // indirect
+	github.com/apernet/hysteria/extras/v2 v2.5.1-0.20240702222448-8d9c7fa04c7e // indirect
+	github.com/apernet/quic-go v0.45.2-0.20240702221538-ed74cfbe8b6e // indirect
 	github.com/cilium/ebpf v0.15.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/dlclark/regexp2 v1.11.0 // indirect
+	github.com/dlclark/regexp2 v1.11.1 // indirect
 	github.com/docker/distribution v2.8.2+incompatible // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/expr-lang/expr v1.16.9 // indirect
@@ -46,17 +46,17 @@ require (
 	github.com/samber/lo v1.44.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/u-root/uio v0.0.0-20230220225925-ffce2a382923 // indirect
-	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240524165444-4d4ba1473f21 // indirect
-	github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae // indirect
+	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240704154744-aed23dbf5ecf // indirect
+	github.com/vishvananda/netns v0.0.4 // indirect
 	go.etcd.io/bbolt v1.3.10 // indirect
-	go.starlark.net v0.0.0-20240520160348-046347dcd104 // indirect
+	go.starlark.net v0.0.0-20240705175910-70002002b310 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/mock v0.4.0 // indirect
-	golang.org/x/crypto v0.24.1-0.20240626151235-a6a393ffd658 // indirect
+	golang.org/x/crypto v0.25.0 // indirect
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842 // indirect
 	golang.org/x/mod v0.18.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.21.1-0.20240626174803-c892bb7ec2a2 // indirect
+	golang.org/x/sys v0.22.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.22.0 // indirect
@@ -65,7 +65,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	gvisor.dev/gvisor v0.0.0-20240629121841-891b40cf7fe0 // indirect
+	gvisor.dev/gvisor v0.0.0-20240705072110-c2c33a265311 // indirect
 )
 
 replace github.com/yaling888/quirktiva => ../
