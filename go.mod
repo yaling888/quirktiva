@@ -1,6 +1,6 @@
 module github.com/yaling888/quirktiva
 
-go 1.22.2
+go 1.23rc1
 
 require (
 	github.com/apernet/hysteria/core/v2 v2.5.1-0.20240702222448-8d9c7fa04c7e

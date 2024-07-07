@@ -30,7 +30,7 @@ func TestPacketConn_ReadFrom(t *testing.T) {
 	_, _ = rand.Read(srcL)
 
 	addr := &net.UDPAddr{
-		IP:   net.ParseIP("127.0.0.1"),
+		IP:   net.ParseIP("127.0.0.1").To4(),
 		Port: 443,
 	}
 
@@ -109,7 +109,7 @@ func TestPacketConn_ReadFrom(t *testing.T) {
 						return
 					}
 				}
-				if !reflect.DeepEqual(gotAddr.(*net.UDPAddr).AddrPort(), tt.wantAddr) {
+				if gotAddr.(*net.UDPAddr).AddrPort() != tt.wantAddr {
 					t.Errorf("ReadFrom() gotAddr = %v, want %v", gotAddr, tt.wantAddr)
 				}
 				dst = append(dst, buf[:n]...)

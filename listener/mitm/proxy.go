@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/http/httpguts"
+
 	"github.com/yaling888/quirktiva/common/cache"
 	N "github.com/yaling888/quirktiva/common/net"
 	"github.com/yaling888/quirktiva/component/auth"
@@ -344,4 +346,12 @@ func isWebsocketRequest(req *http.Request) bool {
 func isHTTPTraffic(buf []byte) bool {
 	method, _, _ := strings.Cut(string(buf), " ")
 	return validMethod(method)
+}
+
+func validMethod(method string) bool {
+	return len(method) > 0 && strings.IndexFunc(method, isNotToken) == -1
+}
+
+func isNotToken(r rune) bool {
+	return !httpguts.IsTokenRune(r)
 }
