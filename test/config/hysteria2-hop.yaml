@@ -1,0 +1,13 @@
+listen: :10002
+
+tls:
+  cert: /app/fullchain.crt
+  key: /app/privkey.key
+
+bandwidth:
+  up: 1 gbps
+  down: 1 gbps
+
+auth:
+  type: password
+  password: password

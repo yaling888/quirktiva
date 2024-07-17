@@ -18,6 +18,8 @@ import (
 
 	"github.com/apernet/hysteria/core/v2/client"
 	"github.com/apernet/hysteria/extras/v2/obfs"
+	"github.com/apernet/hysteria/extras/v2/transport/udphop"
+	"github.com/apernet/hysteria/extras/v2/utils"
 
 	"github.com/yaling888/quirktiva/common/pool"
 	"github.com/yaling888/quirktiva/common/util"
@@ -28,20 +30,22 @@ import (
 
 type Hysteria2Option struct {
 	BasicOption
-	Name             string `proxy:"name"`
-	Server           string `proxy:"server"`
-	Port             int    `proxy:"port"`
-	Password         string `proxy:"password"`
-	SkipCertVerify   bool   `proxy:"skip-cert-verify,omitempty"`
-	SNI              string `proxy:"sni,omitempty"`
-	PinSHA256        string `proxy:"pin-sha256,omitempty"`
-	Fingerprint      string `proxy:"fingerprint,omitempty"`
-	Obfs             string `proxy:"obfs,omitempty"`
-	ObfsParam        string `proxy:"obfs-param,omitempty"`
-	Up               string `proxy:"up,omitempty"`
-	Down             string `proxy:"down,omitempty"`
-	UDP              bool   `proxy:"udp,omitempty"`
-	RemoteDnsResolve bool   `proxy:"remote-dns-resolve,omitempty"`
+	Name             string        `proxy:"name"`
+	Server           string        `proxy:"server"`
+	Port             int           `proxy:"port,omitempty"`
+	Ports            string        `proxy:"ports,omitempty"`
+	Password         string        `proxy:"password"`
+	SkipCertVerify   bool          `proxy:"skip-cert-verify,omitempty"`
+	SNI              string        `proxy:"sni,omitempty"`
+	PinSHA256        string        `proxy:"pin-sha256,omitempty"`
+	Fingerprint      string        `proxy:"fingerprint,omitempty"`
+	Obfs             string        `proxy:"obfs,omitempty"`
+	ObfsParam        string        `proxy:"obfs-param,omitempty"`
+	HopInterval      time.Duration `proxy:"hop-interval,omitempty"`
+	Up               string        `proxy:"up,omitempty"`
+	Down             string        `proxy:"down,omitempty"`
+	UDP              bool          `proxy:"udp,omitempty"`
+	RemoteDnsResolve bool          `proxy:"remote-dns-resolve,omitempty"`
 }
 
 var _ C.ProxyAdapter = (*Hysteria2)(nil)
@@ -125,18 +129,37 @@ func (h *Hysteria2) Cleanup() {
 }
 
 func (h *Hysteria2) makeDialer() func(addr net.Addr) (net.PacketConn, error) {
-	return func(_ net.Addr) (net.PacketConn, error) {
+	dialFn := func() (net.PacketConn, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), C.DefaultUDPTimeout)
 		defer cancel()
-		pc, err := dialer.ListenPacket(ctx, "udp", "", h.Base.DialOptions([]dialer.Option{}...)...)
+		return dialer.ListenPacket(ctx, "udp", "", h.Base.DialOptions([]dialer.Option{}...)...)
+	}
+	return func(addr net.Addr) (pc net.PacketConn, err error) {
+		if hAddr, ok := addr.(*udphop.UDPHopAddr); ok {
+			pc, err = udphop.NewUDPHopPacketConn(hAddr, h.option.HopInterval, dialFn)
+		} else {
+			pc, err = dialFn()
+		}
 		if err == nil {
 			h.lAddr = pc.LocalAddr()
 		}
-		return pc, err
+		return
 	}
 }
 
 func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
+	if option.HopInterval != 0 && option.HopInterval < 5*time.Second {
+		return nil, errors.New("hop-interval must be at least 5 seconds")
+	}
+	if option.Port == 0 && option.Ports == "" {
+		return nil, fmt.Errorf("invalid port: %d", option.Port)
+	}
+	if option.Ports != "" {
+		if utils.ParsePortUnion(option.Ports) == nil {
+			return nil, fmt.Errorf("invalid ports: %s", option.Ports)
+		}
+	}
+
 	pinSHA256 := util.EmptyOr(option.PinSHA256, option.Fingerprint)
 	if option.SkipCertVerify && pinSHA256 == "" {
 		return nil, errors.New("skip-cert-verify can not be true when pin-sha256 is empty")
@@ -199,8 +222,8 @@ func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
 			InsecureSkipVerify: h.option.SkipCertVerify,
 		},
 		QUICConfig: client.QUICConfig{
-			MaxIdleTimeout:  120 * time.Second,
-			KeepAlivePeriod: 10 * time.Second,
+			MaxIdleTimeout:  30 * time.Second,
+			KeepAlivePeriod: 20 * time.Second,
 		},
 		BandwidthConfig: client.BandwidthConfig{
 			MaxTx: up,
@@ -228,9 +251,23 @@ func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
 			if err != nil {
 				return nil, err
 			}
+			var serverAddr net.Addr
+			if h.option.Ports != "" {
+				pu := utils.ParsePortUnion(h.option.Ports)
+				if pu == nil {
+					return nil, net.InvalidAddrError("invalid ports")
+				}
+				serverAddr = &udphop.UDPHopAddr{
+					IP:      ip.AsSlice(),
+					Ports:   pu.Ports(),
+					PortStr: h.option.Ports,
+				}
+			} else {
+				serverAddr = &net.UDPAddr{IP: ip.AsSlice(), Port: h.option.Port}
+			}
 			cfg := new(client.Config)
 			*cfg = *config
-			cfg.ServerAddr = &net.UDPAddr{IP: ip.AsSlice(), Port: h.option.Port}
+			cfg.ServerAddr = serverAddr
 			return cfg, nil
 		},
 		func(c client.Client, info *client.HandshakeInfo, count int) {
