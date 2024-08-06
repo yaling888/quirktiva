@@ -1,45 +1,45 @@
 module github.com/yaling888/quirktiva
 
-go 1.23rc1
+go 1.23.0
 
 require (
-	github.com/apernet/hysteria/core/v2 v2.5.1-0.20240702222448-8d9c7fa04c7e
-	github.com/apernet/hysteria/extras/v2 v2.5.1-0.20240702222448-8d9c7fa04c7e
-	github.com/cilium/ebpf v0.15.0
-	github.com/dlclark/regexp2 v1.11.1
+	github.com/apernet/hysteria/core/v2 v2.5.1-0.20240803201434-c62c8c5513f3
+	github.com/apernet/hysteria/extras/v2 v2.5.1-0.20240803201434-c62c8c5513f3
+	github.com/cilium/ebpf v0.16.0
+	github.com/dlclark/regexp2 v1.11.4
 	github.com/expr-lang/expr v1.16.9
 	github.com/go-chi/chi/v5 v5.1.0
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/render v1.0.3
 	github.com/gorilla/websocket v1.5.3
-	github.com/insomniacslk/dhcp v0.0.0-20240628075535-bf3278ac95c1
+	github.com/insomniacslk/dhcp v0.0.0-20240710054256-ddd8a41251c9
 	github.com/miekg/dns v1.1.61
 	github.com/oschwald/geoip2-golang v1.11.0
 	github.com/phuslu/log v1.0.107
-	github.com/quic-go/quic-go v0.45.1
-	github.com/samber/lo v1.44.0
+	github.com/quic-go/quic-go v0.46.0
+	github.com/samber/lo v1.46.0
 	github.com/stretchr/testify v1.9.0
-	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240704154744-aed23dbf5ecf
+	github.com/vishvananda/netlink v1.2.1-beta.2.0.20240806173335-3b7e16c5f836
 	go.etcd.io/bbolt v1.3.10
-	go.starlark.net v0.0.0-20240705175910-70002002b310
+	go.starlark.net v0.0.0-20240725214946-42030a7cedce
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.5.3
-	golang.org/x/crypto v0.25.0
-	golang.org/x/net v0.27.0
-	golang.org/x/sync v0.7.0
-	golang.org/x/sys v0.22.0
-	golang.org/x/text v0.16.0
-	golang.org/x/time v0.5.0
+	golang.org/x/crypto v0.26.0
+	golang.org/x/net v0.28.0
+	golang.org/x/sync v0.8.0
+	golang.org/x/sys v0.23.0
+	golang.org/x/text v0.17.0
+	golang.org/x/time v0.6.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20240705072110-c2c33a265311
+	gvisor.dev/gvisor v0.0.0-20240807080502-4f6f8f8e3eda
 )
 
 require (
 	github.com/ajg/form v1.5.1 // indirect
-	github.com/apernet/quic-go v0.45.2-0.20240702221538-ed74cfbe8b6e // indirect
+	github.com/apernet/quic-go v0.45.3-0.20240803200022-e3824dfb4b89 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/google/btree v1.1.2 // indirect
