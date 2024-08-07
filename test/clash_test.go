@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/assert"
@@ -81,7 +81,7 @@ func init() {
 	}
 	defer c.Close()
 
-	list, err := c.ImageList(context.Background(), types.ImageListOptions{All: true})
+	list, err := c.ImageList(context.Background(), image.ListOptions{All: true})
 	if err != nil {
 		panic(err)
 	}
@@ -109,13 +109,13 @@ func init() {
 		ImageHysteria2,
 	}
 
-	for _, image := range images {
-		if imageExist(image) {
+	for _, imageM := range images {
+		if imageExist(imageM) {
 			continue
 		}
 
-		println("pulling image:", image)
-		imageStream, err := c.ImagePull(context.Background(), image, types.ImagePullOptions{})
+		println("pulling image:", imageM)
+		imageStream, err := c.ImagePull(context.Background(), imageM, image.PullOptions{})
 		if err != nil {
 			panic(err)
 		}
