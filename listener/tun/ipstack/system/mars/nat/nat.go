@@ -7,6 +7,8 @@ import (
 	"os"
 	"sync"
 
+	"github.com/phuslu/log"
+
 	dev "github.com/yaling888/quirktiva/listener/tun/device"
 	"github.com/yaling888/quirktiva/listener/tun/ipstack/system/mars/tcpip"
 )
@@ -137,23 +139,32 @@ func Start(device dev.Device, gateway, portal, _ netip.Addr) (*TCP, *UDP, error)
 					}
 
 					if destinationIP == portal {
-						if ip.SourceIP() == gateway && t.SourcePort() == gatewayPort {
-							tup := tab.tupleOf(t.DestinationPort())
-							if tup == zeroTuple {
-								continue
-							}
-
-							ip.SetSourceIP(tup.DestinationAddr.Addr())
-							t.SetSourcePort(tup.DestinationAddr.Port())
-							ip.SetDestinationIP(tup.SourceAddr.Addr())
-							t.SetDestinationPort(tup.SourceAddr.Port())
-
-							ip.DecTimeToLive()
-							ip.ResetChecksum()
-							t.ResetChecksum(ip.PseudoSum())
-
-							writeBuffs = append(writeBuffs, raw)
+						if ip.SourceIP() != gateway || t.SourcePort() != gatewayPort {
+							log.Warn().
+								NetIPAddr("addr", ip.SourceIP()).
+								Uint16("port", t.SourcePort()).
+								Msg("[System] source address port mismatch")
+							continue
 						}
+
+						tup := tab.tupleOf(t.DestinationPort())
+						if tup == zeroTuple {
+							log.Warn().
+								Uint16("port", t.DestinationPort()).
+								Msg("[System] invalid destination port")
+							continue
+						}
+
+						ip.SetSourceIP(tup.DestinationAddr.Addr())
+						t.SetSourcePort(tup.DestinationAddr.Port())
+						ip.SetDestinationIP(tup.SourceAddr.Addr())
+						t.SetDestinationPort(tup.SourceAddr.Port())
+
+						ip.DecTimeToLive()
+						ip.ResetChecksum()
+						t.ResetChecksum(ip.PseudoSum())
+
+						writeBuffs = append(writeBuffs, raw)
 					} else {
 						tup := tuple{
 							SourceAddr:      netip.AddrPortFrom(ip.SourceIP(), t.SourcePort()),
