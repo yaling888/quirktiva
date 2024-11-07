@@ -282,7 +282,7 @@ func newDoHClient(url string, proxy string, forceHTTP3 bool, r *Resolver) *dohCl
 }
 
 type http3Transport struct {
-	roundTripper *http3.RoundTripper
+	roundTripper *http3.Transport
 	forceHTTP3   bool
 
 	mux        sync.Mutex
@@ -395,7 +395,7 @@ func newHttp3Transport(serverName string, forceHTTP3 bool) *http3Transport {
 
 	dial := h3Transport.makeDialer()
 
-	h3Transport.roundTripper = &http3.RoundTripper{
+	h3Transport.roundTripper = &http3.Transport{
 		TLSClientConfig: &tls.Config{
 			MinVersion: tls.VersionTLS13,
 			ServerName: serverName,
