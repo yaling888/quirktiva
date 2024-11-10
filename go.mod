@@ -2,8 +2,6 @@ module github.com/yaling888/quirktiva
 
 go 1.23.3
 
-godebug asynctimerchan=1
-
 require (
 	github.com/apernet/hysteria/core/v2 v2.5.1-0.20240816231605-7e70547dbdf1
 	github.com/apernet/hysteria/extras/v2 v2.5.3-0.20241104183808-a2c7b8fd198d
