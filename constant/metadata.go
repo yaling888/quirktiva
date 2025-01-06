@@ -191,11 +191,11 @@ func (m *Metadata) MarshalObject(e *log.Entry) {
 		if host == "" {
 			host = m.Host
 		} else {
-			host = m.Host + "(" + host
+			host = m.Host + "(" + host + ")"
 		}
 	}
 
-	e.Str("rAddr", host+":"+m.DstPort.String()+")").Str("dnsMode", m.DNSMode.String())
+	e.Str("rAddr", host+":"+m.DstPort.String()).Str("dnsMode", m.DNSMode.String())
 
 	if m.Process != "" {
 		e.Str("process", m.Process)
