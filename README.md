@@ -90,7 +90,7 @@ Use `curl -X POST controllerip:port/cache/fakeip/flush` to flush persistence fak
    use-hosts: true
    ipv6: false
    remote-dns-resolve: true # remote resolve DNS on handle TCP connect and UDP session, default value is true
-   enhanced-mode: fake-ip
+   enhanced-mode: fake-ip # normal, sniffing
    fake-ip-range: 198.18.0.1/16
    listen: 127.0.0.1:6868
    default-nameserver:
@@ -576,16 +576,6 @@ external-controller: 127.0.0.1:9090
 external-ui: dashboard
 ```
 Open [http://127.0.0.1:9090/ui/](http://127.0.0.1:9090/ui/) by web browser.
-
-### Set up a free tunnel server on Cloudflare Workers
-**NOTE**: The Cloudflare Workers outbound TCP sockets to [Cloudflare IP ranges](https://www.cloudflare.com/ips/) are temporarily blocked and the outbound UDP is not supported.
-
-1. Create a Cloudflare Worker application.
-2. Set up a custom domain for your Worker application.
-3. Check the repository [Trovle](https://github.com/yaling888/trovle), the transport `Trojan` and `VLESS` are supported.
-4. Copy [worker.js](https://github.com/yaling888/trovle/blob/main/worker.js) content into your Worker application.
-5. Edit the `configs`, modify the uuid and password.
-6. Save and deploy.
 
 ## Credits
 
