@@ -39,9 +39,9 @@ func loadIP(filename, country string) ([]*router.CIDR, error) {
 		return nil, err
 	}
 
-	for _, geoip := range geoipList.Entry {
-		if strings.EqualFold(geoip.CountryCode, country) {
-			return geoip.Cidr, nil
+	for _, geoip := range geoipList.GetEntry() {
+		if strings.EqualFold(geoip.GetCountryCode(), country) {
+			return geoip.GetCidr(), nil
 		}
 	}
 
@@ -58,9 +58,9 @@ func loadSite(filename, list string) ([]*router.Domain, error) {
 		return nil, err
 	}
 
-	for _, site := range geositeList.Entry {
-		if strings.EqualFold(site.CountryCode, list) {
-			return site.Domain, nil
+	for _, site := range geositeList.GetEntry() {
+		if strings.EqualFold(site.GetCountryCode(), list) {
+			return site.GetDomain(), nil
 		}
 	}
 

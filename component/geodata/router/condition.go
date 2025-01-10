@@ -15,12 +15,12 @@ var matcherTypeMap = map[Domain_Type]strmatcher.Type{
 }
 
 func domainToMatcher(domain *Domain) (strmatcher.Matcher, error) {
-	matcherType, f := matcherTypeMap[domain.Type]
+	matcherType, f := matcherTypeMap[domain.GetType()]
 	if !f {
-		return nil, fmt.Errorf("unsupported domain type %v", domain.Type)
+		return nil, fmt.Errorf("unsupported domain type %v", domain.GetType())
 	}
 
-	matcher, err := matcherType.New(domain.Value)
+	matcher, err := matcherType.New(domain.GetValue())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create domain matcher, base error: %w", err)
 	}
@@ -36,11 +36,11 @@ type DomainMatcher struct {
 func NewMphMatcherGroup(domains []*Domain, not bool) (*DomainMatcher, error) {
 	g := strmatcher.NewMphMatcherGroup()
 	for _, d := range domains {
-		matcherType, f := matcherTypeMap[d.Type]
+		matcherType, f := matcherTypeMap[d.GetType()]
 		if !f {
-			return nil, fmt.Errorf("unsupported domain type %v", d.Type)
+			return nil, fmt.Errorf("unsupported domain type %v", d.GetType())
 		}
-		_, err := g.AddPattern(d.Value, matcherType)
+		_, err := g.AddPattern(d.GetValue(), matcherType)
 		if err != nil {
 			return nil, err
 		}

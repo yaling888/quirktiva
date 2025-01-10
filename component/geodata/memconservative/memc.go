@@ -19,7 +19,7 @@ func (m *memConservativeLoader) LoadIP(filename, country string) ([]*router.CIDR
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode geodata file: %s, base error: %w", filename, err)
 	}
-	return geoip.Cidr, nil
+	return geoip.GetCidr(), nil
 }
 
 func (m *memConservativeLoader) LoadSite(filename, list string) ([]*router.Domain, error) {
@@ -28,7 +28,7 @@ func (m *memConservativeLoader) LoadSite(filename, list string) ([]*router.Domai
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode geodata file: %s, base error: %w", filename, err)
 	}
-	return geosite.Domain, nil
+	return geosite.GetDomain(), nil
 }
 
 func newMemConservativeLoader() geodata.LoaderImplementation {

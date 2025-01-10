@@ -42,7 +42,7 @@ type AttributeMatcher interface {
 type BooleanMatcher string
 
 func (m BooleanMatcher) Match(domain *router.Domain) bool {
-	for _, attr := range domain.Attribute {
+	for _, attr := range domain.GetAttribute() {
 		if strings.EqualFold(attr.GetKey(), string(m)) {
 			return true
 		}
