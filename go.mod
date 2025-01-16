@@ -12,14 +12,14 @@ require (
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/render v1.0.3
 	github.com/gorilla/websocket v1.5.3
-	github.com/insomniacslk/dhcp v0.0.0-20241224095048-b56fa0d5f25d
+	github.com/insomniacslk/dhcp v0.0.0-20250109001534-8abf58130905
 	github.com/miekg/dns v1.1.62
 	github.com/oschwald/geoip2-golang v1.11.0
 	github.com/phuslu/log v1.0.113
 	github.com/quic-go/quic-go v0.48.2
 	github.com/samber/lo v1.47.0
 	github.com/stretchr/testify v1.10.0
-	github.com/vishvananda/netlink v1.3.1-0.20241227191253-26ee0e2abe2d
+	github.com/vishvananda/netlink v1.3.1-0.20250116195641-68cf136ebe02
 	go.etcd.io/bbolt v1.3.11
 	go.starlark.net v0.0.0-20241226192728-8dfa5b98479f
 	go.uber.org/atomic v1.11.0
@@ -32,9 +32,9 @@ require (
 	golang.org/x/time v0.9.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b
-	google.golang.org/protobuf v1.36.2
+	google.golang.org/protobuf v1.36.3
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20250106193742-9c4bf5b667b6
+	gvisor.dev/gvisor v0.0.0-20250115195935-26653e7d8816
 )
 
 require (
