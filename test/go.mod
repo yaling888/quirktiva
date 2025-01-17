@@ -3,7 +3,7 @@ module quirktiva-test
 go 1.23.3
 
 require (
-	github.com/docker/docker v27.4.1+incompatible
+	github.com/docker/docker v27.5.0+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/miekg/dns v1.1.62
 	github.com/stretchr/testify v1.10.0
@@ -31,7 +31,7 @@ require (
 	github.com/google/btree v1.1.2 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
-	github.com/insomniacslk/dhcp v0.0.0-20241224095048-b56fa0d5f25d // indirect
+	github.com/insomniacslk/dhcp v0.0.0-20250109001534-8abf58130905 // indirect
 	github.com/josharian/native v1.1.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/term v0.5.0 // indirect
@@ -50,7 +50,7 @@ require (
 	github.com/samber/lo v1.47.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/u-root/uio v0.0.0-20230220225925-ffce2a382923 // indirect
-	github.com/vishvananda/netlink v1.3.1-0.20241227191253-26ee0e2abe2d // indirect
+	github.com/vishvananda/netlink v1.3.1-0.20250116195641-68cf136ebe02 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
 	go.etcd.io/bbolt v1.3.11 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.53.0 // indirect
@@ -73,9 +73,9 @@ require (
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173 // indirect
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b // indirect
-	google.golang.org/protobuf v1.36.1 // indirect
+	google.golang.org/protobuf v1.36.3 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	gvisor.dev/gvisor v0.0.0-20241227193629-b8cde430ca0a // indirect
+	gvisor.dev/gvisor v0.0.0-20250115195935-26653e7d8816 // indirect
 )
 
 replace (
