@@ -41,6 +41,7 @@ type Hysteria2Option struct {
 	Fingerprint      string        `proxy:"fingerprint,omitempty"`
 	Obfs             string        `proxy:"obfs,omitempty"`
 	ObfsParam        string        `proxy:"obfs-param,omitempty"`
+	ObfsPassword     string        `proxy:"obfs-password,omitempty"`
 	HopInterval      time.Duration `proxy:"hop-interval,omitempty"`
 	Up               string        `proxy:"up,omitempty"`
 	Down             string        `proxy:"down,omitempty"`
@@ -160,18 +161,19 @@ func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
 		}
 	}
 
-	pinSHA256 := util.EmptyOr(option.PinSHA256, option.Fingerprint)
-	if option.SkipCertVerify && pinSHA256 == "" {
-		return nil, errors.New("skip-cert-verify can not be true when pin-sha256 is empty")
-	}
 	var (
-		ob  obfs.Obfuscator
-		err error
+		pinSHA256 = util.EmptyOr(option.PinSHA256, option.Fingerprint)
+		ob        obfs.Obfuscator
+		err       error
 	)
 	switch strings.ToLower(option.Obfs) {
 	case "", "plain":
+		if option.SkipCertVerify && pinSHA256 == "" {
+			return nil, errors.New("skip-cert-verify can not be true when pin-sha256 is empty")
+		}
 	case "salamander":
-		ob, err = obfs.NewSalamanderObfuscator([]byte(option.ObfsParam))
+		obfsParameter := util.EmptyOr(option.ObfsParam, option.ObfsPassword)
+		ob, err = obfs.NewSalamanderObfuscator([]byte(obfsParameter))
 		if err != nil {
 			return nil, fmt.Errorf("invalid obfs-param: %w", err)
 		}
