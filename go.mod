@@ -16,7 +16,7 @@ require (
 	github.com/miekg/dns v1.1.62
 	github.com/oschwald/geoip2-golang v1.11.0
 	github.com/phuslu/log v1.0.113
-	github.com/quic-go/quic-go v0.48.2
+	github.com/quic-go/quic-go v0.49.0
 	github.com/samber/lo v1.47.0
 	github.com/stretchr/testify v1.10.0
 	github.com/vishvananda/netlink v1.3.1-0.20250116195641-68cf136ebe02
@@ -53,11 +53,11 @@ require (
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/u-root/uio v0.0.0-20230220225925-ffce2a382923 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
-	go.uber.org/mock v0.4.0 // indirect
+	go.uber.org/mock v0.5.0 // indirect
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842 // indirect
 	golang.org/x/mod v0.21.0 // indirect
 	golang.org/x/tools v0.26.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 )
 
-replace github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.48.2
+replace github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.49.0
