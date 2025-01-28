@@ -17,7 +17,7 @@ require (
 	github.com/oschwald/geoip2-golang v1.11.0
 	github.com/phuslu/log v1.0.113
 	github.com/quic-go/quic-go v0.49.0
-	github.com/samber/lo v1.47.0
+	github.com/samber/lo v1.49.1
 	github.com/stretchr/testify v1.10.0
 	github.com/vishvananda/netlink v1.3.1-0.20250116195641-68cf136ebe02
 	go.etcd.io/bbolt v1.3.11

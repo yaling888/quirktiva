@@ -13,6 +13,7 @@ import (
 
 	"github.com/phuslu/log"
 	"github.com/samber/lo"
+	"github.com/samber/lo/mutable"
 	"go.uber.org/atomic"
 
 	A "github.com/yaling888/quirktiva/adapter"
@@ -582,7 +583,8 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 		}
 
 		if len(chains) > 1 {
-			rawPc.SetChains(lo.Reverse(chains))
+			mutable.Reverse(chains)
+			rawPc.SetChains(chains)
 		}
 
 		pCtx.InjectPacketConn(rawPc)
@@ -716,7 +718,8 @@ func handleTCPConn(connCtx C.ConnContext) {
 	}
 
 	if len(chains) > 1 {
-		remoteConn.SetChains(lo.Reverse(chains))
+		mutable.Reverse(chains)
+		remoteConn.SetChains(chains)
 	}
 
 	if rawProxy.Name() != "REJECT" && !isMitmOutbound {
