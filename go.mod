@@ -20,7 +20,7 @@ require (
 	github.com/samber/lo v1.49.1
 	github.com/stretchr/testify v1.10.0
 	github.com/vishvananda/netlink v1.3.1-0.20250116195641-68cf136ebe02
-	go.etcd.io/bbolt v1.3.11
+	go.etcd.io/bbolt v1.4.0
 	go.starlark.net v0.0.0-20241226192728-8dfa5b98479f
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.6.0

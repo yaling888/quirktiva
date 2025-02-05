@@ -88,8 +88,8 @@ github.com/vishvananda/netns v0.0.4 h1:Oeaw1EM2JMxD51g9uhtC0D7erkIjgmj8+JZc26m1Y
 github.com/vishvananda/netns v0.0.4/go.mod h1:SpkAiCQRtJ6TvvxPnOSyH3BMl6unz3xZlaprSwhNNJM=
 github.com/yaling888/quic-hy2 v0.49.0 h1:DD5ObY16tQTr3x9qJLgwbdujrPOUT1IiE4KEDg/YC4c=
 github.com/yaling888/quic-hy2 v0.49.0/go.mod h1:t1wsev2Aj62tHKmmtt/W8AOAp5m+jNq6VznelCgERiA=
-go.etcd.io/bbolt v1.3.11 h1:yGEzV1wPz2yVCLsD8ZAiGHhHVlczyC9d1rP43/VCRJ0=
-go.etcd.io/bbolt v1.3.11/go.mod h1:dksAq7YMXoljX0xu6VF5DMZGbhYYoLUalEiSySYAS4I=
+go.etcd.io/bbolt v1.4.0 h1:TU77id3TnN/zKr7CO/uk+fBCwF2jGcMuw2B/FMAzYIk=
+go.etcd.io/bbolt v1.4.0/go.mod h1:AsD+OCi/qPN1giOX1aiLAha3o1U8rAz65bvN4j0sRuk=
 go.starlark.net v0.0.0-20241226192728-8dfa5b98479f h1:Zs/py28HDFATSDzPcfIzrBFjVsV7HzDEGNNVZIGsjm0=
 go.starlark.net v0.0.0-20241226192728-8dfa5b98479f/go.mod h1:YKMCv9b1WrfWmeqdV5MAuEHWsu5iC+fe6kYl2sQjdI8=
 go.uber.org/atomic v1.11.0 h1:ZvwS0R+56ePWxUNi+Atn9dWONBPp/AUETXlHW0DxSjE=

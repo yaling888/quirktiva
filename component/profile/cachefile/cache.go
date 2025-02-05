@@ -7,6 +7,7 @@ import (
 
 	"github.com/phuslu/log"
 	"go.etcd.io/bbolt"
+	"go.etcd.io/bbolt/errors"
 
 	"github.com/yaling888/quirktiva/component/profile"
 	C "github.com/yaling888/quirktiva/constant"
@@ -192,7 +193,7 @@ var Cache = sync.OnceValue(func() *CacheFile {
 	options := bbolt.Options{Timeout: time.Second}
 	db, err := bbolt.Open(C.Path.Cache(), fileMode, &options)
 	switch err {
-	case bbolt.ErrInvalid, bbolt.ErrChecksum, bbolt.ErrVersionMismatch:
+	case errors.ErrInvalid, errors.ErrChecksum, errors.ErrVersionMismatch:
 		if err = os.Remove(C.Path.Cache()); err != nil {
 			log.Warn().Err(err).Msg("[CacheFile] remove invalid cache file failed")
 			break
