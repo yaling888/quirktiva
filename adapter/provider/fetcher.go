@@ -5,11 +5,13 @@ import (
 	"crypto/md5"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/phuslu/log"
 	"github.com/samber/lo"
 
+	C "github.com/yaling888/quirktiva/constant"
 	types "github.com/yaling888/quirktiva/constant/provider"
 )
 
@@ -202,15 +204,36 @@ func (f *fetcher[V]) pullLoop(immediately bool) {
 }
 
 func safeWrite(path string, buf []byte) error {
-	dir := filepath.Dir(path)
+	root, err := os.OpenRoot(C.Path.HomeDir())
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = root.Close()
+	}()
 
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dir, dirMode); err != nil {
-			return err
+	path, _ = strings.CutPrefix(path, root.Name()+string(os.PathSeparator))
+	dir := filepath.Dir(path)
+	if _, err = root.Stat(dir); os.IsNotExist(err) {
+		var d string
+		for s := range strings.SplitSeq(dir, string(os.PathSeparator)) {
+			d += s + string(os.PathSeparator)
+			if _, err = root.Stat(d); os.IsNotExist(err) {
+				if err = root.Mkdir(d, dirMode); err != nil {
+					return err
+				}
+			}
 		}
 	}
 
-	return os.WriteFile(path, buf, fileMode)
+	f, err := root.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fileMode)
+	if err != nil {
+		return err
+	}
+
+	_, err = f.Write(buf)
+	_ = f.Close()
+	return err
 }
 
 func newFetcher[V any](name string, interval time.Duration, vehicle types.Vehicle, parser parser[V], onUpdate func(V)) *fetcher[V] {

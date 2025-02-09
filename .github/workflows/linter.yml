@@ -9,7 +9,7 @@ jobs:
       - name: Get latest go version
         id: version
         run: |
-          go_mod_version=$(cat go.mod | grep -oE '^go [0-9]{1,}.[0-9|a-z]{1,}(.[0-9]{1,})?' | awk '(NR==1){printf $2}')
+          go_mod_version=$(cat go.mod | grep -oE '^go [0-9]{1,}.[0-9|a-z]{1,}(.[0-9]{1,})?' | awk '(NR==1){printf $2}' | sed 's/beta/.0-beta./' | sed 's/rc/.0-rc./')
           latest_go_version=$(curl -sSL https://go.dev/dl/?mode=json | grep "version" | cut -d\" -f4 | awk -Fgo '(NR==1){printf $2}') || ""
           go_version="$latest_go_version"
 
@@ -18,6 +18,7 @@ jobs:
           fi
 
           echo "go_version=${go_version}" >> $GITHUB_OUTPUT
+          echo "go version go${go_version}"
 
       - name: Setup Go
         uses: actions/setup-go@v5

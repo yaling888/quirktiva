@@ -5,8 +5,7 @@ package cache
 import (
 	"sync"
 	"time"
-
-	"github.com/samber/lo"
+	"weak"
 
 	"github.com/yaling888/quirktiva/common/generics/list"
 )
@@ -60,7 +59,7 @@ type LruCache[K comparable, V any] struct {
 	maxAge         int64
 	maxSize        int
 	mu             sync.Mutex
-	cache          map[K]*list.Element[*entry[K, V]]
+	cache          map[K]weak.Pointer[list.Element[*entry[K, V]]]
 	lru            *list.List[*entry[K, V]] // Front is least-recent
 	updateAgeOnGet bool
 	staleReturn    bool
@@ -71,7 +70,7 @@ type LruCache[K comparable, V any] struct {
 func New[K comparable, V any](options ...Option[K, V]) *LruCache[K, V] {
 	lc := &LruCache[K, V]{
 		lru:   list.New[*entry[K, V]](),
-		cache: make(map[K]*list.Element[*entry[K, V]]),
+		cache: make(map[K]weak.Pointer[list.Element[*entry[K, V]]]),
 	}
 
 	for _, option := range options {
@@ -86,7 +85,7 @@ func New[K comparable, V any](options ...Option[K, V]) *LruCache[K, V] {
 func (c *LruCache[K, V]) Get(key K) (V, bool) {
 	el := c.get(key)
 	if el == nil {
-		return lo.Empty[V](), false
+		return empty[V](), false
 	}
 	value := el.value
 
@@ -100,7 +99,7 @@ func (c *LruCache[K, V]) Get(key K) (V, bool) {
 func (c *LruCache[K, V]) GetWithExpire(key K) (V, time.Time, bool) {
 	el := c.get(key)
 	if el == nil {
-		return lo.Empty[V](), time.Time{}, false
+		return empty[V](), time.Time{}, false
 	}
 
 	return el.value, time.Unix(el.expires, 0), true
@@ -131,18 +130,25 @@ func (c *LruCache[K, V]) SetWithExpire(key K, value V, expires time.Time) {
 	defer c.mu.Unlock()
 
 	if le, ok := c.cache[key]; ok {
-		c.lru.MoveToBack(le)
-		e := le.Value
-		e.value = value
-		e.expires = expires.Unix()
-	} else {
-		e := &entry[K, V]{key: key, value: value, expires: expires.Unix()}
-		c.cache[key] = c.lru.PushBack(e)
+		if ev := le.Value(); ev != nil {
+			ev.Value = &entry[K, V]{key: key, value: value, expires: expires.Unix()}
+			c.lru.MoveToBack(ev)
+			ew := weak.Make(ev)
+			c.cache[key] = ew
+			c.maybeDeleteOldest()
+			return
+		} else {
+			c.deleteElement(key)
+		}
+	}
 
-		if c.maxSize > 0 {
-			if elLen := c.lru.Len(); elLen > c.maxSize {
-				c.deleteElement(c.lru.Front())
-			}
+	el := c.lru.PushBack(&entry[K, V]{key: key, value: value, expires: expires.Unix()})
+	ew := weak.Make(el)
+	c.cache[key] = ew
+
+	if c.maxSize > 0 {
+		if elLen := c.lru.Len(); elLen > c.maxSize {
+			c.deleteElement(c.lru.Front().Value.key)
 		}
 	}
 
@@ -157,12 +163,14 @@ func (c *LruCache[K, V]) CloneTo(n *LruCache[K, V]) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	n.lru = list.New[*entry[K, V]]()
-	n.cache = make(map[K]*list.Element[*entry[K, V]])
+	n.lru.Init()
+	clear(n.cache)
 
 	for e := c.lru.Front(); e != nil; e = e.Next() {
 		elm := e.Value
-		n.cache[elm.key] = n.lru.PushBack(elm)
+		le := n.lru.PushBack(elm)
+		ew := weak.Make(le)
+		n.cache[elm.key] = ew
 	}
 }
 
@@ -175,15 +183,21 @@ func (c *LruCache[K, V]) get(key K) *entry[K, V] {
 		return nil
 	}
 
-	if !c.staleReturn && c.maxAge > 0 && le.Value.expires <= time.Now().Unix() {
-		c.deleteElement(le)
+	ev := le.Value()
+	if ev == nil {
+		c.deleteElement(key)
+		return nil
+	}
+
+	if !c.staleReturn && c.maxAge > 0 && ev.Value.expires <= time.Now().Unix() {
+		c.deleteElement(ev.Value.key)
 		c.maybeDeleteOldest()
 
 		return nil
 	}
 
-	c.lru.MoveToBack(le)
-	el := le.Value
+	c.lru.MoveToBack(ev)
+	el := ev.Value
 	if c.maxAge > 0 && c.updateAgeOnGet {
 		el.expires = time.Now().Unix() + c.maxAge
 	}
@@ -193,39 +207,45 @@ func (c *LruCache[K, V]) get(key K) *entry[K, V] {
 // Delete removes the value associated with a key.
 func (c *LruCache[K, V]) Delete(key K) {
 	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	if le, ok := c.cache[key]; ok {
-		c.deleteElement(le)
-	}
-
-	c.mu.Unlock()
+	c.deleteElement(key)
 }
 
 func (c *LruCache[K, V]) maybeDeleteOldest() {
 	if !c.staleReturn && c.maxAge > 0 {
 		now := time.Now().Unix()
 		for le := c.lru.Front(); le != nil && le.Value.expires <= now; le = c.lru.Front() {
-			c.deleteElement(le)
+			c.deleteElement(le.Value.key)
 		}
 	}
 }
 
-func (c *LruCache[K, V]) deleteElement(le *list.Element[*entry[K, V]]) {
-	c.lru.Remove(le)
-	e := le.Value
-	delete(c.cache, e.key)
-	if c.onEvict != nil {
-		c.onEvict(e.key, e.value)
+func (c *LruCache[K, V]) deleteElement(key K) {
+	if elem, exists := c.cache[key]; exists {
+		if ev := elem.Value(); ev != nil {
+			c.lru.Remove(ev)
+			if c.onEvict != nil {
+				e := ev.Value
+				c.onEvict(e.key, e.value)
+			}
+		}
+		delete(c.cache, key)
 	}
 }
 
 func (c *LruCache[K, V]) Clear() error {
 	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	c.cache = make(map[K]*list.Element[*entry[K, V]])
-
-	c.mu.Unlock()
+	c.lru.Init()
+	clear(c.cache)
 	return nil
+}
+
+func empty[T any]() T {
+	var zero T
+	return zero
 }
 
 type entry[K comparable, V any] struct {

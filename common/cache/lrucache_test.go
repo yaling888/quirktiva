@@ -77,7 +77,7 @@ func TestLRUMaxAge(t *testing.T) {
 	for _, s := range entries {
 		le, ok := c.cache[s.key]
 		if assert.True(t, ok) {
-			le.Value.expires = now
+			le.Value().Value.expires = now
 		}
 	}
 

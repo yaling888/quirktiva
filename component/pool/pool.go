@@ -90,10 +90,10 @@ func (p *pool[T]) Put(item T) {
 	}
 }
 
-func recycle[T any](p *Pool[T]) {
-	for item := range p.pool.ch {
-		if p.pool.evict != nil {
-			p.pool.evict(item.elm)
+func recycle[T any](p *pool[T]) {
+	for item := range p.ch {
+		if p.evict != nil {
+			p.evict(item.elm)
 		}
 	}
 }
@@ -109,6 +109,6 @@ func New[T any](factory Factory[T], options ...Option[T]) *Pool[T] {
 	}
 
 	P := &Pool[T]{p}
-	runtime.SetFinalizer(P, recycle[T])
+	runtime.AddCleanup(P, recycle[T], p)
 	return P
 }

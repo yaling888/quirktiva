@@ -1,6 +1,6 @@
 module quirktiva-test
 
-go 1.23.3
+go 1.24rc3
 
 require (
 	github.com/docker/docker v27.5.1+incompatible
