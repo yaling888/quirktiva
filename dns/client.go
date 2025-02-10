@@ -39,6 +39,10 @@ func (c *client) Exchange(m *D.Msg) (*rMsg, error) {
 }
 
 func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*rMsg, error) {
+	if c.Client.Net != "tcp-tls" && m.Question[0].Qtype == D.TypeHTTPS {
+		return nil, resolver.ErrECHNotSupport
+	}
+
 	var err error
 	if c.ip == "" {
 		if c.r == nil {

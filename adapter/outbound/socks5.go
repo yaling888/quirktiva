@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/yaling888/quirktiva/component/dialer"
+	"github.com/yaling888/quirktiva/component/resolver"
 	C "github.com/yaling888/quirktiva/constant"
 	"github.com/yaling888/quirktiva/transport/socks5"
 )
@@ -23,6 +24,7 @@ type Socks5 struct {
 	pass           string
 	tls            bool
 	skipCertVerify bool
+	useECH         bool
 	tlsConfig      *tls.Config
 }
 
@@ -89,7 +91,14 @@ func (ss *Socks5) StreamSocks5PacketConn(c net.Conn, pc net.PacketConn, metadata
 
 func (ss *Socks5) streamConn(c net.Conn, metadata *C.Metadata) (_ net.Conn, bindAddr socks5.Addr, err error) {
 	if ss.tls {
-		cc := tls.Client(c, ss.tlsConfig)
+		var cc *tls.Conn
+		if ss.useECH {
+			tlsConfig := copyTLSConfig(ss.tlsConfig)
+			ss.useECH = resolver.SetECHConfigList(tlsConfig)
+			cc = tls.Client(c, tlsConfig)
+		} else {
+			cc = tls.Client(c, ss.tlsConfig)
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTLSTimeout)
 		defer cancel()
 		err = cc.HandshakeContext(ctx)
@@ -187,6 +196,7 @@ func NewSocks5(option Socks5Option) *Socks5 {
 		tls:            option.TLS,
 		skipCertVerify: option.SkipCertVerify,
 		tlsConfig:      tlsConfig,
+		useECH:         true,
 	}
 }
 

@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"net"
 	"net/netip"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/yaling888/quirktiva/common/cache"
 	"github.com/yaling888/quirktiva/component/fakeip"
+	"github.com/yaling888/quirktiva/component/resolver"
 	"github.com/yaling888/quirktiva/component/trie"
 	C "github.com/yaling888/quirktiva/constant"
 	"github.com/yaling888/quirktiva/context"
@@ -75,7 +77,68 @@ func withMapping(mapping *cache.LruCache[netip.Addr, string], cnameCache *cache.
 			q := r.Question[0]
 
 			if !isIPRequest(q) {
-				return next(ctx, r)
+				msg, err := next(ctx, r)
+				if err != nil || q.Qtype != D.TypeHTTPS {
+					return msg, err
+				}
+				// should ignore IPv6Hint when disable IPv6 and mapping ip hint for TypeHTTPS
+				var rr []D.RR
+				for _, answer := range msg.Answer {
+					switch ans := answer.(type) {
+					case *D.HTTPS:
+						var value []D.SVCBKeyValue
+						for _, kv := range ans.Value {
+							switch val := kv.(type) {
+							case *D.SVCBIPv6Hint:
+								if resolver.DisableIPv6 {
+									continue
+								}
+								value = append(value, val)
+								if _, isCNAME := cnameCache.Get(q.Name); isCNAME {
+									continue
+								}
+								host := strings.TrimSuffix(q.Name, ".")
+								ttl := max(ans.Hdr.Ttl, 1)
+								for _, ip6 := range val.Hint {
+									ip, _ := netip.AddrFromSlice(ip6)
+									if !ip.IsGlobalUnicast() {
+										continue
+									}
+									mapping.SetWithExpire(ip, host, time.Now().Add(time.Second*time.Duration(ttl)))
+								}
+							case *D.SVCBIPv4Hint:
+								value = append(value, val)
+								if _, isCNAME := cnameCache.Get(q.Name); isCNAME {
+									continue
+								}
+								host := strings.TrimSuffix(q.Name, ".")
+								ttl := max(ans.Hdr.Ttl, 1)
+								for _, ip4 := range val.Hint {
+									ip, _ := netip.AddrFromSlice(ip4.To4())
+									if !ip.IsGlobalUnicast() {
+										continue
+									}
+									mapping.SetWithExpire(ip, host, time.Now().Add(time.Second*time.Duration(ttl)))
+								}
+							default:
+								value = append(value, val)
+							}
+						}
+						if value != nil {
+							rr = append(rr, &D.HTTPS{
+								SVCB: D.SVCB{
+									Hdr:      ans.Hdr,
+									Priority: ans.Priority,
+									Target:   ans.Target,
+									Value:    value,
+								},
+							})
+						}
+					}
+				}
+				m := msg.Copy()
+				m.Answer = rr
+				return m, nil
 			}
 
 			msg, err := next(ctx, r)
@@ -138,8 +201,45 @@ func withFakeIP(fakePool *fakeip.Pool) middleware {
 			}
 
 			switch q.Qtype {
-			case D.TypeAAAA, D.TypeSVCB, D.TypeHTTPS:
+			case D.TypeAAAA, D.TypeSVCB:
 				return handleMsgWithEmptyAnswer(r), nil
+			case D.TypeHTTPS:
+				msg, err := next(ctx, r)
+				if err != nil {
+					return nil, err
+				}
+				// with FakeIP mode should ignore IPv4Hint and IPv6Hint
+				var rr []D.RR
+				for _, answer := range msg.Answer {
+					switch ans := answer.(type) {
+					case *D.HTTPS:
+						var value []D.SVCBKeyValue
+						for _, kv := range ans.Value {
+							switch val := kv.(type) {
+							case *D.SVCBIPv4Hint, *D.SVCBIPv6Hint:
+								continue
+							default:
+								value = append(value, val)
+							}
+						}
+						ip := fakePool.Lookup(host)
+						value = append(value, &D.SVCBIPv4Hint{
+							Hint: []net.IP{ip.AsSlice()},
+						})
+						rr = append(rr, &D.HTTPS{
+							SVCB: D.SVCB{
+								Hdr:      ans.Hdr,
+								Priority: ans.Priority,
+								Target:   ans.Target,
+								Value:    value,
+							},
+						})
+					}
+				}
+				m := msg.Copy()
+				m.Answer = rr
+				setMsgTTL(m, 3)
+				return m, nil
 			}
 
 			if q.Qtype != D.TypeA {

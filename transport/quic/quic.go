@@ -189,7 +189,7 @@ func (qc *quicConn) SetWriteDeadline(t time.Time) error {
 	return qc.stream.SetWriteDeadline(t)
 }
 
-func StreamQUICConn(conn net.Conn, cfg *Config) (net.Conn, error) {
+func StreamQUICConn(conn net.Conn, tlsConfig *tls.Config, cfg *Config) (net.Conn, error) {
 	pc, ok := conn.(net.PacketConn)
 	if !ok {
 		return nil, errors.New("conn is not a net.PacketConn")
@@ -210,17 +210,7 @@ func StreamQUICConn(conn net.Conn, cfg *Config) (net.Conn, error) {
 		alpn = cfg.ALPN
 	}
 
-	serverName := cfg.Host
-	if cfg.ServerName != "" {
-		serverName = cfg.ServerName
-	}
-
-	tlsConfig := &tls.Config{
-		NextProtos:         alpn,
-		ServerName:         serverName,
-		InsecureSkipVerify: cfg.SkipCertVerify,
-		MinVersion:         tls.VersionTLS13,
-	}
+	tlsConfig.NextProtos = alpn
 
 	quicConfig := &quic.Config{
 		// Allow0RTT:               true,

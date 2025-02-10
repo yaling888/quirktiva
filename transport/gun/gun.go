@@ -173,7 +173,7 @@ func (g *Conn) Close() error {
 	return g.Conn.Close()
 }
 
-func NewHTTP2Client(dialFn DialFn, tlsConfig *tls.Config) *http2.Transport {
+func NewHTTP2Client(dialFn DialFn) *http2.Transport {
 	dialFunc := func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
 		plainConn, err := dialFn(network, addr)
 		if err != nil {
@@ -197,17 +197,16 @@ func NewHTTP2Client(dialFn DialFn, tlsConfig *tls.Config) *http2.Transport {
 
 	return &http2.Transport{
 		DialTLSContext:     dialFunc,
-		TLSClientConfig:    tlsConfig,
 		AllowHTTP:          false,
 		DisableCompression: true,
 		PingTimeout:        0,
 	}
 }
 
-func StreamGunWithTransport(transport *http2.Transport, cfg *Config) (net.Conn, error) {
+func StreamGunWithTransport(transport *http2.Transport, tlsConfig *tls.Config, cfg *Config) (net.Conn, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTLSTimeout)
 	defer cancel()
-	tlsConn, err := transport.DialTLSContext(ctx, "", "", transport.TLSClientConfig)
+	tlsConn, err := transport.DialTLSContext(ctx, "", "", tlsConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -256,6 +255,6 @@ func StreamGunWithConn(conn net.Conn, tlsConfig *tls.Config, cfg *Config) (net.C
 		return conn, nil
 	}
 
-	transport := NewHTTP2Client(dialFn, tlsConfig)
-	return StreamGunWithTransport(transport, cfg)
+	transport := NewHTTP2Client(dialFn)
+	return StreamGunWithTransport(transport, tlsConfig, cfg)
 }

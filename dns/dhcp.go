@@ -47,6 +47,10 @@ func (d *dhcpClient) Exchange(m *D.Msg) (msg *rMsg, err error) {
 }
 
 func (d *dhcpClient) ExchangeContext(ctx context.Context, m *D.Msg) (msg *rMsg, err error) {
+	if m.Question[0].Qtype == D.TypeHTTPS {
+		return nil, resolver.ErrECHNotSupport
+	}
+
 	clients, err := d.resolve(ctx)
 	if err != nil {
 		return nil, err

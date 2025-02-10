@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"github.com/yaling888/quirktiva/common/pool"
+	"github.com/yaling888/quirktiva/component/resolver"
 	C "github.com/yaling888/quirktiva/constant"
 	"github.com/yaling888/quirktiva/transport/h2"
 	"github.com/yaling888/quirktiva/transport/socks5"
@@ -64,6 +65,7 @@ type WebsocketOption struct {
 type Trojan struct {
 	option      *Option
 	hexPassword []byte
+	useECH      bool
 }
 
 func (t *Trojan) StreamConn(conn net.Conn) (net.Conn, error) {
@@ -77,6 +79,10 @@ func (t *Trojan) StreamConn(conn net.Conn) (net.Conn, error) {
 		MinVersion:         tls.VersionTLS12,
 		InsecureSkipVerify: t.option.SkipCertVerify,
 		ServerName:         t.option.ServerName,
+	}
+
+	if t.useECH {
+		t.useECH = resolver.SetECHConfigList(tlsConfig)
 	}
 
 	tlsConn := tls.Client(conn, tlsConfig)
@@ -97,6 +103,10 @@ func (t *Trojan) StreamH2Conn(conn net.Conn, h2Option *HTTPOptions) (net.Conn, e
 		MinVersion:         tls.VersionTLS12,
 		InsecureSkipVerify: t.option.SkipCertVerify,
 		ServerName:         t.option.ServerName,
+	}
+
+	if t.useECH {
+		t.useECH = resolver.SetECHConfigList(tlsConfig)
 	}
 
 	tlsConn := tls.Client(conn, tlsConfig)
@@ -125,6 +135,10 @@ func (t *Trojan) StreamWebsocketConn(conn net.Conn, wsOptions *WebsocketOption) 
 		MinVersion:         tls.VersionTLS12,
 		InsecureSkipVerify: t.option.SkipCertVerify,
 		ServerName:         t.option.ServerName,
+	}
+
+	if t.useECH {
+		t.useECH = resolver.SetECHConfigList(tlsConfig)
 	}
 
 	return vmess.StreamWebsocketConn(conn, &vmess.WebsocketConfig{
@@ -243,7 +257,11 @@ func ReadPacket(r io.Reader, payload []byte) (addr *net.UDPAddr, n int, remain i
 }
 
 func New(option *Option) *Trojan {
-	return &Trojan{option, hexSha224([]byte(option.Password))}
+	return &Trojan{
+		option:      option,
+		hexPassword: hexSha224([]byte(option.Password)),
+		useECH:      true,
+	}
 }
 
 type PacketConn struct {

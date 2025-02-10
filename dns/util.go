@@ -72,6 +72,7 @@ func setTTL(records []D.RR, ttl uint32, force bool) {
 		for i := range records {
 			if records[i].Header().Rrtype != D.TypeA &&
 				records[i].Header().Rrtype != D.TypeAAAA &&
+				records[i].Header().Rrtype != D.TypeHTTPS &&
 				records[i].Header().Ttl == 0 {
 				continue
 			}
@@ -84,6 +85,7 @@ func setTTL(records []D.RR, ttl uint32, force bool) {
 	for i := range records {
 		if records[i].Header().Rrtype != D.TypeA &&
 			records[i].Header().Rrtype != D.TypeAAAA &&
+			records[i].Header().Rrtype != D.TypeHTTPS &&
 			records[i].Header().Ttl == 0 {
 			continue
 		}
@@ -188,6 +190,21 @@ func msgToIP(msg *D.Msg) []netip.Addr {
 	return ips
 }
 
+func msgToECH(msg *D.Msg) []byte {
+	for _, answer := range msg.Answer {
+		switch ans := answer.(type) {
+		case *D.HTTPS:
+			for _, kv := range ans.Value {
+				switch svc := kv.(type) {
+				case *D.SVCBECHConfig:
+					return svc.ECH
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func msgToIPStr(msg D.Msg) []string {
 	var ips []string
 
@@ -197,6 +214,17 @@ func msgToIPStr(msg D.Msg) []string {
 			ips = append(ips, ans.AAAA.String())
 		case *D.A:
 			ips = append(ips, ans.A.String())
+		case *D.HTTPS:
+			for _, kv := range ans.Value {
+				switch svc := kv.(type) {
+				case *D.SVCBECHConfig:
+					ips = append(ips, svc.String())
+				case *D.SVCBIPv4Hint:
+					ips = append(ips, svc.String())
+				case *D.SVCBIPv6Hint:
+					ips = append(ips, svc.String())
+				}
+			}
 		}
 	}
 
@@ -399,7 +427,7 @@ func logDnsResponse(q D.Question, msg *rMsg, err error) {
 	if msg == nil {
 		return
 	}
-	if q.Qtype != D.TypeA && q.Qtype != D.TypeAAAA {
+	if q.Qtype != D.TypeA && q.Qtype != D.TypeAAAA && q.Qtype != D.TypeHTTPS {
 		return
 	}
 

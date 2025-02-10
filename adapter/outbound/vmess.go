@@ -40,6 +40,7 @@ type Vmess struct {
 	transport    *http2.Transport
 
 	quicAEAD *crypto.AEAD
+	useECH   bool
 }
 
 type VmessOption struct {
@@ -117,18 +118,24 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 
 		if v.option.TLS {
 			wsOpts.TLS = true
-			wsOpts.TLSConfig = &tls.Config{
+			tlsConfig := &tls.Config{
 				ServerName:         host,
 				InsecureSkipVerify: v.option.SkipCertVerify,
 				NextProtos:         []string{"http/1.1"},
 			}
 			if v.option.ServerName != "" {
-				wsOpts.TLSConfig.ServerName = v.option.ServerName
+				tlsConfig.ServerName = v.option.ServerName
 				wsOpts.Host = v.option.ServerName
 			} else if host1 := wsOpts.Headers.Get("Host"); host1 != "" {
-				wsOpts.TLSConfig.ServerName = host1
+				tlsConfig.ServerName = host1
 				wsOpts.Host = host1
 			}
+
+			if v.useECH {
+				v.useECH = resolver.SetECHConfigList(tlsConfig)
+			}
+
+			wsOpts.TLSConfig = tlsConfig
 		} else if v.option.RandomHost || wsOpts.Headers.Get("Host") == "" {
 			wsOpts.Headers.Set("Host", convert.RandHost())
 		}
@@ -141,16 +148,20 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 		host := v.option.Server
 		// readability first, so just copy default TLS logic
 		if v.option.TLS {
-			tlsOpts := &tls2.Config{
-				Host:           host,
-				SkipCertVerify: v.option.SkipCertVerify,
+			tlsConfig := &tls.Config{
+				ServerName:         host,
+				InsecureSkipVerify: v.option.SkipCertVerify,
 			}
 
 			if v.option.ServerName != "" {
-				tlsOpts.Host = v.option.ServerName
+				tlsConfig.ServerName = v.option.ServerName
 			}
 
-			c, err = tls2.StreamTLSConn(c, tlsOpts)
+			if v.useECH {
+				v.useECH = resolver.SetECHConfigList(tlsConfig)
+			}
+
+			c, err = tls2.StreamTLSConn(c, tlsConfig)
 			if err != nil {
 				return nil, err
 			}
@@ -178,17 +189,21 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 		}
 		c = h1.StreamHTTPConn(c, httpOpts)
 	case "h2":
-		tlsOpts := tls2.Config{
-			Host:           v.option.Server,
-			SkipCertVerify: v.option.SkipCertVerify,
-			NextProtos:     []string{"h2"},
+		tlsConfig := &tls.Config{
+			NextProtos:         []string{"h2"},
+			ServerName:         v.option.Server,
+			InsecureSkipVerify: v.option.SkipCertVerify,
 		}
 
 		if v.option.ServerName != "" {
-			tlsOpts.Host = v.option.ServerName
+			tlsConfig.ServerName = v.option.ServerName
 		}
 
-		c, err = tls2.StreamTLSConn(c, &tlsOpts)
+		if v.useECH {
+			v.useECH = resolver.SetECHConfigList(tlsConfig)
+		}
+
+		c, err = tls2.StreamTLSConn(c, tlsConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -211,7 +226,12 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 
 		c, err = h2.StreamH2Conn(c, h2Opts)
 	case "grpc":
-		c, err = gun.StreamGunWithConn(c, v.gunTLSConfig, v.gunConfig)
+		tlsConfig := v.gunTLSConfig
+		if v.useECH {
+			tlsConfig = copyTLSConfig(v.gunTLSConfig)
+			v.useECH = resolver.SetECHConfigList(tlsConfig)
+		}
+		c, err = gun.StreamGunWithConn(c, tlsConfig, v.gunConfig)
 	case "quic":
 		quicOpts := &quic.Config{
 			Host:           v.option.Server,
@@ -227,21 +247,41 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 			quicOpts.ServerName = v.option.ServerName
 		}
 
-		c, err = quic.StreamQUICConn(c, quicOpts)
+		serverName := quicOpts.Host
+		if quicOpts.ServerName != "" {
+			serverName = quicOpts.ServerName
+		}
+
+		tlsConfig := &tls.Config{
+			NextProtos:         quicOpts.ALPN,
+			ServerName:         serverName,
+			InsecureSkipVerify: quicOpts.SkipCertVerify,
+			MinVersion:         tls.VersionTLS13,
+		}
+
+		if v.useECH {
+			v.useECH = resolver.SetECHConfigList(tlsConfig)
+		}
+
+		c, err = quic.StreamQUICConn(c, tlsConfig, quicOpts)
 	default:
 		// handle TLS
 		if v.option.TLS {
 			host, _, _ := net.SplitHostPort(v.addr)
-			tlsOpts := &tls2.Config{
-				Host:           host,
-				SkipCertVerify: v.option.SkipCertVerify,
+			tlsConfig := &tls.Config{
+				ServerName:         host,
+				InsecureSkipVerify: v.option.SkipCertVerify,
 			}
 
 			if v.option.ServerName != "" {
-				tlsOpts.Host = v.option.ServerName
+				tlsConfig.ServerName = v.option.ServerName
 			}
 
-			c, err = tls2.StreamTLSConn(c, tlsOpts)
+			if v.useECH {
+				v.useECH = resolver.SetECHConfigList(tlsConfig)
+			}
+
+			c, err = tls2.StreamTLSConn(c, tlsConfig)
 		}
 	}
 
@@ -276,7 +316,12 @@ func (v *Vmess) StreamPacketConn(c net.Conn, metadata *C.Metadata) (net.Conn, er
 func (v *Vmess) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (_ C.Conn, err error) {
 	// gun transport
 	if v.transport != nil && len(opts) == 0 {
-		c, err := gun.StreamGunWithTransport(v.transport, v.gunConfig)
+		tlsConfig := v.gunTLSConfig
+		if v.useECH {
+			tlsConfig = copyTLSConfig(v.gunTLSConfig)
+			v.useECH = resolver.SetECHConfigList(tlsConfig)
+		}
+		c, err := gun.StreamGunWithTransport(v.transport, tlsConfig, v.gunConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -319,7 +364,12 @@ func (v *Vmess) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 			metadata.DstIP = rAddrs[0]
 		}
 
-		c, err = gun.StreamGunWithTransport(v.transport, v.gunConfig)
+		tlsConfig := v.gunTLSConfig
+		if v.useECH {
+			tlsConfig = copyTLSConfig(v.gunTLSConfig)
+			v.useECH = resolver.SetECHConfigList(tlsConfig)
+		}
+		c, err = gun.StreamGunWithTransport(v.transport, tlsConfig, v.gunConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -403,6 +453,7 @@ func NewVmess(option VmessOption) (*Vmess, error) {
 		},
 		client: client,
 		option: &option,
+		useECH: true,
 	}
 
 	host := option.Server
@@ -444,7 +495,7 @@ func NewVmess(option VmessOption) (*Vmess, error) {
 
 		v.gunTLSConfig = tlsConfig
 		v.gunConfig = gunConfig
-		v.transport = gun.NewHTTP2Client(dialFn, tlsConfig)
+		v.transport = gun.NewHTTP2Client(dialFn)
 	case "quic":
 		quicAEAD, err := crypto.NewAEAD(v.option.QUICOpts.Security, v.option.QUICOpts.Key, "v2ray-quic-salt")
 		if err != nil {

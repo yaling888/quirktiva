@@ -143,6 +143,19 @@ func (r *Resolver) ResolveIPv6(host string) (ip netip.Addr, err error) {
 	return ips[rand.IntN(len(ips))], nil
 }
 
+// LookupECH request with TypeHTTPS
+func (r *Resolver) LookupECH(ctx context.Context, host string) ([]byte, error) {
+	msg, err := r.lookupNoneIP(ctx, host, D.TypeHTTPS)
+	if err != nil {
+		return nil, err
+	}
+	ech := msgToECH(msg)
+	if ech != nil {
+		return ech, nil
+	}
+	return nil, resolver.ErrECHNotFound
+}
+
 func (r *Resolver) shouldIPFallback(ip netip.Addr) bool {
 	for _, filter := range r.fallbackIPFilters {
 		if filter.Match(ip) {
@@ -242,7 +255,7 @@ func (r *Resolver) exchangeWithoutCache(ctx context.Context, m *D.Msg, q D.Quest
 		}()
 
 		isIPReq := isIPRequest(q)
-		if isIPReq {
+		if isIPReq || q.Qtype == D.TypeHTTPS {
 			return r.ipExchange(ctx, m, domain)
 		}
 
@@ -304,6 +317,11 @@ func (r *Resolver) exchangePolicyCombine(ctx context.Context, clients []dnsClien
 		defer cancel()
 		res.Msg, res.Error = batchExchange(ctx1, policyClients, m)
 		res.Policy = true
+		return res
+	} else if m.Question[0].Qtype == D.TypeHTTPS {
+		ctx1, cancel := context.WithTimeout(resolver.CopyCtxValues(ctx), timeout)
+		defer cancel()
+		res.Msg, res.Error = batchExchange(ctx1, clients, m)
 		return res
 	}
 
@@ -466,10 +484,20 @@ func (r *Resolver) lookupIP(ctx context.Context, host string, dnsType uint16) ([
 	return nil, resolver.ErrIPNotFound
 }
 
+func (r *Resolver) lookupNoneIP(ctx context.Context, host string, dnsType uint16) (*D.Msg, error) {
+	query := &D.Msg{}
+	query.SetQuestion(D.Fqdn(host), dnsType)
+
+	msg, _, err := r.ExchangeContext(ctx, query)
+	return msg, err
+}
+
 func (r *Resolver) RemoveCache(host string) {
 	q := D.Question{Name: D.Fqdn(host), Qtype: D.TypeA, Qclass: D.ClassINET}
 	r.lruCache.Delete(genMsgCacheKey(context.Background(), q))
 	q.Qtype = D.TypeAAAA
+	r.lruCache.Delete(genMsgCacheKey(context.Background(), q))
+	q.Qtype = D.TypeHTTPS
 	r.lruCache.Delete(genMsgCacheKey(context.Background(), q))
 }
 

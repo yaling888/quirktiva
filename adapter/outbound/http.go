@@ -15,6 +15,7 @@ import (
 
 	"github.com/yaling888/quirktiva/common/convert"
 	"github.com/yaling888/quirktiva/component/dialer"
+	"github.com/yaling888/quirktiva/component/resolver"
 	C "github.com/yaling888/quirktiva/constant"
 )
 
@@ -24,6 +25,7 @@ type Http struct {
 	*Base
 	user      string
 	pass      string
+	useECH    bool
 	tlsConfig *tls.Config
 	headers   http.Header
 }
@@ -45,7 +47,14 @@ type HttpOption struct {
 // StreamConn implements C.ProxyAdapter
 func (h *Http) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 	if h.tlsConfig != nil {
-		cc := tls.Client(c, h.tlsConfig)
+		var cc *tls.Conn
+		if h.useECH {
+			tlsConfig := copyTLSConfig(h.tlsConfig)
+			h.useECH = resolver.SetECHConfigList(tlsConfig)
+			cc = tls.Client(c, tlsConfig)
+		} else {
+			cc = tls.Client(c, h.tlsConfig)
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTLSTimeout)
 		defer cancel()
 		err := cc.HandshakeContext(ctx)
@@ -167,5 +176,6 @@ func NewHttp(option HttpOption) *Http {
 		pass:      option.Password,
 		tlsConfig: tlsConfig,
 		headers:   headers,
+		useECH:    true,
 	}
 }

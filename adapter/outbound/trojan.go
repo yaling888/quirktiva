@@ -12,6 +12,7 @@ import (
 
 	"github.com/yaling888/quirktiva/common/convert"
 	"github.com/yaling888/quirktiva/component/dialer"
+	"github.com/yaling888/quirktiva/component/resolver"
 	C "github.com/yaling888/quirktiva/constant"
 	"github.com/yaling888/quirktiva/transport/crypto"
 	"github.com/yaling888/quirktiva/transport/gun"
@@ -33,6 +34,7 @@ type Trojan struct {
 	transport    *http2.Transport
 
 	quicAEAD *crypto.AEAD
+	useECH   bool
 }
 
 type TrojanOption struct {
@@ -113,7 +115,23 @@ func (t *Trojan) plainStream(conn net.Conn) (net.Conn, error) {
 			quicOpts.ServerName = t.option.SNI
 		}
 
-		return quic.StreamQUICConn(conn, quicOpts)
+		serverName := quicOpts.Host
+		if quicOpts.ServerName != "" {
+			serverName = quicOpts.ServerName
+		}
+
+		tlsConfig := &tls.Config{
+			NextProtos:         quicOpts.ALPN,
+			ServerName:         serverName,
+			InsecureSkipVerify: quicOpts.SkipCertVerify,
+			MinVersion:         tls.VersionTLS13,
+		}
+
+		if t.useECH {
+			t.useECH = resolver.SetECHConfigList(tlsConfig)
+		}
+
+		return quic.StreamQUICConn(conn, tlsConfig, quicOpts)
 	}
 
 	return t.instance.StreamConn(conn)
@@ -122,7 +140,12 @@ func (t *Trojan) plainStream(conn net.Conn) (net.Conn, error) {
 func (t *Trojan) trojanStream(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 	var err error
 	if t.transport != nil {
-		c, err = gun.StreamGunWithConn(c, t.gunTLSConfig, t.gunConfig)
+		tlsConfig := t.gunTLSConfig
+		if t.useECH {
+			tlsConfig = copyTLSConfig(t.gunTLSConfig)
+			t.useECH = resolver.SetECHConfigList(tlsConfig)
+		}
+		c, err = gun.StreamGunWithConn(c, tlsConfig, t.gunConfig)
 	} else {
 		c, err = t.plainStream(c)
 		if err != nil {
@@ -167,7 +190,12 @@ func (t *Trojan) DialContext(ctx context.Context, metadata *C.Metadata, opts ...
 
 	// gun transport
 	if t.transport != nil && len(opts) == 0 {
-		c, err = gun.StreamGunWithTransport(t.transport, t.gunConfig)
+		tlsConfig := t.gunTLSConfig
+		if t.useECH {
+			tlsConfig = copyTLSConfig(t.gunTLSConfig)
+			t.useECH = resolver.SetECHConfigList(tlsConfig)
+		}
+		c, err = gun.StreamGunWithTransport(t.transport, tlsConfig, t.gunConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -207,7 +235,12 @@ func (t *Trojan) ListenPacketContext(ctx context.Context, metadata *C.Metadata, 
 
 	// gun transport
 	if t.transport != nil && len(opts) == 0 {
-		c, err = gun.StreamGunWithTransport(t.transport, t.gunConfig)
+		tlsConfig := t.gunTLSConfig
+		if t.useECH {
+			tlsConfig = copyTLSConfig(t.gunTLSConfig)
+			t.useECH = resolver.SetECHConfigList(tlsConfig)
+		}
+		c, err = gun.StreamGunWithTransport(t.transport, tlsConfig, t.gunConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -291,6 +324,7 @@ func NewTrojan(option TrojanOption) (*Trojan, error) {
 		},
 		instance: trojan.New(tOption),
 		option:   &option,
+		useECH:   true,
 	}
 
 	switch option.Network {
@@ -317,7 +351,7 @@ func NewTrojan(option TrojanOption) (*Trojan, error) {
 			ServerName:         tOption.ServerName,
 		}
 
-		t.transport = gun.NewHTTP2Client(dialFn, tlsConfig)
+		t.transport = gun.NewHTTP2Client(dialFn)
 
 		t.gunTLSConfig = tlsConfig
 		t.gunConfig = &gun.Config{

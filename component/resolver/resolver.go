@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"math/rand/v2"
 	"net"
@@ -36,9 +37,12 @@ var (
 )
 
 var (
-	ErrIPNotFound   = errors.New("couldn't find ip")
-	ErrIPVersion    = errors.New("ip version error")
-	ErrIPv6Disabled = errors.New("ipv6 disabled")
+	ErrIPNotFound      = errors.New("can not find ip")
+	ErrIPVersion       = errors.New("ip version error")
+	ErrIPv6Disabled    = errors.New("ipv6 disabled")
+	ErrECHNotFound     = errors.New("can not find ECH")
+	ErrECHNotSupport   = errors.New("can not lookup ECH by unsafe client")
+	ErrECHServerReject = errors.New("tls: server rejected ECH")
 )
 
 const (
@@ -58,6 +62,7 @@ type Resolver interface {
 	LookupIP(ctx context.Context, host string) ([]netip.Addr, error)
 	LookupIPv4(ctx context.Context, host string) ([]netip.Addr, error)
 	LookupIPv6(ctx context.Context, host string) ([]netip.Addr, error)
+	LookupECH(ctx context.Context, host string) ([]byte, error)
 	ResolveIP(host string) (ip netip.Addr, err error)
 	ResolveIPv4(host string) (ip netip.Addr, err error)
 	ResolveIPv6(host string) (ip netip.Addr, err error)
@@ -99,6 +104,15 @@ func LookupIPv4ByProxy(ctx context.Context, host, proxy string) ([]netip.Addr, e
 // LookupIPv6ByProxy with a host and proxy, reports ipv6 list whether the DisableIPv6 value is true
 func LookupIPv6ByProxy(ctx context.Context, host, proxy string) ([]netip.Addr, error) {
 	return lookupIPByProxyAndType(ctx, host, proxy, typeAAAA, true)
+}
+
+// LookupECHForProxyServer with a host, return ECH config list
+func LookupECHForProxyServer(host string) ([]byte, error) {
+	if DefaultResolver != nil {
+		ctx := context.WithValue(context.Background(), proxyServerHostKey, struct{}{})
+		return DefaultResolver.LookupECH(ctx, host)
+	}
+	return nil, ErrECHNotFound
 }
 
 // ResolveIP with a host, return ip
@@ -175,6 +189,26 @@ func CopyCtxValues(parent context.Context) context.Context {
 		newCtx = context.WithValue(newCtx, proxyServerHostKey, struct{}{})
 	}
 	return newCtx
+}
+
+func SetECHConfigList(cfg *tls.Config) bool {
+	ech, err := LookupECHForProxyServer(cfg.ServerName)
+	if err != nil {
+		if err == ErrECHNotFound || errors.Is(err, ErrECHNotSupport) {
+			return false
+		}
+		return true
+	}
+	cfg.MinVersion = tls.VersionTLS13
+	cfg.InsecureSkipVerify = false
+	cfg.EncryptedClientHelloConfigList = ech
+	cfg.EncryptedClientHelloRejectionVerify = func(state tls.ConnectionState) error {
+		if !state.ECHAccepted {
+			return ErrECHServerReject
+		}
+		return nil
+	}
+	return true
 }
 
 func resolveIPByType(host string, _type uint16) (netip.Addr, error) {

@@ -8,22 +8,9 @@ import (
 	C "github.com/yaling888/quirktiva/constant"
 )
 
-type Config struct {
-	Host           string
-	SkipCertVerify bool
-	NextProtos     []string
-}
-
-func StreamTLSConn(conn net.Conn, cfg *Config) (net.Conn, error) {
-	tlsConfig := &tls.Config{
-		ServerName:         cfg.Host,
-		InsecureSkipVerify: cfg.SkipCertVerify,
-		NextProtos:         cfg.NextProtos,
-	}
-
+func StreamTLSConn(conn net.Conn, tlsConfig *tls.Config) (net.Conn, error) {
 	tlsConn := tls.Client(conn, tlsConfig)
 
-	// fix tls handshake not timeout
 	ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTLSTimeout)
 	defer cancel()
 	err := tlsConn.HandshakeContext(ctx)
