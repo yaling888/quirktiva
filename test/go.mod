@@ -1,6 +1,6 @@
 module quirktiva-test
 
-go 1.24rc3
+go 1.24.0
 
 require (
 	github.com/docker/docker v27.5.1+incompatible
@@ -9,7 +9,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/yaling888/quirktiva v0.0.0
 	go.uber.org/automaxprocs v1.6.0
-	golang.org/x/net v0.34.1-0.20250206202136-2dab271ff1b7
+	golang.org/x/net v0.35.0
 )
 
 require (
@@ -20,7 +20,7 @@ require (
 	github.com/cilium/ebpf v0.17.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
-	github.com/dlclark/regexp2 v1.11.4 // indirect
+	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/expr-lang/expr v1.16.9 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
@@ -50,7 +50,7 @@ require (
 	github.com/samber/lo v1.49.1 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/u-root/uio v0.0.0-20230220225925-ffce2a382923 // indirect
-	github.com/vishvananda/netlink v1.3.1-0.20250206174618-62fb240731fa // indirect
+	github.com/vishvananda/netlink v1.3.1-0.20250209162617-655392bc778a // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
 	go.etcd.io/bbolt v1.4.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.53.0 // indirect
@@ -75,7 +75,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	gvisor.dev/gvisor v0.0.0-20250207211332-a025ffd3b3e0 // indirect
+	gvisor.dev/gvisor v0.0.0-20250210225643-b6c879e0ba3f // indirect
 )
 
 replace (
