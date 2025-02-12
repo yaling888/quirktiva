@@ -105,6 +105,7 @@ func (vc *Conn) sendRequest() error {
 			return err
 		}
 
+		//nolint:staticcheck
 		stream := cipher.NewCFBEncrypter(block, hashTimestamp(timestamp))
 		stream.XORKeyStream(buf.Bytes(), buf.Bytes())
 		mBuf.PutSlice(buf.Bytes())
@@ -127,6 +128,7 @@ func (vc *Conn) recvResponse() error {
 			return err
 		}
 
+		//nolint:staticcheck
 		stream := cipher.NewCFBDecrypter(block, vc.respBodyIV[:])
 		buf = make([]byte, 4)
 		_, err = io.ReadFull(vc.Conn, buf)

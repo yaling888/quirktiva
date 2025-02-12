@@ -41,8 +41,12 @@ func AESCTR(key []byte) (Cipher, error) {
 // CFB mode
 type cfbStream struct{ cipher.Block }
 
-func (b *cfbStream) IVSize() int                       { return b.BlockSize() }
+func (b *cfbStream) IVSize() int { return b.BlockSize() }
+
+//nolint:staticcheck
 func (b *cfbStream) Decrypter(iv []byte) cipher.Stream { return cipher.NewCFBDecrypter(b, iv) }
+
+//nolint:staticcheck
 func (b *cfbStream) Encrypter(iv []byte) cipher.Stream { return cipher.NewCFBEncrypter(b, iv) }
 
 func AESCFB(key []byte) (Cipher, error) {
