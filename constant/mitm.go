@@ -17,6 +17,8 @@ import (
 	"github.com/yaling888/quirktiva/common/cert"
 )
 
+const MitmApiHost = "mitm.clash"
+
 var (
 	ErrInvalidResponse = errors.New("invalid response")
 	ErrInvalidURL      = errors.New("invalid URL")

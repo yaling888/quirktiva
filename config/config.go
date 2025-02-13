@@ -841,9 +841,9 @@ func parseHosts(cfg *RawConfig) (*trie.DomainTrie[netip.Addr], error) {
 		}
 	}
 
-	// add mitm.clash hosts
-	if err := tree.Insert("mitm.clash", netip.AddrFrom4([4]byte{1, 2, 3, 4})); err != nil {
-		log.Error().Err(err).Msg("[Config] insert mitm.clash to host failed")
+	// add mitm API host
+	if err := tree.Insert(C.MitmApiHost, netip.AddrFrom4([4]byte{1, 2, 3, 4})); err != nil {
+		log.Error().Err(err).Msg("[Config] insert mitm API host to host failed")
 	}
 
 	return tree, nil
@@ -1294,7 +1294,7 @@ func parseMitm(rawMitm RawMitm) (*Mitm, error) {
 		}
 	}
 
-	_ = hosts.Insert("mitm.clash", true)
+	_ = hosts.Insert(C.MitmApiHost, true)
 
 	return &Mitm{
 		Hosts: hosts,
