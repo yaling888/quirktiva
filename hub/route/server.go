@@ -87,6 +87,10 @@ func Start(addr string, secret string) {
 		r.Mount("/providers/proxies", proxyProviderRouter())
 		r.Mount("/cache", cacheRouter())
 		r.Mount("/dns", dnsRouter())
+
+		if enablePPORF {
+			r.Mount("/debug/pprof", pprofRouter())
+		}
 	})
 
 	if uiPath != "" {
@@ -97,10 +101,6 @@ func Start(addr string, secret string) {
 				fs.ServeHTTP(w, r)
 			})
 		})
-	}
-
-	if enablePPORF {
-		r.Mount("/debug/pprof", pprofRouter())
 	}
 
 	l, err := net.Listen("tcp", addr)
@@ -136,8 +136,13 @@ func authentication(next http.Handler) http.Handler {
 
 		header := r.Header.Get("Authorization")
 		bearer, token, found := strings.Cut(header, " ")
+		if header == "" {
+			if token = r.URL.Query().Get("token"); token != "" {
+				found = true
+			}
+		}
 
-		hasInvalidHeader := bearer != "Bearer"
+		hasInvalidHeader := header != "" && bearer != "Bearer"
 		hasInvalidSecret := !found || subtle.ConstantTimeCompare([]byte(token), serverSecret) != 1
 		if hasInvalidHeader || hasInvalidSecret {
 			render.Status(r, http.StatusUnauthorized)
