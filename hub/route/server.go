@@ -2,9 +2,12 @@ package route
 
 import (
 	"crypto/subtle"
+	"crypto/tls"
 	"encoding/json"
+	"encoding/pem"
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -17,6 +20,7 @@ import (
 
 	"github.com/yaling888/quirktiva/common/observable"
 	"github.com/yaling888/quirktiva/common/pool"
+	"github.com/yaling888/quirktiva/config"
 	C "github.com/yaling888/quirktiva/constant"
 	L "github.com/yaling888/quirktiva/log"
 	"github.com/yaling888/quirktiva/tunnel/statistic"
@@ -25,6 +29,7 @@ import (
 var (
 	serverSecret []byte
 	serverAddr   = ""
+	serverName   = ""
 
 	uiPath = ""
 
@@ -46,6 +51,10 @@ type Traffic struct {
 
 func SetUIPath(path string) {
 	uiPath = C.Path.Resolve(path)
+}
+
+func SetServerName(name string) {
+	serverName = name
 }
 
 func SetPPROF(pprof bool) {
@@ -109,7 +118,45 @@ func Start(addr string, secret string) {
 		return
 	}
 	serverAddr = l.Addr().String()
-	log.Info().Str("addr", serverAddr).Msg("[API] listening")
+
+	e := log.Info().Str("addr", serverAddr)
+	if serverName != "" {
+		e.Str("serverName", serverName)
+		certConfig, err := config.GetCertConfig()
+		if err != nil {
+			_ = l.Close()
+			log.Error().Err(err).Msg("[API] get certificate config failed")
+			return
+		}
+		var ips []net.IP
+		if h, _, err := net.SplitHostPort(serverAddr); err == nil {
+			if a, err := netip.ParseAddr(h); err == nil && a.IsGlobalUnicast() {
+				ips = append(ips, a.AsSlice())
+			}
+		}
+		ips = append(ips, netip.MustParseAddr("127.0.0.1").AsSlice(), netip.MustParseAddr("::1").AsSlice())
+		certificate, err := certConfig.GetOrCreateCert(serverName, ips...)
+		if err != nil {
+			_ = l.Close()
+			log.Error().Err(err).Msgf("[API] get certificate for server name: '%s' failed", serverName)
+			return
+		}
+		tlsConfig := &tls.Config{
+			NextProtos:   []string{"http/1.1", "h2"},
+			Certificates: []tls.Certificate{*certificate},
+		}
+		l = tls.NewListener(l, tlsConfig)
+
+		r.Get("/ca.crt", func(w http.ResponseWriter, r *http.Request) {
+			b := pem.EncodeToMemory(&pem.Block{
+				Type:  "CERTIFICATE",
+				Bytes: certConfig.GetRootCA().Raw,
+			})
+			w.Header().Set("Content-Type", "application/x-x509-ca-cert")
+			_, _ = w.Write(b)
+		})
+	}
+	e.Msg("[API] listening")
 	if err = http.Serve(l, r); err != nil {
 		log.Error().Err(err).Msg("[API] external controller serve failed")
 	}

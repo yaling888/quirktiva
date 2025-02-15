@@ -27,6 +27,9 @@ sniffing: false
 
 force-cert-verify: true
 
+# enable debug API if true. API path: /debug/pprof/?token=xxxx
+pprof: false
+
 profile:
   store-selected: true
   store-fake-ip: true
@@ -37,6 +40,9 @@ experimental:
 
 # A RESTful API for clash
 external-controller: 0.0.0.0:9090
+
+# A RESTful API server name, the RESTful API controller will serve at https scheme if not empty. (Optional)
+#external-server-name: localhost
 
 # Secret for RESTful API (Optional)
 #secret: xxxx

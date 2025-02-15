@@ -67,6 +67,7 @@ type LegacyInbound struct {
 type Controller struct {
 	ExternalController string `json:"-"`
 	ExternalUI         string `json:"-"`
+	ExternalServerName string `json:"-"`
 	Secret             string `json:"-"`
 	PPROF              bool   `json:"-"`
 }
@@ -302,6 +303,7 @@ type RawConfig struct {
 	IPv6               bool         `yaml:"ipv6"`
 	ExternalController string       `yaml:"external-controller"`
 	ExternalUI         string       `yaml:"external-ui"`
+	ExternalServerName string       `yaml:"external-server-name"`
 	Secret             string       `yaml:"secret"`
 	PPROF              bool         `yaml:"pprof"`
 	Interface          string       `yaml:"interface-name"`
@@ -534,6 +536,7 @@ func parseGeneral(cfg *RawConfig) (*General, error) {
 		Controller: Controller{
 			ExternalController: cfg.ExternalController,
 			ExternalUI:         cfg.ExternalUI,
+			ExternalServerName: cfg.ExternalServerName,
 			Secret:             cfg.Secret,
 			PPROF:              cfg.PPROF,
 		},

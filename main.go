@@ -27,6 +27,7 @@ var (
 	configFile         string
 	externalUI         string
 	externalController string
+	externalServerName string
 	secret             string
 )
 
@@ -37,6 +38,8 @@ func init() {
 		"override external ui directory")
 	flag.StringVar(&externalController, "ext-ctl", os.Getenv("CLASH_OVERRIDE_EXTERNAL_CONTROLLER"),
 		"override external controller address")
+	flag.StringVar(&externalServerName, "ext-name", os.Getenv("CLASH_OVERRIDE_EXTERNAL_CONTROLLER_SERVER_NAME"),
+		"override external controller server name")
 	flag.StringVar(&secret, "secret", os.Getenv("CLASH_OVERRIDE_SECRET"),
 		"override secret for RESTful API")
 	flag.BoolVar(&version, "v", false, "show current version of Quirktiva")
@@ -103,6 +106,9 @@ func main() {
 	}
 	if externalController != "" {
 		options = append(options, hub.WithExternalController(externalController))
+	}
+	if externalServerName != "" {
+		options = append(options, hub.WithExternalServerName(externalServerName))
 	}
 	if secret != "" {
 		options = append(options, hub.WithSecret(secret))

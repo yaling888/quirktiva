@@ -20,6 +20,12 @@ func WithExternalController(externalController string) Option {
 	}
 }
 
+func WithExternalServerName(externalServerName string) Option {
+	return func(cfg *config.Config) {
+		cfg.General.ExternalServerName = externalServerName
+	}
+}
+
 func WithSecret(secret string) Option {
 	return func(cfg *config.Config) {
 		cfg.General.Secret = secret
@@ -39,6 +45,10 @@ func Parse(options ...Option) error {
 
 	if cfg.General.ExternalUI != "" {
 		route.SetUIPath(cfg.General.ExternalUI)
+	}
+
+	if cfg.General.ExternalServerName != "" {
+		route.SetServerName(cfg.General.ExternalServerName)
 	}
 
 	route.SetPPROF(cfg.General.PPROF)
