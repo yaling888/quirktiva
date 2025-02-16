@@ -27,10 +27,6 @@ func withHosts(hosts *trie.DomainTrie[netip.Addr], mapping *cache.LruCache[netip
 		return func(ctx *context.DNSContext, r *D.Msg) (*D.Msg, error) {
 			q := r.Question[0]
 
-			if !isIPRequest(q) {
-				return next(ctx, r)
-			}
-
 			host := strings.TrimSuffix(q.Name, ".")
 
 			record := hosts.Search(host)
@@ -39,6 +35,40 @@ func withHosts(hosts *trie.DomainTrie[netip.Addr], mapping *cache.LruCache[netip
 			}
 
 			ip := record.Data
+			if !isIPRequest(q) {
+				if q.Qtype == D.TypeHTTPS {
+					var v D.SVCBKeyValue
+					if ip.Is4() {
+						v = &D.SVCBIPv4Hint{
+							Hint: []net.IP{ip.AsSlice()},
+						}
+					} else if ip.Is6() {
+						v = &D.SVCBIPv6Hint{
+							Hint: []net.IP{ip.AsSlice()},
+						}
+					}
+					if v != nil {
+						rr := &D.HTTPS{
+							SVCB: D.SVCB{
+								Hdr:      D.RR_Header{Name: q.Name, Rrtype: D.TypeHTTPS, Class: D.ClassINET, Ttl: 3},
+								Priority: 1,
+								Target:   ".",
+								Value:    []D.SVCBKeyValue{v},
+							},
+						}
+						ctx.SetType(context.DNSTypeHost)
+						msg := r.Copy()
+						msg.Answer = []D.RR{rr}
+						msg.SetRcode(r, D.RcodeSuccess)
+						msg.Authoritative = true
+						msg.RecursionAvailable = true
+						return msg, nil
+					}
+					return handleMsgWithEmptyAnswer(r), nil
+				}
+				return next(ctx, r)
+			}
+
 			msg := r.Copy()
 
 			if ip.Is4() && q.Qtype == D.TypeA {
@@ -54,10 +84,10 @@ func withHosts(hosts *trie.DomainTrie[netip.Addr], mapping *cache.LruCache[netip
 
 				msg.Answer = []D.RR{rr}
 			} else {
-				return next(ctx, r)
+				return handleMsgWithEmptyAnswer(r), nil
 			}
 
-			if mapping != nil {
+			if mapping != nil && ip.IsGlobalUnicast() && !ip.IsPrivate() {
 				mapping.SetWithExpire(ip, host, time.Now().Add(time.Second*3))
 			}
 
@@ -134,6 +164,17 @@ func withMapping(mapping *cache.LruCache[netip.Addr, string], cnameCache *cache.
 								},
 							})
 						}
+					case *D.CNAME:
+						rr = append(rr, ans)
+						ttl := max(ans.Hdr.Ttl, 2)
+						cnameCache.SetWithExpire(ans.Target, true, time.Now().Add(time.Second*time.Duration(ttl)))
+					case *D.AAAA:
+						if resolver.DisableIPv6 {
+							continue
+						}
+						rr = append(rr, ans)
+					default:
+						rr = append(rr, ans)
 					}
 				}
 				m := msg.Copy()
@@ -209,6 +250,7 @@ func withFakeIP(fakePool *fakeip.Pool) middleware {
 					return nil, err
 				}
 				// with FakeIP mode should ignore IPv4Hint and IPv6Hint
+				ip := fakePool.Lookup(host)
 				var rr []D.RR
 				for _, answer := range msg.Answer {
 					switch ans := answer.(type) {
@@ -222,16 +264,59 @@ func withFakeIP(fakePool *fakeip.Pool) middleware {
 								value = append(value, val)
 							}
 						}
-						ip := fakePool.Lookup(host)
-						value = append(value, &D.SVCBIPv4Hint{
-							Hint: []net.IP{ip.AsSlice()},
-						})
+						if ip.Is4() {
+							value = append(value, &D.SVCBIPv4Hint{
+								Hint: []net.IP{ip.AsSlice()},
+							})
+						} else if ip.Is6() {
+							value = append(value, &D.SVCBIPv6Hint{
+								Hint: []net.IP{ip.AsSlice()},
+							})
+						}
 						rr = append(rr, &D.HTTPS{
 							SVCB: D.SVCB{
 								Hdr:      ans.Hdr,
 								Priority: ans.Priority,
 								Target:   ans.Target,
 								Value:    value,
+							},
+						})
+					case *D.A:
+						if !ip.Is4() {
+							continue
+						}
+						rr = append(rr, &D.A{
+							Hdr: D.RR_Header{Name: q.Name, Rrtype: D.TypeA, Class: D.ClassINET, Ttl: dnsDefaultTTL},
+							A:   ip.AsSlice(),
+						})
+					case *D.AAAA:
+						if !ip.Is6() || resolver.DisableIPv6 {
+							continue
+						}
+						rr = append(rr, &D.A{
+							Hdr: D.RR_Header{Name: q.Name, Rrtype: D.TypeAAAA, Class: D.ClassINET, Ttl: dnsDefaultTTL},
+							A:   ip.AsSlice(),
+						})
+					}
+				}
+				if rr == nil {
+					var v D.SVCBKeyValue
+					if ip.Is4() {
+						v = &D.SVCBIPv4Hint{
+							Hint: []net.IP{ip.AsSlice()},
+						}
+					} else if ip.Is6() {
+						v = &D.SVCBIPv6Hint{
+							Hint: []net.IP{ip.AsSlice()},
+						}
+					}
+					if v != nil {
+						rr = append(rr, &D.HTTPS{
+							SVCB: D.SVCB{
+								Hdr:      D.RR_Header{Name: q.Name, Rrtype: D.TypeHTTPS, Class: D.ClassINET, Ttl: dnsDefaultTTL},
+								Priority: 1,
+								Target:   ".",
+								Value:    []D.SVCBKeyValue{v},
 							},
 						})
 					}
