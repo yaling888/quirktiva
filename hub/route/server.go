@@ -100,6 +100,9 @@ func Start(addr string, secret string) {
 		if enablePPORF {
 			r.Mount("/debug/pprof", pprofRouter())
 		}
+		if serverName != "" {
+			r.Mount("/dns-query", dohRouter())
+		}
 	})
 
 	if uiPath != "" {
