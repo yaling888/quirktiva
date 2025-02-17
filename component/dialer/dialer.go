@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/netip"
 
+	"github.com/yaling888/quirktiva/common/errors2"
 	"github.com/yaling888/quirktiva/component/resolver"
 )
 
@@ -31,18 +32,34 @@ func DialContext(ctx context.Context, network, address string, options ...Option
 		}
 
 		var ip netip.Addr
+		if a, err := netip.ParseAddr(host); err == nil {
+			ip = a
+		}
+
 		switch network {
 		case "tcp4", "udp4":
-			if !opt.direct {
-				ip, err = resolver.ResolveIPv4ProxyServerHost(host)
+			if ip.IsValid() {
+				if !ip.Is4() {
+					return nil, &net.AddrError{Err: "invalid address for " + network, Addr: host}
+				}
 			} else {
-				ip, err = resolver.ResolveIPv4(host)
+				if !opt.direct {
+					ip, err = resolver.ResolveIPv4ProxyServerHost(host)
+				} else {
+					ip, err = resolver.ResolveIPv4(host)
+				}
 			}
 		default:
-			if !opt.direct {
-				ip, err = resolver.ResolveIPv6ProxyServerHost(host)
+			if ip.IsValid() {
+				if !ip.Is6() {
+					return nil, &net.AddrError{Err: "invalid address for " + network, Addr: host}
+				}
 			} else {
-				ip, err = resolver.ResolveIPv6(host)
+				if !opt.direct {
+					ip, err = resolver.ResolveIPv6ProxyServerHost(host)
+				} else {
+					ip, err = resolver.ResolveIPv6(host)
+				}
 			}
 		}
 		if err != nil {
@@ -53,7 +70,7 @@ func DialContext(ctx context.Context, network, address string, options ...Option
 	case "tcp", "udp":
 		return dualStackDialContext(ctx, network, address, opt)
 	default:
-		return nil, errors.New("network invalid")
+		return nil, net.UnknownNetworkError(network)
 	}
 }
 
@@ -143,21 +160,30 @@ func dualStackDialContext(ctx context.Context, network, address string, opt *opt
 		}()
 
 		var ip netip.Addr
-		if ipv6 {
-			if !direct {
-				ip, result.error = resolver.ResolveIPv6ProxyServerHost(host)
-			} else {
-				ip, result.error = resolver.ResolveIPv6(host)
-			}
-		} else {
-			if !direct {
-				ip, result.error = resolver.ResolveIPv4ProxyServerHost(host)
-			} else {
-				ip, result.error = resolver.ResolveIPv4(host)
-			}
+		if a, err := netip.ParseAddr(host); err == nil {
+			ip = a
 		}
-		if result.error != nil {
+		if (ipv6 && ip.Is4()) || (!ipv6 && ip.Is6()) {
+			result.error = &net.AddrError{Err: "invalid address for " + network, Addr: host}
 			return
+		}
+		if !ip.IsValid() {
+			if ipv6 {
+				if !direct {
+					ip, result.error = resolver.ResolveIPv6ProxyServerHost(host)
+				} else {
+					ip, result.error = resolver.ResolveIPv6(host)
+				}
+			} else {
+				if !direct {
+					ip, result.error = resolver.ResolveIPv4ProxyServerHost(host)
+				} else {
+					ip, result.error = resolver.ResolveIPv4(host)
+				}
+			}
+			if result.error != nil {
+				return
+			}
 		}
 		result.resolved = true
 
@@ -184,7 +210,7 @@ func dualStackDialContext(ctx context.Context, network, address string, opt *opt
 			} else if fallback.resolved {
 				return nil, fallback.error
 			} else {
-				return nil, primary.error
+				return nil, errors2.Join(primary.error, fallback.error)
 			}
 		}
 	}
