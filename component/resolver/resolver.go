@@ -266,6 +266,7 @@ func lookupIPByResolverAndType(ctx context.Context, host string, r Resolver, t u
 		if t == typeNone || (t == typeA && ip.Is4()) || (t == typeAAAA && ip.Is6()) {
 			return []netip.Addr{ip}, nil
 		}
+		return nil, ErrIPNotFound
 	}
 
 	if r != nil {
