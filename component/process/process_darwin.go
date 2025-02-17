@@ -91,7 +91,7 @@ func findProcessPath(network string, from netip.AddrPort, _ netip.AddrPort) (str
 		}
 
 		// udp packet connection may be not equal with srcIP
-		if network == UDP && srcIP.IsUnspecified() && from.Addr().Is4() == srcIP.Is4() {
+		if network == UDP && srcIP.IsUnspecified() {
 			fallbackUDPProcess, _ = getExecPathFromPID(readNativeUint32(buf[so+68 : so+72]))
 		}
 	}
