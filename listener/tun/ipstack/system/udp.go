@@ -21,13 +21,10 @@ func (pkt *packet) Data() *[]byte {
 }
 
 func (pkt *packet) WriteBack(b []byte, addr net.Addr) (n int, err error) {
-	a := addr.(*net.UDPAddr)
-	na, _ := netip.AddrFromSlice(a.IP)
-	na = na.WithZone(a.Zone)
-	if pkt.lAddr.Addr().Is4() {
-		na = na.Unmap()
+	if a, ok := addr.(*net.UDPAddr); ok {
+		return pkt.sender.WriteTo(b, a.AddrPort(), pkt.lAddr)
 	}
-	return pkt.sender.WriteTo(b, netip.AddrPortFrom(na, uint16(a.Port)), pkt.lAddr)
+	return 0, net.InvalidAddrError("not an udp address")
 }
 
 func (pkt *packet) LocalAddr() net.Addr {

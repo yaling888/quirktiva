@@ -7,8 +7,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/phuslu/log"
-
 	dev "github.com/yaling888/quirktiva/listener/tun/device"
 	"github.com/yaling888/quirktiva/listener/tun/ipstack/system/mars/tcpip"
 )
@@ -16,13 +14,21 @@ import (
 const bufSize = 64 << 10
 
 func Start(device dev.Device, gateway, portal, _ netip.Addr) (*TCP, *UDP, error) {
-	if !portal.Is4() || !gateway.Is4() {
-		return nil, nil, net.InvalidAddrError("only ipv4 supported")
-	}
-
-	listener, err := net.ListenTCP("tcp4", nil)
+	listener, err := net.ListenTCP("tcp", nil)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	gateway4 := gateway
+	gateway6 := gateway
+	portal4 := portal
+	portal6 := portal
+	if gateway6.Is6() {
+		gateway4 = netip.AddrFrom4([4]byte{198, 18, 0, 1})
+		portal4 = gateway4.Next()
+	} else {
+		gateway6 = netip.AddrFrom16([16]byte{'f', 'c', 'k', 'q', 'u', 'i', 'r', 'k', 't', 'i', 'v', 'a', 0, 0, 0, 1})
+		portal6 = gateway6.Next()
 	}
 
 	var (
@@ -38,7 +44,7 @@ func Start(device dev.Device, gateway, portal, _ netip.Addr) (*TCP, *UDP, error)
 		device:         device,
 		closed:         make(chan struct{}),
 		incomingPacket: make(chan *UDPElement, 128),
-		writeBuffs:     make([][]byte, 0, 1),
+		writeBufs:      make([][]byte, 0, 1),
 		udpElements: &sync.Pool{New: func() any {
 			b := make([]byte, bufSize)
 			return &UDPElement{
@@ -49,7 +55,8 @@ func Start(device dev.Device, gateway, portal, _ netip.Addr) (*TCP, *UDP, error)
 
 	tcp := &TCP{
 		listener: listener,
-		portal:   portal,
+		portal4:  portal4,
+		portal6:  portal6,
 		table:    tab,
 	}
 
@@ -101,7 +108,7 @@ func Start(device dev.Device, gateway, portal, _ netip.Addr) (*TCP, *UDP, error)
 						continue
 					}
 
-					if ipv4.Flags()&tcpip.FlagMoreFragment != 0 {
+					if (ipv4.Flags() & tcpip.FlagMoreFragment) != 0 {
 						continue
 					}
 
@@ -138,20 +145,16 @@ func Start(device dev.Device, gateway, portal, _ netip.Addr) (*TCP, *UDP, error)
 						continue
 					}
 
-					if destinationIP == portal {
-						if ip.SourceIP() != gateway || t.SourcePort() != gatewayPort {
-							log.Warn().
-								NetIPAddr("addr", ip.SourceIP()).
-								Uint16("port", t.SourcePort()).
-								Msg("[System] source address port mismatch")
+					if (ipVersion == tcpip.IPv4Version && destinationIP == portal4) ||
+						(ipVersion == tcpip.IPv6Version && destinationIP == portal6) {
+						srcIP := ip.SourceIP()
+						if (ipVersion == tcpip.IPv4Version && srcIP != gateway4) ||
+							(ipVersion == tcpip.IPv6Version && srcIP != gateway6) || t.SourcePort() != gatewayPort {
 							continue
 						}
 
 						tup := tab.tupleOf(t.DestinationPort())
 						if tup == zeroTuple {
-							log.Warn().
-								Uint16("port", t.DestinationPort()).
-								Msg("[System] invalid destination port")
 							continue
 						}
 
@@ -180,8 +183,13 @@ func Start(device dev.Device, gateway, portal, _ netip.Addr) (*TCP, *UDP, error)
 							port = tab.newConn(tup)
 						}
 
-						ip.SetSourceIP(portal)
-						ip.SetDestinationIP(gateway)
+						if ipVersion == tcpip.IPv4Version {
+							ip.SetSourceIP(portal4)
+							ip.SetDestinationIP(gateway4)
+						} else {
+							ip.SetSourceIP(portal6)
+							ip.SetDestinationIP(gateway6)
+						}
 						t.SetSourcePort(port)
 						t.SetDestinationPort(gatewayPort)
 

@@ -1,6 +1,7 @@
 package nat
 
 import (
+	"errors"
 	"io"
 	"math/rand/v2"
 	"net"
@@ -31,8 +32,8 @@ type UDP struct {
 	device         dev.Device
 	udpElements    *sync.Pool
 	incomingPacket chan *UDPElement
-	writeBuff      [65535]byte
-	writeBuffs     [][]byte
+	writeBuf       [65535]byte
+	writeBufs      [][]byte
 	writeLock      sync.Mutex
 	closed         chan struct{}
 	closedOnce     sync.Once
@@ -54,30 +55,73 @@ func (u *UDP) WriteTo(buf []byte, local netip.AddrPort, remote netip.AddrPort) (
 	default:
 	}
 
+	bufLen := len(buf)
+	if bufLen == 0 {
+		return 0, &net.OpError{
+			Op:     "write",
+			Net:    "udp",
+			Source: net.UDPAddrFromAddrPort(local),
+			Addr:   net.UDPAddrFromAddrPort(remote),
+			Err:    errors.New("send data is empty"),
+		}
+	}
+
+	if local.Addr().Is4In6() {
+		local = netip.AddrPortFrom(local.Addr().Unmap(), local.Port())
+	}
+
+	if remote.Addr().Is4In6() {
+		remote = netip.AddrPortFrom(remote.Addr().Unmap(), remote.Port())
+	}
+
+	var (
+		ip     tcpip.IP
+		ipLen  int
+		offset = u.device.Offset()
+	)
+
 	u.writeLock.Lock()
 	defer u.writeLock.Unlock()
 
-	offset := u.device.Offset()
-	bufLen := len(buf)
-	bufSize := bufLen + offset + tcpip.IPv4HeaderSize + tcpip.UDPHeaderSize
-
-	if bufLen == 0 || bufSize > 0xfffe {
-		return 0, net.InvalidAddrError("invalid ip version")
+	if local.Addr().Is6() || remote.Addr().Is6() {
+		ipLen = bufLen + offset + tcpip.IPv6MinimumSize + tcpip.UDPHeaderSize
+		if ipLen > 0xffff {
+			return 0, &net.OpError{
+				Op:     "write",
+				Net:    "udp",
+				Source: net.UDPAddrFromAddrPort(local),
+				Addr:   net.UDPAddrFromAddrPort(remote),
+				Err:    errors.New("send data is too large"),
+			}
+		}
+		tcpip.SetIPv6(u.writeBuf[offset:])
+		ip6 := tcpip.IPv6Packet(u.writeBuf[offset:])
+		ip6.SetTOS(0, 0)
+		ip6.SetPayloadLength(tcpip.UDPHeaderSize + uint16(bufLen))
+		ip6.SetHopLimit(64)
+		ip = ip6
+	} else {
+		ipLen = bufLen + offset + tcpip.IPv4HeaderSize + tcpip.UDPHeaderSize
+		if ipLen > 0xffff {
+			return 0, &net.OpError{
+				Op:     "write",
+				Net:    "udp",
+				Source: net.UDPAddrFromAddrPort(local),
+				Addr:   net.UDPAddrFromAddrPort(remote),
+				Err:    errors.New("send data is too large"),
+			}
+		}
+		tcpip.SetIPv4(u.writeBuf[offset:])
+		ip4 := tcpip.IPv4Packet(u.writeBuf[offset:])
+		ip4.SetHeaderLen(tcpip.IPv4HeaderSize)
+		ip4.SetTotalLength(tcpip.IPv4HeaderSize + tcpip.UDPHeaderSize + uint16(bufLen))
+		ip4.SetTypeOfService(0)
+		ip4.SetIdentification(uint16(rand.Uint32()))
+		ip4.SetFragmentOffset(0)
+		ip4.SetTimeToLive(64)
+		ip = ip4
 	}
 
-	if !local.Addr().Is4() || !remote.Addr().Is4() {
-		return 0, net.InvalidAddrError("invalid ip version")
-	}
-
-	tcpip.SetIPv4(u.writeBuff[offset:])
-
-	ip := tcpip.IPv4Packet(u.writeBuff[offset:])
-	ip.SetHeaderLen(tcpip.IPv4HeaderSize)
-	ip.SetTotalLength(tcpip.IPv4HeaderSize + tcpip.UDPHeaderSize + uint16(bufLen))
-	ip.SetTypeOfService(0)
-	ip.SetIdentification(uint16(rand.Uint32()))
-	ip.SetFragmentOffset(0)
-	ip.SetTimeToLive(64)
 	ip.SetProtocol(tcpip.UDP)
 	ip.SetSourceIP(local.Addr())
 	ip.SetDestinationIP(remote.Addr())
@@ -95,9 +139,9 @@ func (u *UDP) WriteTo(buf []byte, local netip.AddrPort, remote netip.AddrPort) (
 	ip.ResetChecksum()
 	udp.ResetChecksum(ip.PseudoSum())
 
-	u.writeBuffs = append(u.writeBuffs, u.writeBuff[:bufSize])
-	_, err := u.device.Write(u.writeBuffs, offset)
-	u.writeBuffs = u.writeBuffs[:0]
+	u.writeBufs = append(u.writeBufs, u.writeBuf[:ipLen])
+	_, err := u.device.Write(u.writeBufs, offset)
+	u.writeBufs = u.writeBufs[:0]
 
 	return n, err
 }

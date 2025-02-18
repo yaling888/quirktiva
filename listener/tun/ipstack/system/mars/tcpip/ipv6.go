@@ -24,6 +24,18 @@ const (
 	ipVersionShift = 4
 	ipIHLMask      = 0x0f
 	IPv4IHLStride  = 4
+
+	ipv6ExtHdrLenBytesPerUnit = 8
+)
+
+const (
+	ipv6HopByHopOptionsExtHdrIdentifier    uint8 = 0
+	ipv6RoutingExtHdrIdentifier            uint8 = 43
+	ipv6FragmentExtHdrIdentifier           uint8 = 44
+	ipv6DestinationOptionsExtHdrIdentifier uint8 = 60
+	ipv6NoNextHeaderIdentifier             uint8 = 59
+	ipv6ExperimentExtHdrIdentifier         uint8 = 253
+	ipv6UnknownExtHdrIdentifier            uint8 = 254
 )
 
 type IPv6Packet []byte
@@ -51,11 +63,14 @@ func (b IPv6Packet) NextHeader() byte {
 }
 
 func (b IPv6Packet) Protocol() IPProtocol {
-	return b.NextHeader()
+	hdr, _ := b.lastNextHeader()
+	return hdr
 }
 
 func (b IPv6Packet) Payload() []byte {
-	return b[IPv6MinimumSize:][:b.PayloadLength()]
+	_, offset := b.lastNextHeader()
+	payloadLen := int(b.PayloadLength()) - offset + IPv6FixedHeaderSize
+	return b[offset:][:payloadLen]
 }
 
 func (b IPv6Packet) SourceIP() netip.Addr {
@@ -87,15 +102,13 @@ func (b IPv6Packet) SetPayloadLength(payloadLength uint16) {
 }
 
 func (b IPv6Packet) SetSourceIP(addr netip.Addr) {
-	if addr.Is6() {
-		copy(b[v6SrcAddr:][:IPv6AddressSize], addr.AsSlice())
-	}
+	a := addr.As16()
+	copy(b[v6SrcAddr:][:IPv6AddressSize], a[:])
 }
 
 func (b IPv6Packet) SetDestinationIP(addr netip.Addr) {
-	if addr.Is6() {
-		copy(b[v6DstAddr:][:IPv6AddressSize], addr.AsSlice())
-	}
+	a := addr.As16()
+	copy(b[v6DstAddr:][:IPv6AddressSize], a[:])
 }
 
 func (b IPv6Packet) SetHopLimit(v uint8) {
@@ -121,14 +134,46 @@ func (IPv6Packet) ResetChecksum() {
 }
 
 func (b IPv6Packet) PseudoSum() uint32 {
+	protocol, offset := b.lastNextHeader()
+	payloadLen := int(b.PayloadLength()) - offset + IPv6FixedHeaderSize
 	sum := Sum(b[v6SrcAddr:IPv6FixedHeaderSize])
-	sum += uint32(b.Protocol())
-	sum += uint32(b.PayloadLength())
+	sum += uint32(protocol)
+	sum += uint32(payloadLen)
 	return sum
 }
 
 func (b IPv6Packet) Valid() bool {
-	return len(b) >= IPv6MinimumSize && len(b) >= int(b.PayloadLength())+IPv6MinimumSize
+	if len(b) < IPv6MinimumSize {
+		return false
+	}
+
+	dlen := int(b.PayloadLength())
+	if dlen > len(b)-IPv6MinimumSize {
+		return false
+	}
+
+	return true
+}
+
+func (b IPv6Packet) lastNextHeader() (uint8, int) {
+	hdr := b[IPv6NextHeaderOffset]
+	return b.nextExtensionHeader(hdr, IPv6FixedHeaderSize)
+}
+
+func (b IPv6Packet) nextExtensionHeader(hdr uint8, offset int) (uint8, int) {
+	switch hdr {
+	case ipv6HopByHopOptionsExtHdrIdentifier,
+		ipv6RoutingExtHdrIdentifier,
+		//ipv6FragmentExtHdrIdentifier,
+		//ipv6NoNextHeaderIdentifier,
+		ipv6DestinationOptionsExtHdrIdentifier,
+		ipv6ExperimentExtHdrIdentifier:
+		id := b[offset]
+		length := b[offset+1]
+		offset += int((length + 1) * ipv6ExtHdrLenBytesPerUnit)
+		return b.nextExtensionHeader(id, offset)
+	}
+	return hdr, offset
 }
 
 func IPVersion(b []byte) int {

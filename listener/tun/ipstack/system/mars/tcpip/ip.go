@@ -12,9 +12,10 @@ type IP interface {
 	Payload() []byte
 	SourceIP() netip.Addr
 	DestinationIP() netip.Addr
-	SetSourceIP(ip netip.Addr)
-	SetDestinationIP(ip netip.Addr)
+	SetSourceIP(netip.Addr)
+	SetDestinationIP(netip.Addr)
 	Protocol() IPProtocol
+	SetProtocol(IPProtocol)
 	DecTimeToLive()
 	ResetChecksum()
 	PseudoSum() uint32
@@ -123,9 +124,8 @@ func (p IPv4Packet) SourceIP() netip.Addr {
 }
 
 func (p IPv4Packet) SetSourceIP(ip netip.Addr) {
-	if ip.Is4() {
-		copy(p[12:16], ip.AsSlice())
-	}
+	a := ip.As4()
+	copy(p[12:16], a[:])
 }
 
 func (p IPv4Packet) DestinationIP() netip.Addr {
@@ -133,9 +133,8 @@ func (p IPv4Packet) DestinationIP() netip.Addr {
 }
 
 func (p IPv4Packet) SetDestinationIP(ip netip.Addr) {
-	if ip.Is4() {
-		copy(p[16:20], ip.AsSlice())
-	}
+	a := ip.As4()
+	copy(p[16:20], a[:])
 }
 
 func (p IPv4Packet) Checksum() uint16 {
