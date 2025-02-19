@@ -24,6 +24,10 @@ var (
 )
 
 func ConfigInterfaceAddress(dev device.Device, addr netip.Prefix, forceMTU int, autoRoute bool) error {
+	if !addr.IsValid() {
+		return fmt.Errorf("invalid tun address: %s", addr)
+	}
+
 	retryOnFailure := services.StartedAtBoot()
 	tryTimes := 0
 	var err error
@@ -38,117 +42,130 @@ startOver:
 	}
 	tryTimes++
 
-	var (
-		luid       = winipcfg.LUID(dev.(*tun.TUN).LUID())
-		ip         = addr.Masked().Addr().Next()
-		gw         = ip.Next()
-		addresses  = []netip.Prefix{netip.PrefixFrom(ip, addr.Bits())}
-		dnsAddress = []netip.Addr{gw}
-
-		family4       = winipcfg.AddressFamily(windows.AF_INET)
-		familyV6      = winipcfg.AddressFamily(windows.AF_INET6)
-		currentFamily = winipcfg.AddressFamily(windows.AF_INET6)
-	)
-
+	addr4 := addr
+	addr6 := addr
 	if addr.Addr().Is4() {
-		currentFamily = winipcfg.AddressFamily(windows.AF_INET)
+		addr6 = defaultPrefix6
+	} else {
+		addr4 = defaultPrefix4
 	}
 
-	err = luid.FlushRoutes(windows.AF_INET6)
-	if err == windows.ERROR_NOT_FOUND && retryOnFailure {
-		goto startOver
-	} else if err != nil {
-		return err
+	ip4 := addr4.Masked().Addr().Next()
+	if addr4.IsSingleIP() {
+		ip4 = addr4.Addr()
 	}
-	err = luid.FlushIPAddresses(windows.AF_INET6)
+	gw4 := ip4.Next()
+
+	ip6 := addr6.Masked().Addr().Next()
+	if addr6.IsSingleIP() {
+		ip6 = addr6.Addr()
+	}
+	gw6 := ip6.Next()
+
+	luid := winipcfg.LUID(dev.(*tun.TUN).LUID())
+
+	err = luid.FlushDNS(windows.AF_INET)
 	if err == windows.ERROR_NOT_FOUND && retryOnFailure {
 		goto startOver
 	} else if err != nil {
-		return err
+		return fmt.Errorf("unable to flush DNS4: %w", err)
 	}
 	err = luid.FlushDNS(windows.AF_INET6)
 	if err == windows.ERROR_NOT_FOUND && retryOnFailure {
 		goto startOver
 	} else if err != nil {
-		return err
-	}
-	err = luid.FlushDNS(windows.AF_INET)
-	if err == windows.ERROR_NOT_FOUND && retryOnFailure {
-		goto startOver
-	} else if err != nil {
-		return err
+		return fmt.Errorf("unable to flush DNS6: %w", err)
 	}
 
 	foundDefault4 := false
 	foundDefault6 := false
 
 	if autoRoute {
-		var (
-			allowedIPs []netip.Prefix
+		var routes4, routes6 []*winipcfg.RouteData
 
-			// add default
-			routeArr = []string{"0.0.0.0/0"}
-		)
-
-		for _, route := range routeArr {
-			allowedIPs = append(allowedIPs, netip.MustParsePrefix(route))
-		}
-
-		estimatedRouteCount := len(allowedIPs)
-		routes := make(map[winipcfg.RouteData]bool, estimatedRouteCount)
-
-		for _, allowedip := range allowedIPs {
-			route := winipcfg.RouteData{
-				Destination: allowedip.Masked(),
-				Metric:      0,
+		for _, r := range defaultRoutes {
+			p := netip.MustParsePrefix(r)
+			route := &winipcfg.RouteData{
+				Destination: p.Masked(),
+				NextHop:     gw4,
+				Metric:      100,
 			}
-			if allowedip.Addr().Is4() {
-				if allowedip.Bits() == 0 {
-					foundDefault4 = true
-				}
+			if p.Bits() == 0 {
+				foundDefault4 = true
 				route.NextHop = netip.IPv4Unspecified()
-			} else if allowedip.Addr().Is6() {
-				if allowedip.Bits() == 0 {
-					foundDefault6 = true
-				}
-				route.NextHop = netip.IPv6Unspecified()
+				route.Metric = 0
 			}
-			routes[route] = true
+			routes4 = append(routes4, route)
 		}
 
-		deduplicatedRoutes := make([]*winipcfg.RouteData, 0, len(routes))
-		for r := range routes {
-			deduplicatedRoutes = append(deduplicatedRoutes, &r)
+		for _, r := range defaultRoutes6 {
+			p := netip.MustParsePrefix(r)
+			route := &winipcfg.RouteData{
+				Destination: p.Masked(),
+				NextHop:     gw6,
+				Metric:      100,
+			}
+			if p.Bits() == 0 {
+				foundDefault6 = true
+				route.NextHop = netip.IPv6Unspecified()
+				route.Metric = 0
+			}
+			routes6 = append(routes6, route)
 		}
 
 		// add gateway
-		deduplicatedRoutes = append(deduplicatedRoutes, &winipcfg.RouteData{
-			Destination: addr.Masked(),
-			NextHop:     gw,
+		routes4 = append(routes4, &winipcfg.RouteData{
+			Destination: addr4.Masked(),
+			NextHop:     gw4,
+			Metric:      0,
+		})
+		routes6 = append(routes6, &winipcfg.RouteData{
+			Destination: addr6.Masked(),
+			NextHop:     gw6,
 			Metric:      0,
 		})
 
-		err = luid.SetRoutesForFamily(currentFamily, deduplicatedRoutes)
+		err = luid.SetRoutesForFamily(windows.AF_INET, routes4)
 		if err == windows.ERROR_NOT_FOUND && retryOnFailure {
 			goto startOver
 		} else if err != nil {
-			return fmt.Errorf("unable to set routes: %w", err)
+			return fmt.Errorf("unable to set route4: %w", err)
+		}
+
+		err = luid.SetRoutesForFamily(windows.AF_INET6, routes6)
+		if err == windows.ERROR_NOT_FOUND && retryOnFailure {
+			goto startOver
+		} else if err != nil {
+			return fmt.Errorf("unable to set route6: %w", err)
 		}
 	}
 
-	err = luid.SetIPAddressesForFamily(currentFamily, addresses)
+	address4 := []netip.Prefix{netip.PrefixFrom(ip4, addr4.Bits())}
+	err = luid.SetIPAddressesForFamily(windows.AF_INET, address4)
 	if err == windows.ERROR_OBJECT_ALREADY_EXISTS {
-		cleanupAddressesOnDisconnectedInterfaces(currentFamily, addresses)
-		err = luid.SetIPAddressesForFamily(currentFamily, addresses)
+		cleanupAddressesOnDisconnectedInterfaces(windows.AF_INET, address4)
+		err = luid.SetIPAddressesForFamily(windows.AF_INET, address4)
 	}
 	if err == windows.ERROR_NOT_FOUND && retryOnFailure {
 		goto startOver
 	} else if err != nil {
-		return fmt.Errorf("unable to set ips: %w", err)
+		return fmt.Errorf("unable to set ipv4: %w", err)
+	}
+
+	address6 := []netip.Prefix{netip.PrefixFrom(ip6, addr6.Bits())}
+	err = luid.SetIPAddressesForFamily(windows.AF_INET6, address6)
+	if err == windows.ERROR_OBJECT_ALREADY_EXISTS {
+		cleanupAddressesOnDisconnectedInterfaces(windows.AF_INET6, address6)
+		err = luid.SetIPAddressesForFamily(windows.AF_INET6, address6)
+	}
+	if err == windows.ERROR_NOT_FOUND && retryOnFailure {
+		goto startOver
+	} else if err != nil {
+		return fmt.Errorf("unable to set ipv6: %w", err)
 	}
 
 	var ipif *winipcfg.MibIPInterfaceRow
-	ipif, err = luid.IPInterface(family4)
+	ipif, err = luid.IPInterface(windows.AF_INET)
 	if err != nil {
 		return err
 	}
@@ -168,11 +185,11 @@ startOver:
 	if err == windows.ERROR_NOT_FOUND && retryOnFailure {
 		goto startOver
 	} else if err != nil {
-		return fmt.Errorf("unable to set metric and MTU: %w", err)
+		return fmt.Errorf("unable to set v4 metric and MTU: %w", err)
 	}
 
 	var ipif6 *winipcfg.MibIPInterfaceRow
-	ipif6, err = luid.IPInterface(familyV6)
+	ipif6, err = luid.IPInterface(windows.AF_INET6)
 	if err != nil {
 		return err
 	}
@@ -194,11 +211,18 @@ startOver:
 		return fmt.Errorf("unable to set v6 metric and MTU: %w", err)
 	}
 
-	err = luid.SetDNS(family4, dnsAddress, nil)
+	err = luid.SetDNS(windows.AF_INET, []netip.Addr{gw4}, nil)
 	if err == windows.ERROR_NOT_FOUND && retryOnFailure {
 		goto startOver
 	} else if err != nil {
-		return fmt.Errorf("unable to set DNS %s %s: %w", dnsAddress[0].String(), "nil", err)
+		return fmt.Errorf("unable to set DNS4 %s %s: %w", gw4, "nil", err)
+	}
+
+	err = luid.SetDNS(windows.AF_INET6, []netip.Addr{gw6}, nil)
+	if err == windows.ERROR_NOT_FOUND && retryOnFailure {
+		goto startOver
+	} else if err != nil {
+		return fmt.Errorf("unable to set DNS6 %s %s: %w", gw6, "nil", err)
 	}
 
 	wintunInterfaceName = dev.Name()

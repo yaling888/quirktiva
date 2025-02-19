@@ -29,8 +29,8 @@ var (
 )
 
 func ConfigInterfaceAddress(dev device.Device, prefix netip.Prefix, _ int, autoRoute bool) error {
-	if !prefix.Addr().Is4() {
-		return fmt.Errorf("supported ipv4 only")
+	if !prefix.IsValid() {
+		return fmt.Errorf("invalid tun address: %s", prefix)
 	}
 
 	var (
@@ -39,75 +39,69 @@ func ConfigInterfaceAddress(dev device.Device, prefix netip.Prefix, _ int, autoR
 		gw            = ip.Next()
 		mask, _       = netip.AddrFromSlice(net.CIDRMask(prefix.Bits(), ip.BitLen()))
 	)
+	if prefix.IsSingleIP() {
+		ip = prefix.Addr()
+		gw = ip.Next()
+	}
 
-	fd, err := socketCloexec(unix.AF_INET, unix.SOCK_DGRAM, unix.IPPROTO_IP)
-	if err != nil {
+	prefix4 := prefix
+	prefix6 := prefix
+	if ip.Is4() {
+		prefix6 = defaultPrefix6
+	} else {
+		prefix4 = defaultPrefix4
+	}
+	if err := setAddress(interfaceName, prefix4); err != nil {
 		return err
 	}
+	if err := setAddress(interfaceName, prefix6); err != nil {
+		return err
+	}
+
+	iff, err := net.InterfaceByName(interfaceName)
+	if err != nil {
+		return fmt.Errorf("failed to get tun index: %w", err)
+	}
+	linkAddr := &route.LinkAddr{
+		Index: iff.Index,
+		Name:  interfaceName,
+	}
+
+	routeSocket, err := socketCloexec(unix.AF_ROUTE, unix.SOCK_RAW, unix.AF_UNSPEC)
+	if err != nil {
+		return fmt.Errorf("unable to create AF_ROUTE socket: %w", err)
+	}
 	defer func() {
-		_ = unix.Shutdown(fd, unix.SHUT_RDWR)
-		_ = unix.Close(fd)
+		_ = unix.Shutdown(routeSocket, unix.SHUT_RDWR)
+		_ = unix.Close(routeSocket)
 	}()
 
-	var name [unix.IFNAMSIZ]byte
-	copy(name[:], interfaceName)
-	ifra := ifreqAddr{
-		Name: name,
-		Addr: unix.RawSockaddrInet4{
-			Family: unix.AF_INET,
-			Addr:   ip.As4(),
-		},
+	if ip.Is4() {
+		routeAddr := &route.Inet4Addr{IP: gw.As4()}
+		maskAddr := &route.Inet4Addr{IP: mask.As4()}
+		_ = addRoute(routeSocket, routeAddr, maskAddr, linkAddr, unix.RTF_HOST)
 	}
-
-	if err = ioctlPtr(fd, unix.SIOCSIFADDR, unsafe.Pointer(&ifra)); err != nil {
-		return fmt.Errorf("failed to set tun address: %w", err)
-	}
-
-	ifra.Addr.Addr = mask.As4()
-	if err = ioctlPtr(fd, unix.SIOCSIFNETMASK, unsafe.Pointer(&ifra)); err != nil {
-		return fmt.Errorf("failed to set tun netmask: %w", err)
-	}
-
-	ifra.Addr.Addr = gw.As4()
-	if err = ioctlPtr(fd, unix.SIOCSIFDSTADDR, unsafe.Pointer(&ifra)); err != nil {
-		return fmt.Errorf("failed to set tun destination address: %w", err)
-	}
-
-	var routeSocket int
-	if routeSubscribe != nil {
-		routeSocket = routeSubscribe.routeSocket
-	} else {
-		routeSocket, err = socketCloexec(unix.AF_ROUTE, unix.SOCK_RAW, unix.AF_UNSPEC)
-		if err != nil {
-			return fmt.Errorf("unable to create AF_ROUTE socket: %w", err)
-		}
-		defer func() {
-			_ = unix.Shutdown(routeSocket, unix.SHUT_RDWR)
-			_ = unix.Close(routeSocket)
-		}()
-	}
-
-	var (
-		routeAddr = &route.Inet4Addr{}
-		maskAddr  = &route.Inet4Addr{}
-		linkAddr  = &route.Inet4Addr{
-			IP: ip.As4(),
-		}
-	)
-
-	routeAddr.IP = gw.As4()
-	maskAddr.IP = mask.As4()
-	_ = addRoute(routeSocket, routeAddr, maskAddr, linkAddr, unix.RTF_HOST)
 
 	if autoRoute {
-		routes := append(defaultRoutes, prefix.String())
+		routes := defaultRoutes
+		if ip.Is4() {
+			routes = append(routes, prefix.String())
+		}
+		routes = append(routes, defaultRoutes6...)
 		for _, r := range routes {
 			_, cidr, _ := net.ParseCIDR(r)
-
-			copy(routeAddr.IP[:], cidr.IP.To4())
-			copy(maskAddr.IP[:], cidr.Mask)
-
-			err = addRoute(routeSocket, routeAddr, maskAddr, linkAddr, 0)
+			if ip4, _ := netip.AddrFromSlice(cidr.IP); ip4.Is4() {
+				ra := &route.Inet4Addr{IP: ip4.As4()}
+				ma := &route.Inet4Addr{}
+				copy(ma.IP[:], cidr.Mask)
+				err = addRoute(routeSocket, ra, ma, linkAddr, 0)
+			} else {
+				ra := &route.Inet6Addr{}
+				ma := &route.Inet6Addr{}
+				copy(ra.IP[:], cidr.IP)
+				copy(ma.IP[:], cidr.Mask)
+				err = addRoute(routeSocket, ra, ma, linkAddr, 0)
+			}
 			if err != nil {
 				if errors.Is(err, unix.EEXIST) {
 					log.Warn().
@@ -124,13 +118,13 @@ func ConfigInterfaceAddress(dev device.Device, prefix netip.Prefix, _ int, autoR
 
 func StartDefaultInterfaceChangeMonitor() {
 	monitorMux.Lock()
+	defer monitorMux.Unlock()
+
 	if routeCancel != nil {
-		monitorMux.Unlock()
 		return
 	}
 
 	routeCtx, routeCancel = context.WithCancel(context.Background())
-	monitorMux.Unlock()
 
 	var (
 		err       error
@@ -153,14 +147,15 @@ func StartDefaultInterfaceChangeMonitor() {
 		return
 	}
 
+	done := routeCtx
 	tunStatus = C.TunEnabled
 
 	go func() {
 		for {
 			select {
-			case update := <-routeChan:
+			case update := <-routeSubscribe.ch:
 				go defaultRouteChangeCallback(update)
-			case <-routeCtx.Done():
+			case <-done.Done():
 				close(closeChan)
 				for range routeChan {
 				}
@@ -198,7 +193,12 @@ func defaultRouteInterface() (*DefaultInterface, error) {
 	if err != nil {
 		return nil, fmt.Errorf("route.FetchRIB: %w", err)
 	}
+	rib6, err := route.FetchRIB(unix.AF_INET6, unix.NET_RT_DUMP2, 0)
+	if err != nil {
+		return nil, fmt.Errorf("route.FetchRIB: %w", err)
+	}
 
+	rib = append(rib, rib6...)
 	msgs, err := route.ParseRIB(unix.NET_RT_IFLIST2, rib)
 	if err != nil {
 		return nil, fmt.Errorf("route.ParseRIB: %w", err)
@@ -206,7 +206,7 @@ func defaultRouteInterface() (*DefaultInterface, error) {
 
 	for _, message := range msgs {
 		routeMessage := message.(*route.RouteMessage)
-		if (routeMessage.Flags & (unix.RTF_UP | unix.RTF_GATEWAY | unix.RTF_STATIC)) == 0 {
+		if ((routeMessage.Flags & unix.RTF_UP) == 0) || ((routeMessage.Flags & unix.RTF_GATEWAY) == 0) {
 			continue
 		}
 
@@ -215,6 +215,9 @@ func defaultRouteInterface() (*DefaultInterface, error) {
 		var via netip.Addr
 		switch ra := addresses[0].(type) {
 		case *route.Inet4Addr:
+			if (routeMessage.Flags & unix.RTF_STATIC) == 0 {
+				continue
+			}
 			via = netip.AddrFrom4(ra.IP)
 		case *route.Inet6Addr:
 			via = netip.AddrFrom16(ra.IP)
@@ -223,6 +226,18 @@ func defaultRouteInterface() (*DefaultInterface, error) {
 		}
 
 		if !via.IsUnspecified() || len(addresses) < 2 {
+			continue
+		}
+
+		var gw netip.Addr
+		switch ra := addresses[1].(type) {
+		case *route.Inet4Addr:
+			gw = netip.AddrFrom4(ra.IP)
+		case *route.Inet6Addr:
+			gw = netip.AddrFrom16(ra.IP)
+		}
+
+		if via.Is4() && !gw.IsGlobalUnicast() {
 			continue
 		}
 
@@ -240,22 +255,18 @@ func defaultRouteInterface() (*DefaultInterface, error) {
 			continue
 		}
 
-		var gw netip.Addr
-		switch ra := addresses[1].(type) {
-		case *route.Inet4Addr:
-			gw = netip.AddrFrom4(ra.IP)
-		case *route.Inet6Addr:
-			gw = netip.AddrFrom16(ra.IP)
-		}
-
 		var ip netip.Addr
 		for _, addr := range addrs {
 			if a, ok := addr.(*net.IPNet); ok {
 				ip, _ = netip.AddrFromSlice(a.IP)
-				if ip = ip.Unmap(); ip.Is4() && gw.Is4() {
+				if ip = ip.Unmap(); ip.IsGlobalUnicast() && (ip.Is4() == gw.Is4() || ip.Is6() == gw.Is6()) {
 					break
 				}
 			}
+		}
+
+		if !ip.IsValid() {
+			continue
 		}
 
 		return &DefaultInterface{
@@ -273,11 +284,14 @@ func defaultRouteChangeCallback(msg *route.RouteMessage) {
 	if len(msg.Addrs) == 0 {
 		return
 	}
-	ra, ok := msg.Addrs[0].(*route.Inet4Addr)
-	if !ok {
-		return
+	var via netip.Addr
+	switch ra := msg.Addrs[0].(type) {
+	case *route.Inet4Addr:
+		via = netip.AddrFrom4(ra.IP)
+	case *route.Inet6Addr:
+		via = netip.AddrFrom16(ra.IP)
 	}
-	if via := netip.AddrFrom4(ra.IP); !via.IsUnspecified() {
+	if !via.IsUnspecified() {
 		return
 	}
 	routeChangeMux.Lock()
@@ -285,7 +299,94 @@ func defaultRouteChangeCallback(msg *route.RouteMessage) {
 	routeChangeMux.Unlock()
 }
 
-func addRoute(sock int, addr, mask *route.Inet4Addr, link *route.Inet4Addr, flag int) error {
+func setAddress(interfaceName string, prefix netip.Prefix) error {
+	var (
+		ip      = prefix.Masked().Addr().Next()
+		gw      = ip.Next()
+		mask, _ = netip.AddrFromSlice(net.CIDRMask(prefix.Bits(), ip.BitLen()))
+	)
+	if prefix.IsSingleIP() {
+		ip = prefix.Addr()
+		gw = ip.Next()
+	}
+
+	family := unix.AF_INET
+	if ip.Is6() {
+		family = unix.AF_INET6
+	}
+	fd, err := socketCloexec(family, unix.SOCK_DGRAM, unix.IPPROTO_IP)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = unix.Shutdown(fd, unix.SHUT_RDWR)
+		_ = unix.Close(fd)
+	}()
+
+	if family == unix.AF_INET {
+		ifra := ifReq{
+			Addr: unix.RawSockaddrInet4{
+				Len:    unix.SizeofSockaddrInet4,
+				Family: unix.AF_INET,
+				Addr:   ip.As4(),
+			},
+		}
+		copy(ifra.Name[:], interfaceName)
+
+		if err = ioctlPtr(fd, unix.SIOCSIFADDR, unsafe.Pointer(&ifra)); err != nil {
+			return fmt.Errorf("failed to set tun address: %w", err)
+		}
+
+		ifra.Addr.Addr = mask.As4()
+		if err = ioctlPtr(fd, unix.SIOCSIFNETMASK, unsafe.Pointer(&ifra)); err != nil {
+			return fmt.Errorf("failed to set tun netmask: %w", err)
+		}
+
+		ifra.Addr.Addr = gw.As4()
+		if err = ioctlPtr(fd, unix.SIOCSIFDSTADDR, unsafe.Pointer(&ifra)); err != nil {
+			return fmt.Errorf("failed to set tun destination address: %w", err)
+		}
+	} else {
+		ifra := in6AliasReq{
+			Addr: unix.RawSockaddrInet6{
+				Len:    unix.SizeofSockaddrInet6,
+				Family: unix.AF_INET6,
+				Addr:   ip.As16(),
+			},
+			PrefixMask: unix.RawSockaddrInet6{
+				Len:    unix.SizeofSockaddrInet6,
+				Family: unix.AF_INET6,
+				Addr:   mask.As16(),
+			},
+			Lifetime: in6AddrLifetime{
+				VLTime: 0xffffffff,
+				PLTime: 0xffffffff,
+			},
+		}
+		if prefix.Bits() == gw.BitLen() {
+			ifra.DstAddr = unix.RawSockaddrInet6{
+				Len:    unix.SizeofSockaddrInet6,
+				Family: unix.AF_INET6,
+				Addr:   gw.As16(),
+			}
+		}
+		copy(ifra.Name[:], interfaceName)
+
+		// the constant SIOCAIFADDR_IN6 is undefined by golang.org/x/sys/unix/zerrors_darwin_amd64.go
+		// we need to calculate it, see https://github.com/apple/darwin-xnu/blob/main/bsd/netinet6/in6_var.h#L591
+		//
+		// #define SIOCAIFADDR_IN6         _IOW('i', 26, struct in6_aliasreq)
+		// value is 0x8080691a on 64 bits system
+		siocAIFAddrIn6 := iow('i', 26, uint(unsafe.Sizeof(in6AliasReq{})))
+
+		if err = ioctlPtr(fd, siocAIFAddrIn6, unsafe.Pointer(&ifra)); err != nil {
+			return fmt.Errorf("failed to set tun address v6: %w", err)
+		}
+	}
+	return nil
+}
+
+func addRoute(sock int, addr, mask, link route.Addr, flag int) error {
 	flags := unix.RTF_UP
 	if flag != 0 {
 		flags |= flag
@@ -341,16 +442,49 @@ func socketCloexec(family, sotype, proto int) (fd int, err error) {
 	return
 }
 
+func ioc(inout, group, num, len uint) uint {
+	return inout | ((len & 0x1fff) << 16) | (group << 8) | num
+}
+
+// func ior(group, num, len uint) uint {
+// 	 return ioc(0x40000000, group, num, len)
+// }
+
+func iow(group, num, len uint) uint {
+	return ioc(0x80000000, group, num, len)
+}
+
+// func iowr(group, num, len uint) uint {
+//	 return ioc(0x80000000|0x40000000, group, num, len)
+// }
+
 //go:linkname ioctlPtr golang.org/x/sys/unix.ioctlPtr
 func ioctlPtr(_ int, _ uint, _ unsafe.Pointer) (err error)
 
-type ifreqAddr struct {
+type ifReq struct {
 	Name [unix.IFNAMSIZ]byte
 	Addr unix.RawSockaddrInet4
 }
 
+// see https://github.com/apple/darwin-xnu/blob/main/bsd/netinet6/in6_var.h#L368
+type in6AliasReq struct {
+	Name       [unix.IFNAMSIZ]byte
+	Addr       unix.RawSockaddrInet6
+	DstAddr    unix.RawSockaddrInet6
+	PrefixMask unix.RawSockaddrInet6
+	Flags      int32
+	Lifetime   in6AddrLifetime
+}
+
+type in6AddrLifetime struct {
+	Expire    time.Duration /* valid lifetime expiration time */
+	Preferred time.Duration /* preferred lifetime expiration time */
+	VLTime    uint32        /* valid lifetime */
+	PLTime    uint32        /* prefix lifetime */
+}
+
 type subscriber struct {
-	ch   chan<- *route.RouteMessage
+	ch   chan *route.RouteMessage
 	done <-chan struct{}
 
 	routeSocket int
@@ -403,7 +537,7 @@ func (s *subscriber) routineRouteListener() {
 		var msg *route.RouteMessage
 		for _, message := range msgs {
 			m := message.(*route.RouteMessage)
-			if (m.Flags & (unix.RTF_UP | unix.RTF_GATEWAY | unix.RTF_STATIC)) != 0 {
+			if (m.Flags & unix.RTF_GATEWAY) != 0 {
 				msg = m
 				break
 			}

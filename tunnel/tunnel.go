@@ -304,7 +304,7 @@ func resolveDNS(metadata *C.Metadata, proxy, rawProxy C.Proxy) (isRemote bool, e
 
 	if isRemote {
 		var (
-			hasV6  = rawProxy.HasV6() && !(isUDP && metadata.Type == C.TUN)
+			hasV6  = rawProxy.HasV6()
 			rAddrs []netip.Addr
 		)
 		if hasV6 {
@@ -350,12 +350,7 @@ func localResolveDNS(metadata *C.Metadata, force, udp bool) (err error) {
 	if !force && metadata.Resolved() {
 		return nil
 	}
-	var rAddrs []netip.Addr
-	if udp && metadata.Type == C.TUN {
-		rAddrs, err = resolver.LookupIPv4(context.Background(), metadata.Host)
-	} else {
-		rAddrs, err = resolver.LookupIP(context.Background(), metadata.Host)
-	}
+	rAddrs, err := resolver.LookupIP(context.Background(), metadata.Host)
 	if err != nil {
 		return err
 	}

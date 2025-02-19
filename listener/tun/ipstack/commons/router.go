@@ -23,6 +23,12 @@ var (
 		"1.0.0.0/8", "2.0.0.0/7", "4.0.0.0/6", "8.0.0.0/5",
 		"16.0.0.0/4", "32.0.0.0/3", "64.0.0.0/2", "128.0.0.0/1",
 	}
+	defaultRoutes6 = []string{"2000::/3"}
+
+	defaultPrefix4 = netip.MustParsePrefix("198.18.0.1/16")
+	defaultPrefix6 = netip.PrefixFrom(netip.AddrFrom16([16]byte{
+		'f', 'c', 'k', 'q', 'u', 'i', 'r', 'k', 't', 'i', 'v', 'a',
+	}), 96)
 
 	monitorMux sync.Mutex
 

@@ -242,8 +242,42 @@ func withFakeIP(fakePool *fakeip.Pool) middleware {
 			}
 
 			switch q.Qtype {
-			case D.TypeAAAA, D.TypeSVCB:
-				return handleMsgWithEmptyAnswer(r), nil
+			case D.TypeA:
+				ip := fakePool.Lookup(host)
+				if !ip.Is4() {
+					return handleMsgWithEmptyAnswer(r), nil
+				}
+				rr := &D.A{}
+				rr.Hdr = D.RR_Header{Name: q.Name, Rrtype: D.TypeA, Class: D.ClassINET, Ttl: dnsDefaultTTL}
+				rr.A = ip.AsSlice()
+				msg := r.Copy()
+				msg.Answer = []D.RR{rr}
+
+				ctx.SetType(context.DNSTypeFakeIP)
+				setMsgTTL(msg, 3)
+				msg.SetRcode(r, D.RcodeSuccess)
+				msg.Authoritative = true
+				msg.RecursionAvailable = true
+
+				return msg, nil
+			case D.TypeAAAA:
+				ip := fakePool.Lookup(host)
+				if !ip.Is6() {
+					return handleMsgWithEmptyAnswer(r), nil
+				}
+				rr := &D.AAAA{}
+				rr.Hdr = D.RR_Header{Name: q.Name, Rrtype: D.TypeAAAA, Class: D.ClassINET, Ttl: dnsDefaultTTL}
+				rr.AAAA = ip.AsSlice()
+				msg := r.Copy()
+				msg.Answer = []D.RR{rr}
+
+				ctx.SetType(context.DNSTypeFakeIP)
+				setMsgTTL(msg, 3)
+				msg.SetRcode(r, D.RcodeSuccess)
+				msg.Authoritative = true
+				msg.RecursionAvailable = true
+
+				return msg, nil
 			case D.TypeHTTPS:
 				msg, err := next(ctx, r)
 				if err != nil {
@@ -325,26 +359,11 @@ func withFakeIP(fakePool *fakeip.Pool) middleware {
 				m.Answer = rr
 				setMsgTTL(m, 3)
 				return m, nil
+			case D.TypeSVCB:
+				return handleMsgWithEmptyAnswer(r), nil
 			}
 
-			if q.Qtype != D.TypeA {
-				return next(ctx, r)
-			}
-
-			rr := &D.A{}
-			rr.Hdr = D.RR_Header{Name: q.Name, Rrtype: D.TypeA, Class: D.ClassINET, Ttl: dnsDefaultTTL}
-			ip := fakePool.Lookup(host)
-			rr.A = ip.AsSlice()
-			msg := r.Copy()
-			msg.Answer = []D.RR{rr}
-
-			ctx.SetType(context.DNSTypeFakeIP)
-			setMsgTTL(msg, 3)
-			msg.SetRcode(r, D.RcodeSuccess)
-			msg.Authoritative = true
-			msg.RecursionAvailable = true
-
-			return msg, nil
+			return next(ctx, r)
 		}
 	}
 }

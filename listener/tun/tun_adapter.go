@@ -13,7 +13,6 @@ import (
 	"github.com/yaling888/quirktiva/adapter/inbound"
 	"github.com/yaling888/quirktiva/common/cmd"
 	"github.com/yaling888/quirktiva/component/dialer"
-	"github.com/yaling888/quirktiva/component/resolver"
 	C "github.com/yaling888/quirktiva/constant"
 	"github.com/yaling888/quirktiva/listener/tun/device"
 	"github.com/yaling888/quirktiva/listener/tun/device/tun"
@@ -75,7 +74,7 @@ func New(
 		tunAddress = *tunConf.TunAddressPrefix
 	}
 
-	if !tunAddress.IsValid() || !tunAddress.Addr().Is4() {
+	if !tunAddress.IsValid() {
 		tunAddress = netip.MustParsePrefix("198.18.0.1/16")
 	}
 
@@ -117,10 +116,6 @@ func New(
 	err = commons.ConfigInterfaceAddress(tunDevice, tunAddress, mtu, autoRoute)
 	if err != nil {
 		return nil, fmt.Errorf("setting interface address and routing failed: %w", err)
-	}
-
-	if autoRoute {
-		resolver.DisableIPv6 = true
 	}
 
 	tunConf.Device = devName
@@ -170,9 +165,6 @@ func setAtLatest(stackType C.TUNStack, devName string) {
 		// _, _ = cmd.ExecCmd("/usr/sbin/sysctl -w net.inet6.ip6.forwarding=1")
 		_, _ = cmd.ExecCmd("/bin/launchctl limit maxfiles 10240 unlimited")
 	case "windows":
-		if stackType != C.TunSystem {
-			return
-		}
 		_, _ = cmd.ExecCmd("ipconfig /renew")
 	case "linux":
 		_, _ = cmd.ExecCmd("sysctl -w net.ipv4.ip_forward=1")
@@ -184,6 +176,13 @@ func setAtLatest(stackType C.TUNStack, devName string) {
 		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.accept_local=1", devName))
 		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.accept_redirects=1", devName))
 		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.rp_filter=0", devName))
-		//_, _ = cmd.ExecCmd("iptables -t filter -P FORWARD ACCEPT")
+		// _, _ = cmd.ExecCmd("sysctl -w net.ipv6.conf.all.disable_ipv6=0")
+		// _, _ = cmd.ExecCmd("sysctl -w net.ipv6.conf.default.disable_ipv6=0")
+		_, _ = cmd.ExecCmd("sysctl -w net.ipv6.conf.all.forwarding=1")
+		_, _ = cmd.ExecCmd("sysctl -w net.ipv6.conf.all.accept_redirects=1")
+		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv6.conf.%s.disable_ipv6=0", devName))
+		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv6.conf.%s.forwarding=1", devName))
+		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv6.conf.%s.accept_redirects=1", devName))
+		// _, _ = cmd.ExecCmd("iptables -t filter -P FORWARD ACCEPT")
 	}
 }

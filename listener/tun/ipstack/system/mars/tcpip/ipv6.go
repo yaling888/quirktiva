@@ -147,12 +147,7 @@ func (b IPv6Packet) Valid() bool {
 		return false
 	}
 
-	dlen := int(b.PayloadLength())
-	if dlen > len(b)-IPv6MinimumSize {
-		return false
-	}
-
-	return true
+	return int(b.PayloadLength()) <= len(b)-IPv6MinimumSize
 }
 
 func (b IPv6Packet) lastNextHeader() (uint8, int) {
@@ -164,8 +159,8 @@ func (b IPv6Packet) nextExtensionHeader(hdr uint8, offset int) (uint8, int) {
 	switch hdr {
 	case ipv6HopByHopOptionsExtHdrIdentifier,
 		ipv6RoutingExtHdrIdentifier,
-		//ipv6FragmentExtHdrIdentifier,
-		//ipv6NoNextHeaderIdentifier,
+		// ipv6FragmentExtHdrIdentifier,
+		// ipv6NoNextHeaderIdentifier,
 		ipv6DestinationOptionsExtHdrIdentifier,
 		ipv6ExperimentExtHdrIdentifier:
 		id := b[offset]
