@@ -17,6 +17,11 @@ import (
 	"github.com/yaling888/quirktiva/tunnel"
 )
 
+var (
+	DefaultPrefix4 = netip.MustParsePrefix("198.18.0.1/16")
+	DefaultPrefix6 = netip.MustParsePrefix("6663:6b71:7569:726b::1/64")
+)
+
 //nolint:unused
 var (
 	defaultRoutes = []string{
@@ -24,11 +29,6 @@ var (
 		"16.0.0.0/4", "32.0.0.0/3", "64.0.0.0/2", "128.0.0.0/1",
 	}
 	defaultRoutes6 = []string{"2000::/3"}
-
-	defaultPrefix4 = netip.MustParsePrefix("198.18.0.1/16")
-	defaultPrefix6 = netip.PrefixFrom(netip.AddrFrom16([16]byte{
-		'f', 'c', 'k', 'q', 'u', 'i', 'r', 'k', 't', 'i', 'v', 'a',
-	}), 96)
 
 	monitorMux sync.Mutex
 
@@ -89,6 +89,13 @@ func UpdateWireGuardBind() {
 			}
 		}
 	}
+}
+
+func GetFirstAvailableIP(p netip.Prefix) netip.Addr {
+	if p.IsSingleIP() {
+		return p.Addr()
+	}
+	return p.Masked().Addr().Next()
 }
 
 func SetTunChangeCallback(callback C.TUNChangeCallback) {

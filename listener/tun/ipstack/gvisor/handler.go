@@ -22,7 +22,7 @@ var _ adapter.Handler = (*gvHandler)(nil)
 
 type gvHandler struct {
 	gateway   netip.Addr
-	broadcast netip.Addr
+	gateway6  netip.Addr
 	dnsHijack []C.DNSUrl
 
 	tcpIn chan<- C.ConnContext
@@ -107,7 +107,7 @@ func (gh *gvHandler) HandleUDP(stack *stack.Stack, id stack.TransportEndpointID,
 	}
 	rAddrPort := netip.AddrPortFrom(rAddr.Unmap(), id.LocalPort)
 
-	if rAddrPort.Addr() == gh.gateway {
+	if rAddrPort.Addr() == gh.gateway || rAddrPort.Addr() == gh.gateway6 {
 		return
 	}
 

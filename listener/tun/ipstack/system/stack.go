@@ -11,7 +11,6 @@ import (
 	"github.com/phuslu/log"
 
 	"github.com/yaling888/quirktiva/adapter/inbound"
-	"github.com/yaling888/quirktiva/common/nnip"
 	"github.com/yaling888/quirktiva/common/pool"
 	C "github.com/yaling888/quirktiva/constant"
 	"github.com/yaling888/quirktiva/listener/tun/device"
@@ -48,14 +47,20 @@ func (s *sysStack) Close() error {
 	return err
 }
 
-func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) (ipstack.Stack, error) {
+func New(
+	device device.Device,
+	dnsHijack []C.DNSUrl,
+	tunAddress, tunAddress6 netip.Prefix,
+	tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter,
+) (ipstack.Stack, error) {
 	var (
-		gateway   = tunAddress.Masked().Addr().Next()
-		portal    = gateway.Next()
-		broadcast = nnip.UnMasked(tunAddress)
+		gateway  = D.GetFirstAvailableIP(tunAddress)
+		portal   = gateway.Next()
+		gateway6 = D.GetFirstAvailableIP(tunAddress6)
+		portal6  = gateway6.Next()
 	)
 
-	stack, err := mars.StartListener(device, gateway, portal, broadcast)
+	stack, err := mars.StartListener(device, gateway, portal, gateway6, portal6)
 	if err != nil {
 		_ = device.Close2()
 

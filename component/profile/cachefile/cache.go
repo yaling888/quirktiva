@@ -17,13 +17,14 @@ var (
 	fileMode os.FileMode = 0o666
 
 	bucketSelected     = []byte("selected")
-	bucketFakeip       = []byte("fakeip")
 	bucketSubscription = []byte("subscription")
 )
 
 // CacheFile store and update the cache file
 type CacheFile struct {
 	DB *bbolt.DB
+
+	bucketFakeipKey []byte
 }
 
 func (c *CacheFile) SetSelected(group, selected string) {
@@ -75,7 +76,7 @@ func (c *CacheFile) PutFakeip(key, value []byte) error {
 	}
 
 	err := c.DB.Batch(func(t *bbolt.Tx) error {
-		bucket, err := t.CreateBucketIfNotExists(bucketFakeip)
+		bucket, err := t.CreateBucketIfNotExists(c.bucketFakeipKey)
 		if err != nil {
 			return err
 		}
@@ -94,7 +95,7 @@ func (c *CacheFile) DelFakeipPair(ip, host []byte) error {
 	}
 
 	err := c.DB.Batch(func(t *bbolt.Tx) error {
-		bucket, err := t.CreateBucketIfNotExists(bucketFakeip)
+		bucket, err := t.CreateBucketIfNotExists(c.bucketFakeipKey)
 		if err != nil {
 			return err
 		}
@@ -126,7 +127,7 @@ func (c *CacheFile) GetFakeip(key []byte) []byte {
 		_ = tx.Rollback()
 	}(tx)
 
-	bucket := tx.Bucket(bucketFakeip)
+	bucket := tx.Bucket(c.bucketFakeipKey)
 	if bucket == nil {
 		return nil
 	}
@@ -136,11 +137,11 @@ func (c *CacheFile) GetFakeip(key []byte) []byte {
 
 func (c *CacheFile) FlushFakeIP() error {
 	err := c.DB.Batch(func(t *bbolt.Tx) error {
-		bucket := t.Bucket(bucketFakeip)
+		bucket := t.Bucket(c.bucketFakeipKey)
 		if bucket == nil {
 			return nil
 		}
-		return t.DeleteBucket(bucketFakeip)
+		return t.DeleteBucket(c.bucketFakeipKey)
 	})
 	return err
 }
@@ -188,6 +189,10 @@ func (c *CacheFile) Close() error {
 	return c.DB.Close()
 }
 
+func (c *CacheFile) SetBucketFakeipKey(key string) {
+	c.bucketFakeipKey = []byte(key)
+}
+
 // Cache return singleton of CacheFile
 var Cache = sync.OnceValue(func() *CacheFile {
 	options := bbolt.Options{Timeout: time.Second}
@@ -206,6 +211,7 @@ var Cache = sync.OnceValue(func() *CacheFile {
 	}
 
 	return &CacheFile{
-		DB: db,
+		DB:              db,
+		bucketFakeipKey: []byte("fakeip"),
 	}
 })

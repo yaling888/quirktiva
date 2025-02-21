@@ -13,7 +13,6 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 
 	"github.com/yaling888/quirktiva/adapter/inbound"
-	"github.com/yaling888/quirktiva/common/nnip"
 	C "github.com/yaling888/quirktiva/constant"
 	"github.com/yaling888/quirktiva/listener/tun/device"
 	"github.com/yaling888/quirktiva/listener/tun/ipstack"
@@ -40,7 +39,12 @@ func (s *gvStack) Close() error {
 }
 
 // New allocates a new *gvStack with given options.
-func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) (ipstack.Stack, error) {
+func New(
+	device device.Device,
+	dnsHijack []C.DNSUrl,
+	tunAddress, tunAddress6 netip.Prefix,
+	tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter,
+) (ipstack.Stack, error) {
 	s := &gvStack{
 		Stack: stack.New(stack.Options{
 			NetworkProtocols: []stack.NetworkProtocolFactory{
@@ -59,8 +63,8 @@ func New(device device.Device, dnsHijack []C.DNSUrl, tunAddress netip.Prefix, tc
 	}
 
 	handler := &gvHandler{
-		gateway:   tunAddress.Masked().Addr().Next(),
-		broadcast: nnip.UnMasked(tunAddress),
+		gateway:   commons.GetFirstAvailableIP(tunAddress),
+		gateway6:  commons.GetFirstAvailableIP(tunAddress6),
 		dnsHijack: dnsHijack,
 		tcpIn:     tcpIn,
 		udpIn:     udpIn,

@@ -629,7 +629,8 @@ func hasTunConfigChange(tunConf *C.Tun) bool {
 		!lo.Every(lastTunConf.DNSHijack, tunConf.DNSHijack) ||
 		lastTunConf.AutoRoute != tunConf.AutoRoute ||
 		lastTunConf.AutoDetectInterface != tunConf.AutoDetectInterface ||
-		!reflect.DeepEqual(lastTunConf.TunAddressPrefix, tunConf.TunAddressPrefix) {
+		!reflect.DeepEqual(lastTunConf.TunAddressPrefix, tunConf.TunAddressPrefix) ||
+		!reflect.DeepEqual(lastTunConf.TunAddressPrefix6, tunConf.TunAddressPrefix6) {
 		return true
 	}
 

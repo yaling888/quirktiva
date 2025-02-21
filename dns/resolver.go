@@ -526,6 +526,7 @@ type Config struct {
 	EnhancedMode   C.DNSMode
 	FallbackFilter FallbackFilter
 	Pool           *fakeip.Pool
+	Pool6          *fakeip.Pool
 	Hosts          *trie.DomainTrie[netip.Addr]
 	Policy         map[string]NameServer
 	SearchDomains  []string

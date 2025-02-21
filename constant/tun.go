@@ -41,6 +41,7 @@ type Tun struct {
 	AutoRoute           bool          `yaml:"auto-route" json:"auto-route"`
 	AutoDetectInterface bool          `yaml:"auto-detect-interface" json:"auto-detect-interface"`
 	TunAddressPrefix    *netip.Prefix `yaml:"-" json:"-"`
+	TunAddressPrefix6   *netip.Prefix `yaml:"-" json:"-"`
 	RedirectToTun       []string      `yaml:"-" json:"-"`
 	StopRouteListener   bool          `yaml:"-" json:"-"`
 }

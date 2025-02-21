@@ -112,23 +112,24 @@ func withMapping(mapping *cache.LruCache[netip.Addr, string], cnameCache *cache.
 					return msg, err
 				}
 				// should ignore IPv6Hint when disable IPv6 and mapping ip hint for TypeHTTPS
+				host := strings.TrimSuffix(q.Name, ".")
+				_, isCNAME := cnameCache.Get(q.Name)
 				var rr []D.RR
 				for _, answer := range msg.Answer {
-					switch ans := answer.(type) {
+					switch a := answer.(type) {
 					case *D.HTTPS:
 						var value []D.SVCBKeyValue
-						for _, kv := range ans.Value {
+						for _, kv := range a.Value {
 							switch val := kv.(type) {
 							case *D.SVCBIPv6Hint:
 								if resolver.DisableIPv6 {
 									continue
 								}
 								value = append(value, val)
-								if _, isCNAME := cnameCache.Get(q.Name); isCNAME {
+								if isCNAME {
 									continue
 								}
-								host := strings.TrimSuffix(q.Name, ".")
-								ttl := max(ans.Hdr.Ttl, 1)
+								ttl := max(a.Hdr.Ttl, 1)
 								for _, ip6 := range val.Hint {
 									ip, _ := netip.AddrFromSlice(ip6)
 									if !ip.IsGlobalUnicast() {
@@ -138,11 +139,10 @@ func withMapping(mapping *cache.LruCache[netip.Addr, string], cnameCache *cache.
 								}
 							case *D.SVCBIPv4Hint:
 								value = append(value, val)
-								if _, isCNAME := cnameCache.Get(q.Name); isCNAME {
+								if isCNAME {
 									continue
 								}
-								host := strings.TrimSuffix(q.Name, ".")
-								ttl := max(ans.Hdr.Ttl, 1)
+								ttl := max(a.Hdr.Ttl, 1)
 								for _, ip4 := range val.Hint {
 									ip, _ := netip.AddrFromSlice(ip4.To4())
 									if !ip.IsGlobalUnicast() {
@@ -157,24 +157,47 @@ func withMapping(mapping *cache.LruCache[netip.Addr, string], cnameCache *cache.
 						if value != nil {
 							rr = append(rr, &D.HTTPS{
 								SVCB: D.SVCB{
-									Hdr:      ans.Hdr,
-									Priority: ans.Priority,
-									Target:   ans.Target,
+									Hdr:      a.Hdr,
+									Priority: a.Priority,
+									Target:   a.Target,
 									Value:    value,
 								},
 							})
 						}
 					case *D.CNAME:
-						rr = append(rr, ans)
-						ttl := max(ans.Hdr.Ttl, 2)
-						cnameCache.SetWithExpire(ans.Target, true, time.Now().Add(time.Second*time.Duration(ttl)))
+						rr = append(rr, a)
+						if a.Target == q.Name {
+							continue
+						}
+						ttl := max(a.Hdr.Ttl, 2)
+						cnameCache.SetWithExpire(a.Target, true, time.Now().Add(time.Second*time.Duration(ttl)))
+					case *D.A:
+						rr = append(rr, a)
+						if isCNAME {
+							continue
+						}
+						ip, _ := netip.AddrFromSlice(a.A.To4())
+						if !ip.IsGlobalUnicast() {
+							continue
+						}
+						ttl := max(a.Hdr.Ttl, 1)
+						mapping.SetWithExpire(ip, host, time.Now().Add(time.Second*time.Duration(ttl)))
 					case *D.AAAA:
 						if resolver.DisableIPv6 {
 							continue
 						}
-						rr = append(rr, ans)
+						rr = append(rr, a)
+						if isCNAME {
+							continue
+						}
+						ip, _ := netip.AddrFromSlice(a.AAAA)
+						if !ip.IsGlobalUnicast() {
+							continue
+						}
+						ttl := max(a.Hdr.Ttl, 1)
+						mapping.SetWithExpire(ip, host, time.Now().Add(time.Second*time.Duration(ttl)))
 					default:
-						rr = append(rr, ans)
+						rr = append(rr, a)
 					}
 				}
 				m := msg.Copy()
@@ -215,6 +238,9 @@ func withMapping(mapping *cache.LruCache[netip.Addr, string], cnameCache *cache.
 					}
 					ttl = a.Hdr.Ttl
 				case *D.CNAME:
+					if a.Target == q.Name {
+						continue
+					}
 					ttl = max(a.Hdr.Ttl, 2)
 					cnameCache.SetWithExpire(a.Target, true, time.Now().Add(time.Second*time.Duration(ttl)))
 					continue
@@ -231,7 +257,7 @@ func withMapping(mapping *cache.LruCache[netip.Addr, string], cnameCache *cache.
 	}
 }
 
-func withFakeIP(fakePool *fakeip.Pool) middleware {
+func withFakeIP(fakePool, fakePool6 *fakeip.Pool) middleware {
 	return func(next handler) handler {
 		return func(ctx *context.DNSContext, r *D.Msg) (*D.Msg, error) {
 			q := r.Question[0]
@@ -244,9 +270,6 @@ func withFakeIP(fakePool *fakeip.Pool) middleware {
 			switch q.Qtype {
 			case D.TypeA:
 				ip := fakePool.Lookup(host)
-				if !ip.Is4() {
-					return handleMsgWithEmptyAnswer(r), nil
-				}
 				rr := &D.A{}
 				rr.Hdr = D.RR_Header{Name: q.Name, Rrtype: D.TypeA, Class: D.ClassINET, Ttl: dnsDefaultTTL}
 				rr.A = ip.AsSlice()
@@ -261,10 +284,10 @@ func withFakeIP(fakePool *fakeip.Pool) middleware {
 
 				return msg, nil
 			case D.TypeAAAA:
-				ip := fakePool.Lookup(host)
-				if !ip.Is6() {
+				if resolver.DisableIPv6 {
 					return handleMsgWithEmptyAnswer(r), nil
 				}
+				ip := fakePool6.Lookup(host)
 				rr := &D.AAAA{}
 				rr.Hdr = D.RR_Header{Name: q.Name, Rrtype: D.TypeAAAA, Class: D.ClassINET, Ttl: dnsDefaultTTL}
 				rr.AAAA = ip.AsSlice()
@@ -285,6 +308,10 @@ func withFakeIP(fakePool *fakeip.Pool) middleware {
 				}
 				// with FakeIP mode should ignore IPv4Hint and IPv6Hint
 				ip := fakePool.Lookup(host)
+				var ip6 netip.Addr
+				if !resolver.DisableIPv6 {
+					ip6 = fakePool6.Lookup(host)
+				}
 				var rr []D.RR
 				for _, answer := range msg.Answer {
 					switch ans := answer.(type) {
@@ -298,13 +325,12 @@ func withFakeIP(fakePool *fakeip.Pool) middleware {
 								value = append(value, val)
 							}
 						}
-						if ip.Is4() {
-							value = append(value, &D.SVCBIPv4Hint{
-								Hint: []net.IP{ip.AsSlice()},
-							})
-						} else if ip.Is6() {
+						value = append(value, &D.SVCBIPv4Hint{
+							Hint: []net.IP{ip.AsSlice()},
+						})
+						if ip6.IsValid() {
 							value = append(value, &D.SVCBIPv6Hint{
-								Hint: []net.IP{ip.AsSlice()},
+								Hint: []net.IP{ip6.AsSlice()},
 							})
 						}
 						rr = append(rr, &D.HTTPS{
@@ -316,44 +342,38 @@ func withFakeIP(fakePool *fakeip.Pool) middleware {
 							},
 						})
 					case *D.A:
-						if !ip.Is4() {
-							continue
-						}
 						rr = append(rr, &D.A{
 							Hdr: D.RR_Header{Name: q.Name, Rrtype: D.TypeA, Class: D.ClassINET, Ttl: dnsDefaultTTL},
 							A:   ip.AsSlice(),
 						})
 					case *D.AAAA:
-						if !ip.Is6() || resolver.DisableIPv6 {
+						if !ip6.IsValid() {
 							continue
 						}
-						rr = append(rr, &D.A{
-							Hdr: D.RR_Header{Name: q.Name, Rrtype: D.TypeAAAA, Class: D.ClassINET, Ttl: dnsDefaultTTL},
-							A:   ip.AsSlice(),
+						rr = append(rr, &D.AAAA{
+							Hdr:  D.RR_Header{Name: q.Name, Rrtype: D.TypeAAAA, Class: D.ClassINET, Ttl: dnsDefaultTTL},
+							AAAA: ip6.AsSlice(),
 						})
 					}
 				}
 				if rr == nil {
-					var v D.SVCBKeyValue
-					if ip.Is4() {
-						v = &D.SVCBIPv4Hint{
-							Hint: []net.IP{ip.AsSlice()},
-						}
-					} else if ip.Is6() {
-						v = &D.SVCBIPv6Hint{
-							Hint: []net.IP{ip.AsSlice()},
-						}
-					}
-					if v != nil {
-						rr = append(rr, &D.HTTPS{
-							SVCB: D.SVCB{
-								Hdr:      D.RR_Header{Name: q.Name, Rrtype: D.TypeHTTPS, Class: D.ClassINET, Ttl: dnsDefaultTTL},
-								Priority: 1,
-								Target:   ".",
-								Value:    []D.SVCBKeyValue{v},
-							},
+					var value []D.SVCBKeyValue
+					value = append(value, &D.SVCBIPv4Hint{
+						Hint: []net.IP{ip.AsSlice()},
+					})
+					if ip6.IsValid() {
+						value = append(value, &D.SVCBIPv6Hint{
+							Hint: []net.IP{ip6.AsSlice()},
 						})
 					}
+					rr = append(rr, &D.HTTPS{
+						SVCB: D.SVCB{
+							Hdr:      D.RR_Header{Name: q.Name, Rrtype: D.TypeHTTPS, Class: D.ClassINET, Ttl: dnsDefaultTTL},
+							Priority: 1,
+							Target:   ".",
+							Value:    value,
+						},
+					})
 				}
 				m := msg.Copy()
 				m.Answer = rr
@@ -413,7 +433,7 @@ func newHandler(resolver *Resolver, mapper *ResolverEnhancer) handler {
 	}
 
 	if mapper.mode == C.DNSFakeIP {
-		middlewares = append(middlewares, withFakeIP(mapper.fakePool))
+		middlewares = append(middlewares, withFakeIP(mapper.fakePool, mapper.fakePool6))
 	}
 
 	if mapper.mode != C.DNSNormal {

@@ -23,9 +23,12 @@ var (
 	unicastAddressChangeLock     sync.Mutex
 )
 
-func ConfigInterfaceAddress(dev device.Device, addr netip.Prefix, forceMTU int, autoRoute bool) error {
-	if !addr.IsValid() {
-		return fmt.Errorf("invalid tun address: %s", addr)
+func ConfigInterfaceAddress(dev device.Device, addr4, addr6 netip.Prefix, forceMTU int, autoRoute bool) error {
+	if !addr4.IsValid() {
+		return fmt.Errorf("invalid tun address4: %s", addr4)
+	}
+	if !addr6.IsValid() {
+		return fmt.Errorf("invalid tun address6: %s", addr6)
 	}
 
 	retryOnFailure := services.StartedAtBoot()
@@ -42,24 +45,10 @@ startOver:
 	}
 	tryTimes++
 
-	addr4 := addr
-	addr6 := addr
-	if addr.Addr().Is4() {
-		addr6 = defaultPrefix6
-	} else {
-		addr4 = defaultPrefix4
-	}
-
-	ip4 := addr4.Masked().Addr().Next()
-	if addr4.IsSingleIP() {
-		ip4 = addr4.Addr()
-	}
+	ip4 := GetFirstAvailableIP(addr4)
 	gw4 := ip4.Next()
 
-	ip6 := addr6.Masked().Addr().Next()
-	if addr6.IsSingleIP() {
-		ip6 = addr6.Addr()
-	}
+	ip6 := GetFirstAvailableIP(addr6)
 	gw6 := ip6.Next()
 
 	luid := winipcfg.LUID(dev.(*tun.TUN).LUID())

@@ -13,22 +13,10 @@ import (
 
 const bufSize = 64 << 10
 
-func Start(device dev.Device, gateway, portal, _ netip.Addr) (*TCP, *UDP, error) {
+func Start(device dev.Device, gateway4, portal4, gateway6, portal6 netip.Addr) (*TCP, *UDP, error) {
 	listener, err := net.ListenTCP("tcp", nil)
 	if err != nil {
 		return nil, nil, err
-	}
-
-	gateway4 := gateway
-	gateway6 := gateway
-	portal4 := portal
-	portal6 := portal
-	if gateway6.Is6() {
-		gateway4 = netip.AddrFrom4([4]byte{198, 18, 0, 1})
-		portal4 = gateway4.Next()
-	} else {
-		gateway6 = netip.AddrFrom16([16]byte{'f', 'c', 'k', 'q', 'u', 'i', 'r', 'k', 't', 'i', 'v', 'a', 0, 0, 0, 1})
-		portal6 = gateway6.Next()
 	}
 
 	var (

@@ -1,7 +1,7 @@
 package fakeip
 
 import (
-	"errors"
+	"fmt"
 	"net/netip"
 	"strings"
 	"sync"
@@ -161,6 +161,8 @@ type Options struct {
 	// Persistence will save the data to disk.
 	// Size will not work and record will be fully stored.
 	Persistence bool
+
+	IPv6 bool
 }
 
 // New return Pool instance
@@ -172,8 +174,8 @@ func New(options Options) (*Pool, error) {
 		last     = nnip.UnMasked(*options.IPNet)
 	)
 
-	if !options.IPNet.IsValid() || !first.IsValid() || !first.Less(last) || first.Is6() {
-		return nil, errors.New("ipnet don't have valid ip")
+	if !options.IPNet.IsValid() || !first.IsValid() || !first.Less(last) {
+		return nil, fmt.Errorf("ipnet don't have valid ip: %s", options.IPNet)
 	}
 
 	pool := &Pool{
@@ -186,8 +188,17 @@ func New(options Options) (*Pool, error) {
 		ipnet:   options.IPNet,
 	}
 	if options.Persistence {
+		var cache *cachefile.CacheFile
+		if options.IPv6 {
+			cache = &cachefile.CacheFile{
+				DB: cachefile.Cache().DB,
+			}
+			cache.SetBucketFakeipKey("fakeip6")
+		} else {
+			cache = cachefile.Cache()
+		}
 		pool.store = &cachefileStore{
-			cache: cachefile.Cache(),
+			cache: cache,
 		}
 	} else {
 		pool.store = newMemoryStore(options.Size)

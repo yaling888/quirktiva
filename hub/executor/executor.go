@@ -140,6 +140,7 @@ func updateDNS(c *config.DNS, t *C.Tun) {
 		IPv6:         c.IPv6,
 		EnhancedMode: c.EnhancedMode,
 		Pool:         c.FakeIPRange,
+		Pool6:        c.FakeIPRange6,
 		Hosts:        c.Hosts,
 		FallbackFilter: dns.FallbackFilter{
 			GeoIP:     c.FallbackFilter.GeoIP,
@@ -183,6 +184,9 @@ func updateDNS(c *config.DNS, t *C.Tun) {
 
 	if cfg.Pool != nil {
 		t.TunAddressPrefix = cfg.Pool.IPNet()
+	}
+	if cfg.Pool6 != nil {
+		t.TunAddressPrefix6 = cfg.Pool6.IPNet()
 	}
 }
 

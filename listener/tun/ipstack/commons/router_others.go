@@ -10,7 +10,7 @@ import (
 	"github.com/yaling888/quirktiva/listener/tun/device"
 )
 
-func ConfigInterfaceAddress(_ device.Device, _ netip.Prefix, _ int, _ bool) error {
+func ConfigInterfaceAddress(_ device.Device, _, _ netip.Prefix, _ int, _ bool) error {
 	return nil
 }
 

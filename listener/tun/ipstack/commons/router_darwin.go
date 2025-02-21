@@ -28,29 +28,21 @@ var (
 	routeSubscribe *subscriber
 )
 
-func ConfigInterfaceAddress(dev device.Device, prefix netip.Prefix, _ int, autoRoute bool) error {
-	if !prefix.IsValid() {
-		return fmt.Errorf("invalid tun address: %s", prefix)
+func ConfigInterfaceAddress(dev device.Device, prefix4, prefix6 netip.Prefix, _ int, autoRoute bool) error {
+	if !prefix4.IsValid() {
+		return fmt.Errorf("invalid tun address4: %s", prefix4)
+	}
+	if !prefix6.IsValid() {
+		return fmt.Errorf("invalid tun address6: %s", prefix6)
 	}
 
 	var (
 		interfaceName = dev.Name()
-		ip            = prefix.Masked().Addr().Next()
+		ip            = GetFirstAvailableIP(prefix4)
 		gw            = ip.Next()
-		mask, _       = netip.AddrFromSlice(net.CIDRMask(prefix.Bits(), ip.BitLen()))
+		mask, _       = netip.AddrFromSlice(net.CIDRMask(prefix4.Bits(), ip.BitLen()))
 	)
-	if prefix.IsSingleIP() {
-		ip = prefix.Addr()
-		gw = ip.Next()
-	}
 
-	prefix4 := prefix
-	prefix6 := prefix
-	if ip.Is4() {
-		prefix6 = defaultPrefix6
-	} else {
-		prefix4 = defaultPrefix4
-	}
 	if err := setAddress(interfaceName, prefix4); err != nil {
 		return err
 	}
@@ -76,17 +68,13 @@ func ConfigInterfaceAddress(dev device.Device, prefix netip.Prefix, _ int, autoR
 		_ = unix.Close(routeSocket)
 	}()
 
-	if ip.Is4() {
-		routeAddr := &route.Inet4Addr{IP: gw.As4()}
-		maskAddr := &route.Inet4Addr{IP: mask.As4()}
-		_ = addRoute(routeSocket, routeAddr, maskAddr, linkAddr, unix.RTF_HOST)
-	}
+	routeAddr := &route.Inet4Addr{IP: gw.As4()}
+	maskAddr := &route.Inet4Addr{IP: mask.As4()}
+	_ = addRoute(routeSocket, routeAddr, maskAddr, linkAddr, unix.RTF_HOST)
 
 	if autoRoute {
 		routes := defaultRoutes
-		if ip.Is4() {
-			routes = append(routes, prefix.String())
-		}
+		routes = append(routes, prefix4.String())
 		routes = append(routes, defaultRoutes6...)
 		for _, r := range routes {
 			_, cidr, _ := net.ParseCIDR(r)
@@ -301,14 +289,10 @@ func defaultRouteChangeCallback(msg *route.RouteMessage) {
 
 func setAddress(interfaceName string, prefix netip.Prefix) error {
 	var (
-		ip      = prefix.Masked().Addr().Next()
+		ip      = GetFirstAvailableIP(prefix)
 		gw      = ip.Next()
 		mask, _ = netip.AddrFromSlice(net.CIDRMask(prefix.Bits(), ip.BitLen()))
 	)
-	if prefix.IsSingleIP() {
-		ip = prefix.Addr()
-		gw = ip.Next()
-	}
 
 	family := unix.AF_INET
 	if ip.Is6() {

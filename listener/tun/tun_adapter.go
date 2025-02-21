@@ -30,11 +30,12 @@ func New(
 	tunChangeCallback C.TUNChangeCallback,
 ) (ipstack.Stack, error) {
 	var (
-		tunAddress = netip.Prefix{}
-		devName    = tunConf.Device
-		stackType  = tunConf.Stack
-		autoRoute  = tunConf.AutoRoute
-		mtu        = 1<<16 - 1
+		tunAddress  = netip.Prefix{}
+		tunAddress6 = netip.Prefix{}
+		devName     = tunConf.Device
+		stackType   = tunConf.Stack
+		autoRoute   = tunConf.AutoRoute
+		mtu         = 1<<16 - 1
 
 		tunDevice device.Device
 		tunStack  ipstack.Stack
@@ -73,9 +74,15 @@ func New(
 	if tunConf.TunAddressPrefix != nil {
 		tunAddress = *tunConf.TunAddressPrefix
 	}
+	if tunConf.TunAddressPrefix6 != nil {
+		tunAddress6 = *tunConf.TunAddressPrefix6
+	}
 
 	if !tunAddress.IsValid() {
-		tunAddress = netip.MustParsePrefix("198.18.0.1/16")
+		tunAddress = commons.DefaultPrefix4
+	}
+	if !tunAddress6.IsValid() {
+		tunAddress6 = commons.DefaultPrefix6
 	}
 
 	// open tun device
@@ -94,7 +101,7 @@ func New(
 			return nil, fmt.Errorf("can't attach endpoint to tun: %w", err)
 		}
 
-		tunStack, err = gvisor.New(tunDevice, tunConf.DNSHijack, tunAddress, tcpIn, udpIn)
+		tunStack, err = gvisor.New(tunDevice, tunConf.DNSHijack, tunAddress, tunAddress6, tcpIn, udpIn)
 		if err != nil {
 			return nil, fmt.Errorf("can't New gvisor stack: %w", err)
 		}
@@ -104,7 +111,7 @@ func New(
 			return nil, fmt.Errorf("can't New system stack: %w", err)
 		}
 
-		tunStack, err = system.New(tunDevice, tunConf.DNSHijack, tunAddress, tcpIn, udpIn)
+		tunStack, err = system.New(tunDevice, tunConf.DNSHijack, tunAddress, tunAddress6, tcpIn, udpIn)
 		if err != nil {
 			return nil, fmt.Errorf("can't New system stack: %w", err)
 		}
@@ -113,7 +120,7 @@ func New(
 	}
 
 	// setting address and routing
-	err = commons.ConfigInterfaceAddress(tunDevice, tunAddress, mtu, autoRoute)
+	err = commons.ConfigInterfaceAddress(tunDevice, tunAddress, tunAddress6, mtu, autoRoute)
 	if err != nil {
 		return nil, fmt.Errorf("setting interface address and routing failed: %w", err)
 	}
@@ -123,7 +130,8 @@ func New(
 
 	log.Info().
 		Str("iface", devName).
-		NetIPAddr("gateway", tunAddress.Masked().Addr().Next()).
+		NetIPAddr("gateway4", commons.GetFirstAvailableIP(tunAddress)).
+		NetIPAddr("gateway6", commons.GetFirstAvailableIP(tunAddress6)).
 		Uint32("mtu", tunDevice.MTU()).
 		Int("batchSize", tunDevice.BatchSize()).
 		Bool("autoRoute", autoRoute).

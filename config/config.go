@@ -86,6 +86,7 @@ type DNS struct {
 	EnhancedMode          C.DNSMode        `yaml:"enhanced-mode"`
 	DefaultNameserver     []dns.NameServer `yaml:"default-nameserver"`
 	FakeIPRange           *fakeip.Pool
+	FakeIPRange6          *fakeip.Pool
 	Hosts                 *trie.DomainTrie[netip.Addr]
 	NameServerPolicy      map[string]dns.NameServer
 	SearchDomains         []string
@@ -162,6 +163,7 @@ type RawDNS struct {
 	Listen                string            `yaml:"listen"`
 	EnhancedMode          C.DNSMode         `yaml:"enhanced-mode"`
 	FakeIPRange           string            `yaml:"fake-ip-range"`
+	FakeIPRange6          string            `yaml:"fake-ip-range6"`
 	FakeIPFilter          []string          `yaml:"fake-ip-filter"`
 	DefaultNameserver     []string          `yaml:"default-nameserver"`
 	NameServerPolicy      map[string]string `yaml:"nameserver-policy"`
@@ -381,6 +383,7 @@ func UnmarshalRawConfig(buf []byte) (*RawConfig, error) {
 			UseHosts:         true,
 			RemoteDnsResolve: true,
 			FakeIPRange:      "198.18.0.1/16",
+			FakeIPRange6:     "6663:6b71:7569:726b::1/64",
 			FallbackFilter: RawFallbackFilter{
 				GeoIP:     true,
 				GeoIPCode: "CN",
@@ -1045,6 +1048,10 @@ func parseDNS(rawCfg *RawConfig, hosts *trie.DomainTrie[netip.Addr]) (*DNS, erro
 		if err != nil {
 			return nil, err
 		}
+		ipnet6, err := netip.ParsePrefix(cfg.FakeIPRange6)
+		if err != nil {
+			return nil, err
+		}
 
 		defaultFakeIPFilter := []string{
 			"*.lan",
@@ -1108,8 +1115,19 @@ func parseDNS(rawCfg *RawConfig, hosts *trie.DomainTrie[netip.Addr]) (*DNS, erro
 		if err != nil {
 			return nil, err
 		}
+		pool6, err := fakeip.New(fakeip.Options{
+			IPNet:       &ipnet6,
+			Size:        1000,
+			Host:        host,
+			IPv6:        true,
+			Persistence: rawCfg.Profile.StoreFakeIP,
+		})
+		if err != nil {
+			return nil, err
+		}
 
 		dnsCfg.FakeIPRange = pool
+		dnsCfg.FakeIPRange6 = pool6
 	}
 
 	if len(cfg.Fallback) != 0 {
