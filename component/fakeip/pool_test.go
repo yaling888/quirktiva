@@ -42,8 +42,10 @@ func createCachefileStore(options Options) (*Pool, string, error) {
 		return nil, "", err
 	}
 
+	cache := &cachefile.CacheFile{DB: db}
+	cache.SetBucketFakeipKey("fakeip")
 	pool.store = &cachefileStore{
-		cache: &cachefile.CacheFile{DB: db},
+		cache: cache,
 	}
 	return pool, f.Name(), nil
 }
