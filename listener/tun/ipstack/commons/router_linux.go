@@ -173,11 +173,15 @@ func configInterfaceRouting(interfaceIndex int, linkAddr netip.Addr, routes []st
 }
 
 func defaultRouteInterface() (*DefaultInterface, error) {
-	routes, err := netlink.RouteListFiltered(unix.AF_UNSPEC, &netlink.Route{Dst: nil}, netlink.RT_FILTER_DST)
+	routes, err := netlink.RouteListFiltered(unix.AF_INET, &netlink.Route{Dst: nil}, netlink.RT_FILTER_DST)
 	if err != nil {
 		return nil, err
 	}
-
+	routes6, err := netlink.RouteListFiltered(unix.AF_INET6, &netlink.Route{Dst: nil}, netlink.RT_FILTER_DST)
+	if err != nil {
+		return nil, err
+	}
+	routes = append(routes, routes6...)
 	for _, route := range routes {
 		if route.Family != unix.AF_INET && route.Family != unix.AF_INET6 {
 			continue
