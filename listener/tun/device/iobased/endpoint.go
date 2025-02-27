@@ -57,8 +57,10 @@ func New(rw dev.Device, mtu uint32, offset int) (*Endpoint, error) {
 		return nil, errors.New("offset must be non-negative")
 	}
 
+	ep := channel.New(defaultOutQueueLen, mtu, "")
+	ep.LinkEPCapabilities |= stack.CapabilityRXChecksumOffload
 	return &Endpoint{
-		Endpoint: channel.New(defaultOutQueueLen, mtu, ""),
+		Endpoint: ep,
 		rw:       rw,
 		mtu:      mtu,
 		offset:   offset,
