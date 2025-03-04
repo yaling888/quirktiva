@@ -1,11 +1,11 @@
 module github.com/yaling888/quirktiva
 
-go 1.24.0
+go 1.24.1
 
 require (
 	github.com/apernet/hysteria/core/v2 v2.5.1-0.20240816231605-7e70547dbdf1
 	github.com/apernet/hysteria/extras/v2 v2.5.3-0.20241104183808-a2c7b8fd198d
-	github.com/cilium/ebpf v0.17.2
+	github.com/cilium/ebpf v0.17.3
 	github.com/dlclark/regexp2 v1.11.5
 	github.com/expr-lang/expr v1.16.9
 	github.com/go-chi/chi/v5 v5.2.1
@@ -19,13 +19,13 @@ require (
 	github.com/quic-go/quic-go v0.50.0
 	github.com/samber/lo v1.49.1
 	github.com/stretchr/testify v1.10.0
-	github.com/vishvananda/netlink v1.3.1-0.20250209162617-655392bc778a
+	github.com/vishvananda/netlink v1.3.1-0.20250303224720-0e7078ed04c8
 	go.etcd.io/bbolt v1.4.0
-	go.starlark.net v0.0.0-20250205221240-492d3672b3f4
+	go.starlark.net v0.0.0-20250225190231-0d3f41d403af
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.6.0
-	golang.org/x/crypto v0.33.0
-	golang.org/x/net v0.35.0
+	golang.org/x/crypto v0.35.0
+	golang.org/x/net v0.36.0
 	golang.org/x/sync v0.11.0
 	golang.org/x/sys v0.30.0
 	golang.org/x/text v0.22.0
@@ -34,7 +34,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b
 	google.golang.org/protobuf v1.36.5
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20250210225643-b6c879e0ba3f
+	gvisor.dev/gvisor v0.0.0-20250304193240-12d3e07d4ad6
 )
 
 require (
