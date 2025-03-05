@@ -26,10 +26,10 @@ require (
 	go.uber.org/automaxprocs v1.6.0
 	golang.org/x/crypto v0.35.0
 	golang.org/x/net v0.36.0
-	golang.org/x/sync v0.11.0
-	golang.org/x/sys v0.30.0
-	golang.org/x/text v0.22.0
-	golang.org/x/time v0.10.0
+	golang.org/x/sync v0.12.0
+	golang.org/x/sys v0.31.0
+	golang.org/x/text v0.23.0
+	golang.org/x/time v0.11.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b
 	google.golang.org/protobuf v1.36.5
