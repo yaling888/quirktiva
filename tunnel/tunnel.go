@@ -367,10 +367,6 @@ func needSniffingSNI(metadata *C.Metadata) bool {
 }
 
 func sniffTCP(connCtx C.ConnContext, metadata *C.Metadata) (sniffer.SniffingType, error) {
-	if !needSniffingSNI(metadata) {
-		return sniffer.OFF, nil
-	}
-
 	const sniffTLSTimeout = 50 * time.Millisecond
 
 	sniffingType := sniffer.TLS
@@ -403,10 +399,6 @@ func sniffTCP(connCtx C.ConnContext, metadata *C.Metadata) (sniffer.SniffingType
 }
 
 func sniffUDP(buf []byte, metadata *C.Metadata) (sniffer.SniffingType, error) {
-	if !needSniffingSNI(metadata) || len(buf) < 1200 {
-		return sniffer.OFF, nil
-	}
-
 	const sniffQUICTimeout = 3 * time.Millisecond
 
 	tried := false
@@ -505,18 +497,21 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 			cond.Broadcast()
 		}()
 
-		sType, err := sniffUDP(*packet.Data(), metadata)
-		if err != nil {
-			log.Debug().Err(err).Msg("[Sniffer] sniff failed")
-			return
-		}
-		if sType != sniffer.OFF {
-			if e := log.Debug(); e != nil {
-				e.
-					Str("host", metadata.Host).
-					NetIPAddr("ip", metadata.DstIP).
-					Str("port", metadata.DstPort.String()).
-					Msg("[Sniffer] update quic sni")
+		if needSniffingSNI(metadata) && len(*packet.Data()) >= 1200 {
+			logDstIP := metadata.DstIP
+			sType, err := sniffUDP(*packet.Data(), metadata)
+			if err != nil {
+				log.Debug().Err(err).Msg("[Sniffer] sniff failed")
+				return
+			}
+			if sType != sniffer.OFF {
+				if e := log.Debug(); e != nil {
+					e.
+						Str("host", metadata.Host).
+						NetIPAddr("ip", logDstIP).
+						Str("port", metadata.DstPort.String()).
+						Msg("[Sniffer] update quic sni")
+				}
 			}
 		}
 
@@ -632,18 +627,21 @@ func handleTCPConn(connCtx C.ConnContext) {
 		return
 	}
 
-	sType, err := sniffTCP(connCtx, metadata)
-	if err != nil {
-		log.Debug().Err(err).Msg("[Sniffer] sniff failed")
-		return
-	}
-	if sType != sniffer.OFF {
-		if e := log.Debug(); e != nil {
-			e.
-				Str("host", metadata.Host).
-				NetIPAddr("ip", metadata.DstIP).
-				Str("port", metadata.DstPort.String()).
-				Msgf("[Sniffer] update %s", sType.String())
+	if needSniffingSNI(metadata) {
+		logDstIP := metadata.DstIP
+		sType, err := sniffTCP(connCtx, metadata)
+		if err != nil {
+			log.Debug().Err(err).Msg("[Sniffer] sniff failed")
+			return
+		}
+		if sType != sniffer.OFF {
+			if e := log.Debug(); e != nil {
+				e.
+					Str("host", metadata.Host).
+					NetIPAddr("ip", logDstIP).
+					Str("port", metadata.DstPort.String()).
+					Msgf("[Sniffer] update %s", sType.String())
+			}
 		}
 	}
 
