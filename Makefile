@@ -182,8 +182,8 @@ lint-fix: $(foreach os,$(lint_os_list),$(os)-lint-fix)
 clean:
 	rm -rf $(BINDIR)/*
 
-CLANG ?= clang-14
-CFLAGS := -O2 -g -Wall -Werror $(CFLAGS)
+CLANG ?= clang
+CFLAGS := -I/usr/include/$(shell uname -m)-linux-gnu -O2 -g -Wall -Werror $(CFLAGS)
 
 ebpf: export BPF_CLANG := $(CLANG)
 ebpf: export BPF_CFLAGS := $(CFLAGS)

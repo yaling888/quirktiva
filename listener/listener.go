@@ -41,10 +41,11 @@ var (
 	tcpListeners = map[string]C.Listener{}
 	udpListeners = map[string]C.Listener{}
 
-	tunStackListener  ipstack.Stack
-	tcProgram         *ebpf.TcEBpfProgram
-	autoRedirListener *autoredir.Listener
-	autoRedirProgram  *ebpf.TcEBpfProgram
+	tunStackListener     ipstack.Stack
+	redirToTunProgram    *ebpf.TcEBpfProgram
+	autoRedirProgram     *ebpf.TcEBpfProgram
+	autoRedirTCPListener *autoredir.Listener
+	autoRedirUDPListener *autoredir.PacketConn
 
 	tunnelTCPListeners = map[string]*tunnel.Listener{}
 	tunnelUDPListeners = map[string]*tunnel.PacketConn{}
@@ -344,9 +345,12 @@ func ReCreateRedirToTun(ifaceNames []string) {
 
 	nicArr := lo.Uniq(ifaceNames)
 
-	if tcProgram != nil {
-		tcProgram.Close()
-		tcProgram = nil
+	if redirToTunProgram != nil {
+		log.Info().
+			Strs("interfaces", redirToTunProgram.RawNICs()).
+			Msg("[Inbound] redirect to tun tc program is detached")
+		redirToTunProgram.Close()
+		redirToTunProgram = nil
 	}
 
 	if len(nicArr) == 0 {
@@ -360,24 +364,28 @@ func ReCreateRedirToTun(ifaceNames []string) {
 
 	program, err := ebpf.NewTcEBpfProgram(nicArr, lastTunConf.Device)
 	if err != nil {
-		log.Error().Err(err).Msg("[Inbound] attach tc ebpf program failed")
+		log.Error().Err(err).Msg("[Inbound] attach redirect to tun tc program failed")
 		return
 	}
-	tcProgram = program
+	redirToTunProgram = program
 
-	log.Info().Strs("interfaces", tcProgram.RawNICs()).Msg("[Inbound] attached tc ebpf program")
+	log.Info().Strs("interfaces", redirToTunProgram.RawNICs()).Msg("[Inbound] redirect to tun tc program is attached")
 }
 
-func ReCreateAutoRedir(ifaceNames []string, defaultInterface string, tcpIn chan<- C.ConnContext, _ chan<- *inbound.PacketAdapter) {
+func ReCreateAutoRedir(ifaceNames []string, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
 	autoRedirMux.Lock()
 	defer autoRedirMux.Unlock()
 
 	var err error
-	defer func(err error) {
+	defer func() {
 		if err != nil {
-			if autoRedirListener != nil {
-				_ = autoRedirListener.Close()
-				autoRedirListener = nil
+			if autoRedirTCPListener != nil {
+				_ = autoRedirTCPListener.Close()
+				autoRedirTCPListener = nil
+			}
+			if autoRedirUDPListener != nil {
+				_ = autoRedirUDPListener.Close()
+				autoRedirUDPListener = nil
 			}
 			if autoRedirProgram != nil {
 				autoRedirProgram.Close()
@@ -385,23 +393,34 @@ func ReCreateAutoRedir(ifaceNames []string, defaultInterface string, tcpIn chan<
 			}
 			log.Error().Err(err).Msg("[Inbound] auto redirect server start failed")
 		}
-	}(err)
+	}()
 
 	nicArr := lo.Uniq(ifaceNames)
-	defaultRouteInterfaceName := defaultInterface
 
-	if autoRedirListener != nil && autoRedirProgram != nil {
-		if defaultRouteInterfaceName == "" {
-			defaultRouteInterfaceName, _ = commons.GetAutoDetectInterface()
-		}
-		if autoRedirProgram.RawInterface() == defaultRouteInterfaceName &&
-			len(autoRedirProgram.RawNICs()) == len(nicArr) &&
-			lo.Every(autoRedirProgram.RawNICs(), nicArr) {
+	if autoRedirProgram != nil {
+		if len(autoRedirProgram.RawNICs()) == len(nicArr) && lo.Every(autoRedirProgram.RawNICs(), nicArr) {
 			return
 		}
-		_ = autoRedirListener.Close()
+		if autoRedirTCPListener != nil {
+			log.Info().
+				Str("addr", autoRedirTCPListener.Address()).
+				Str("network", "tcp").
+				Msg("[Inbound] auto redirect proxy is down")
+			_ = autoRedirTCPListener.Close()
+			autoRedirTCPListener = nil
+		}
+		if autoRedirUDPListener != nil {
+			log.Info().
+				Str("addr", autoRedirUDPListener.Address()).
+				Str("network", "udp").
+				Msg("[Inbound] auto redirect proxy is down")
+			_ = autoRedirUDPListener.Close()
+			autoRedirUDPListener = nil
+		}
+		log.Info().
+			Strs("interfaces", autoRedirProgram.RawNICs()).
+			Msg("[Inbound] auto redirect tc program is detached")
 		autoRedirProgram.Close()
-		autoRedirListener = nil
 		autoRedirProgram = nil
 	}
 
@@ -409,32 +428,36 @@ func ReCreateAutoRedir(ifaceNames []string, defaultInterface string, tcpIn chan<
 		return
 	}
 
-	if defaultRouteInterfaceName == "" {
-		defaultRouteInterfaceName, err = commons.GetAutoDetectInterface()
-		if err != nil {
-			return
-		}
+	autoRedirProgram, err = ebpf.NewRedirEBpfProgram(nicArr, uint16(C.TcpAutoRedirPort))
+	if err != nil {
+		return
 	}
 
 	addr := genAddr("*", C.TcpAutoRedirPort, true)
 
-	autoRedirListener, err = autoredir.New(addr, tcpIn)
+	autoRedirTCPListener, err = autoredir.New(addr, tcpIn, autoRedirProgram.Lookup)
 	if err != nil {
 		return
 	}
 
-	autoRedirProgram, err = ebpf.NewRedirEBpfProgram(nicArr, autoRedirListener.TCPAddr().Port(),
-		defaultRouteInterfaceName)
+	autoRedirUDPListener, err = autoredir.NewUDP(addr, udpIn, autoRedirProgram.LookupUDP)
 	if err != nil {
 		return
 	}
-
-	autoRedirListener.SetLookupFunc(autoRedirProgram.Lookup)
 
 	log.Info().
-		Str("addr", autoRedirListener.Address()).
+		Str("addr", autoRedirTCPListener.Address()).
+		Str("network", "tcp").
+		Msg("[Inbound] auto redirect proxy listening")
+
+	log.Info().
+		Str("addr", autoRedirUDPListener.Address()).
+		Str("network", "udp").
+		Msg("[Inbound] auto redirect proxy listening")
+
+	log.Info().
 		Strs("interfaces", autoRedirProgram.RawNICs()).
-		Msg("[Inbound] auto redirect proxy listening, attached tc ebpf program")
+		Msg("[Inbound] auto redirect tc program is attached")
 }
 
 func PatchTunnel(tunnels []config.Tunnel, tcpIn chan<- C.ConnContext, udpIn chan<- *inbound.PacketAdapter) {
@@ -661,8 +684,8 @@ func (t *tunChangeCallback) Resume() {
 }
 
 func Cleanup() {
-	if tcProgram != nil {
-		tcProgram.Close()
+	if redirToTunProgram != nil {
+		redirToTunProgram.Close()
 	}
 	if autoRedirProgram != nil {
 		autoRedirProgram.Close()

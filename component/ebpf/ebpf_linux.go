@@ -17,12 +17,12 @@ import (
 func NewTcEBpfProgram(ifaceNames []string, tunName string) (*TcEBpfProgram, error) {
 	tunIface, err := netlink.LinkByName(tunName)
 	if err != nil {
-		return nil, fmt.Errorf("lookup network iface %q: %w", tunName, err)
+		return nil, fmt.Errorf("lookup network iface %s: %w", tunName, err)
 	}
 
 	tunIndex := uint32(tunIface.Attrs().Index)
 
-	dialer.DefaultRoutingMark.Store(C.ClashTrafficMark)
+	dialer.DefaultRoutingMark.CompareAndSwap(0, C.ClashTrafficMark)
 
 	ifMark := uint32(dialer.DefaultRoutingMark.Load())
 
@@ -30,10 +30,10 @@ func NewTcEBpfProgram(ifaceNames []string, tunName string) (*TcEBpfProgram, erro
 	for _, ifaceName := range ifaceNames {
 		iface, err := netlink.LinkByName(ifaceName)
 		if err != nil {
-			return nil, fmt.Errorf("lookup network iface %q: %w", ifaceName, err)
+			return nil, fmt.Errorf("lookup network iface %s: %w", ifaceName, err)
 		}
 		if iface.Attrs().OperState != netlink.OperUp {
-			return nil, fmt.Errorf("network iface %q is down", ifaceName)
+			return nil, fmt.Errorf("network iface %s is down", ifaceName)
 		}
 
 		attrs := iface.Attrs()
@@ -53,37 +53,44 @@ func NewTcEBpfProgram(ifaceNames []string, tunName string) (*TcEBpfProgram, erro
 }
 
 // NewRedirEBpfProgram new auto redirect ebpf program
-func NewRedirEBpfProgram(ifaceNames []string, redirPort uint16, defaultRouteInterfaceName string) (*TcEBpfProgram, error) {
-	defaultRouteInterface, err := netlink.LinkByName(defaultRouteInterfaceName)
-	if err != nil {
-		return nil, fmt.Errorf("lookup network iface %q: %w", defaultRouteInterfaceName, err)
-	}
-
-	defaultRouteIndex := uint32(defaultRouteInterface.Attrs().Index)
-
+func NewRedirEBpfProgram(ifaceNames []string, redirPort uint16) (*TcEBpfProgram, error) {
 	var pros []C.EBpf
 	for _, ifaceName := range ifaceNames {
 		iface, err := netlink.LinkByName(ifaceName)
 		if err != nil {
-			return nil, fmt.Errorf("lookup network iface %q: %w", ifaceName, err)
+			return nil, fmt.Errorf("lookup network iface %s: %w", ifaceName, err)
 		}
 
 		attrs := iface.Attrs()
 		index := attrs.Index
 
-		addrs, err := netlink.AddrList(iface, netlink.FAMILY_V4)
+		addrs, err := netlink.AddrList(iface, netlink.FAMILY_ALL)
 		if err != nil {
-			return nil, fmt.Errorf("lookup network iface %q address: %w", ifaceName, err)
+			return nil, fmt.Errorf("lookup network iface %s address: %w", ifaceName, err)
 		}
 
-		if len(addrs) == 0 {
-			return nil, fmt.Errorf("network iface %q does not contain any ipv4 addresses", ifaceName)
+		var addr4, addr6 netip.Addr
+		for _, addr := range addrs {
+			if ip := addr.IP.To4(); ip != nil {
+				if !addr4.IsValid() {
+					addr4, _ = netip.AddrFromSlice(ip)
+				}
+			} else if !addr6.IsValid() {
+				addr6, _ = netip.AddrFromSlice(addr.IP)
+			}
 		}
 
-		address, _ := netip.AddrFromSlice(addrs[0].IP)
-		redirAddrPort := netip.AddrPortFrom(address, redirPort)
+		if !addr4.IsValid() {
+			return nil, fmt.Errorf("network iface %s does not contain any ipv4 addresses", ifaceName)
+		}
 
-		redirPro := redir.NewEBpfRedirect(ifaceName, index, 0, defaultRouteIndex, redirAddrPort)
+		if !addr6.IsValid() {
+			addr6 = addr4
+		}
+
+		redirAddrPort := netip.AddrPortFrom(addr4, redirPort)
+
+		redirPro := redir.NewEBpfRedirect(ifaceName, index, redirAddrPort, addr6)
 		if err = redirPro.Start(); err != nil {
 			return nil, err
 		}
@@ -93,7 +100,7 @@ func NewRedirEBpfProgram(ifaceNames []string, redirPort uint16, defaultRouteInte
 
 	systemSetting(ifaceNames...)
 
-	return NewAutoRedirProgram(pros, ifaceNames, defaultRouteInterfaceName), nil
+	return NewAutoRedirProgram(pros, ifaceNames), nil
 }
 
 func systemSetting(ifaceNames ...string) {
@@ -102,6 +109,8 @@ func systemSetting(ifaceNames ...string) {
 	_, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.all.accept_local=1")
 	_, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.all.accept_redirects=1")
 	_, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.all.rp_filter=0")
+	_, _ = cmd.ExecCmd("sysctl -w net.ipv6.conf.all.forwarding=1")
+	_, _ = cmd.ExecCmd("sysctl -w net.ipv6.conf.all.accept_redirects=1")
 	_, _ = cmd.ExecCmd("iptables -t filter -P FORWARD ACCEPT")
 
 	for _, ifaceName := range ifaceNames {
@@ -109,5 +118,7 @@ func systemSetting(ifaceNames ...string) {
 		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.accept_local=1", ifaceName))
 		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.accept_redirects=1", ifaceName))
 		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.rp_filter=0", ifaceName))
+		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv6.conf.%s.forwarding=1", ifaceName))
+		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv6.conf.%s.accept_redirects=1", ifaceName))
 	}
 }

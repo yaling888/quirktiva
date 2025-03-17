@@ -4,29 +4,22 @@ package tc
 
 import (
 	"fmt"
-	"io"
 	"net/netip"
 	"os"
-	"path/filepath"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 
-	C "github.com/yaling888/quirktiva/constant"
-	"github.com/yaling888/quirktiva/transport/socks5"
+	"github.com/yaling888/quirktiva/common/hostos"
 )
 
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS bpf ../bpf/tc.c
-
-const (
-	mapKey1 uint32 = 0
-	mapKey2 uint32 = 1
-)
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS -tags linux bpf ../bpf/tc.c
 
 type EBpfTC struct {
-	objs   io.Closer
+	link   link.Link
 	qdisc  netlink.Qdisc
 	filter netlink.Filter
 
@@ -34,8 +27,6 @@ type EBpfTC struct {
 	ifIndex    int
 	ifMark     uint32
 	tunIfIndex uint32
-
-	bpfPath string
 }
 
 func NewEBpfTc(ifName string, ifIndex int, ifMark uint32, tunIfIndex uint32) *EBpfTC {
@@ -48,100 +39,146 @@ func NewEBpfTc(ifName string, ifIndex int, ifMark uint32, tunIfIndex uint32) *EB
 }
 
 func (e *EBpfTC) Start() error {
-	if err := rlimit.RemoveMemlock(); err != nil {
-		return fmt.Errorf("remove memory lock: %w", err)
+	version := hostos.KernelVersion()
+	if version.LessThan(5, 11) { // remove resource limits for kernels < v5.11.
+		if err := rlimit.RemoveMemlock(); err != nil {
+			return fmt.Errorf("remove memory lock: %w", err)
+		}
 	}
 
-	e.bpfPath = filepath.Join(C.BpfFSPath, e.ifName)
-	if err := os.MkdirAll(e.bpfPath, os.ModePerm); err != nil {
-		return fmt.Errorf("failed to create bpf fs subpath: %w", err)
+	spec, err := loadBpf()
+	if err != nil {
+		return fmt.Errorf("loading collection spec: %w", err)
 	}
 
-	var objs bpfObjects
-	if err := loadBpfObjects(&objs, &ebpf.CollectionOptions{
-		Maps: ebpf.MapOptions{
-			PinPath: e.bpfPath,
-		},
-	}); err != nil {
-		e.Close()
-		return fmt.Errorf("loading objects: %w", err)
-	}
+	var prog *ebpf.Program
 
-	e.objs = &objs
-
-	if err := objs.bpfMaps.TcParamsMap.Update(mapKey1, e.ifMark, ebpf.UpdateAny); err != nil {
-		e.Close()
-		return fmt.Errorf("storing objects: %w", err)
-	}
-
-	if err := objs.bpfMaps.TcParamsMap.Update(mapKey2, e.tunIfIndex, ebpf.UpdateAny); err != nil {
-		e.Close()
-		return fmt.Errorf("storing objects: %w", err)
-	}
-
-	attrs := netlink.QdiscAttrs{
-		LinkIndex: e.ifIndex,
-		Handle:    netlink.MakeHandle(0xffff, 0),
-		Parent:    netlink.HANDLE_CLSACT,
-	}
-
-	qdisc := &netlink.GenericQdisc{
-		QdiscAttrs: attrs,
-		QdiscType:  "clsact",
-	}
-
-	e.qdisc = qdisc
-
-	if err := netlink.QdiscAdd(qdisc); err != nil {
-		if os.IsExist(err) {
-			_ = netlink.QdiscDel(qdisc)
-			err = netlink.QdiscAdd(qdisc)
+	if version.AtLeast(5, 5) { // the Variable API requires kernel >= v5.5
+		if err = spec.Variables["clash_mark"].Set(e.ifMark); err != nil {
+			return fmt.Errorf("setting variable clash_mark value: %w", err)
 		}
 
-		if err != nil {
+		if err = spec.Variables["tun_ifindex"].Set(e.tunIfIndex); err != nil {
+			return fmt.Errorf("setting variable tun_ifindex value: %w", err)
+		}
+
+		var objs struct {
+			TcTun55Func *ebpf.Program `ebpf:"tc_tun_5_5_func"`
+			bpfVariables
+		}
+
+		delete(spec.Maps, "params_map")
+		if err = spec.LoadAndAssign(&objs, nil); err != nil {
 			e.Close()
-			return fmt.Errorf("cannot add clsact qdisc: %w", err)
+			return fmt.Errorf("loading objects: %w", err)
+		}
+
+		prog = objs.TcTun55Func
+
+		defer func() {
+			_ = prog.Close()
+		}()
+	} else {
+		var objs struct {
+			TcTunFunc *ebpf.Program `ebpf:"tc_tun_func"`
+			bpfMaps
+		}
+
+		clear(spec.Variables)
+		delete(spec.Maps, ".rodata")
+
+		if err = spec.LoadAndAssign(&objs, nil); err != nil {
+			e.Close()
+			return fmt.Errorf("loading objects: %w", err)
+		}
+
+		params := bpfParams{
+			ClashMark:  e.ifMark,
+			TunIfindex: e.tunIfIndex,
+		}
+		if err = objs.ParamsMap.Update(uint32(0), params, ebpf.UpdateAny); err != nil {
+			return fmt.Errorf("update params map value: %w", err)
+		}
+
+		defer func() {
+			_ = objs.TcTunFunc.Close()
+			_ = objs.bpfMaps.Close()
+		}()
+
+		prog = objs.TcTunFunc
+	}
+
+	if version.AtLeast(6, 6) { // `bpf_link` requires kernel >= v6.6
+		linkEgress, err := link.AttachTCX(link.TCXOptions{
+			Interface: e.ifIndex,
+			Program:   prog,
+			Attach:    ebpf.AttachTCXEgress,
+		})
+		if err != nil {
+			return fmt.Errorf("could not attach TCx egress program: %w", err)
+		}
+		e.link = linkEgress
+	} else {
+		qdisc := &netlink.GenericQdisc{
+			QdiscType: "clsact",
+			QdiscAttrs: netlink.QdiscAttrs{
+				LinkIndex: e.ifIndex,
+				Handle:    netlink.MakeHandle(0xffff, 0),
+				Parent:    netlink.HANDLE_CLSACT,
+			},
+		}
+		e.qdisc = qdisc
+
+		if err = netlink.QdiscAdd(qdisc); err != nil {
+			if os.IsExist(err) {
+				_ = netlink.QdiscDel(qdisc)
+				err = netlink.QdiscAdd(qdisc)
+			}
+			if err != nil {
+				e.Close()
+				return fmt.Errorf("could not add clsact qdisc: %w", err)
+			}
+		}
+
+		filter := &netlink.BpfFilter{
+			Fd:           prog.FD(),
+			Name:         "clash-tc-" + e.ifName,
+			DirectAction: true,
+			FilterAttrs: netlink.FilterAttrs{
+				LinkIndex: e.ifIndex,
+				Parent:    netlink.HANDLE_MIN_EGRESS,
+				Handle:    netlink.MakeHandle(0, 1),
+				Protocol:  unix.ETH_P_ALL,
+				Priority:  1,
+			},
+		}
+		e.filter = filter
+
+		if err = netlink.FilterAdd(filter); err != nil {
+			e.Close()
+			return fmt.Errorf("could not attach tc egress program: %w", err)
 		}
 	}
-
-	filterAttrs := netlink.FilterAttrs{
-		LinkIndex: e.ifIndex,
-		Parent:    netlink.HANDLE_MIN_EGRESS,
-		Handle:    netlink.MakeHandle(0, 1),
-		Protocol:  unix.ETH_P_ALL,
-		Priority:  1,
-	}
-
-	filter := &netlink.BpfFilter{
-		FilterAttrs:  filterAttrs,
-		Fd:           objs.bpfPrograms.TcTunFunc.FD(),
-		Name:         "clash-tc-" + e.ifName,
-		DirectAction: true,
-	}
-
-	if err := netlink.FilterAdd(filter); err != nil {
-		e.Close()
-		return fmt.Errorf("cannot attach ebpf object to filter: %w", err)
-	}
-
-	e.filter = filter
 
 	return nil
 }
 
 func (e *EBpfTC) Close() {
+	if e.link != nil {
+		_ = e.link.Close()
+	}
 	if e.filter != nil {
 		_ = netlink.FilterDel(e.filter)
 	}
 	if e.qdisc != nil {
 		_ = netlink.QdiscDel(e.qdisc)
 	}
-	if e.objs != nil {
-		_ = e.objs.Close()
-	}
-	_ = os.Remove(filepath.Join(e.bpfPath, "tc_params_map"))
 }
 
-func (e *EBpfTC) Lookup(_ netip.AddrPort) (socks5.Addr, error) {
-	return nil, fmt.Errorf("not supported")
+func (e *EBpfTC) Lookup(_ netip.AddrPort) (netip.AddrPort, error) {
+	return netip.AddrPort{}, fmt.Errorf("not supported")
+}
+
+func (e *EBpfTC) LookupUDP(_ netip.AddrPort) (netip.AddrPort, error) {
+	return netip.AddrPort{}, fmt.Errorf("not supported")
 }

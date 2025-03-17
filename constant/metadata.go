@@ -12,18 +12,6 @@ import (
 	"github.com/yaling888/quirktiva/transport/socks5"
 )
 
-var MetadataTypeMapping = map[string]Type{
-	strings.ToLower(HTTP.String()):        HTTP,
-	strings.ToLower(HTTPCONNECT.String()): HTTPCONNECT,
-	strings.ToLower(SOCKS4.String()):      SOCKS4,
-	strings.ToLower(SOCKS5.String()):      SOCKS5,
-	strings.ToLower(REDIR.String()):       REDIR,
-	strings.ToLower(TPROXY.String()):      TPROXY,
-	strings.ToLower(TUN.String()):         TUN,
-	strings.ToLower(MITM.String()):        MITM,
-	strings.ToLower(TUNNEL.String()):      TUNNEL,
-}
-
 // Socks addr type
 const (
 	TCP NetWork = iota
@@ -152,14 +140,6 @@ func (m *Metadata) String() string {
 
 func (m *Metadata) Valid() bool {
 	return m.Host != "" || m.DstIP.IsValid()
-}
-
-func (m *Metadata) TypeFromString(s string) {
-	if _type, ok := MetadataTypeMapping[strings.ToLower(s)]; ok {
-		m.Type = _type
-	} else {
-		m.Type = -1
-	}
 }
 
 func (m *Metadata) NetworkFromString(s string) {

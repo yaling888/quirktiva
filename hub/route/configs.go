@@ -105,6 +105,9 @@ func patchConfigs(w http.ResponseWriter, r *http.Request) {
 		tunSchema := general.Tun
 		tunConf := C.GetTunConf()
 		tunConf.StopRouteListener = true
+		if len(tunConf.RedirectToTun) > 0 {
+			tunConf.AutoRoute = false
+		}
 
 		tunConf.Enable = lo.FromPtrOr(tunSchema.Enable, tunConf.Enable)
 		tunConf.Device = lo.FromPtrOr(tunSchema.Device, tunConf.Device)

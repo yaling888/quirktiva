@@ -2,8 +2,6 @@ package constant
 
 import (
 	"net/netip"
-
-	"github.com/yaling888/quirktiva/transport/socks5"
 )
 
 const (
@@ -16,5 +14,6 @@ const (
 type EBpf interface {
 	Start() error
 	Close()
-	Lookup(srcAddrPort netip.AddrPort) (socks5.Addr, error)
+	Lookup(srcAddrPort netip.AddrPort) (netip.AddrPort, error)
+	LookupUDP(srcAddrPort netip.AddrPort) (netip.AddrPort, error)
 }

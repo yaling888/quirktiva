@@ -39,6 +39,10 @@ func NewPacket(target socks5.Addr, originTarget net.Addr, packet C.UDPPacket, so
 
 // NewPacketBy is PacketAdapter generator
 func NewPacketBy(packet C.UDPPacket, src, dst netip.AddrPort, tp C.Type) *PacketAdapter {
+	return NewPacketWithOriginDst(packet, src, dst, dst, tp)
+}
+
+func NewPacketWithOriginDst(packet C.UDPPacket, src, dst, originDst netip.AddrPort, tp C.Type) *PacketAdapter {
 	metadata := &C.Metadata{}
 	metadata.NetWork = C.UDP
 	metadata.Type = tp
@@ -46,7 +50,7 @@ func NewPacketBy(packet C.UDPPacket, src, dst netip.AddrPort, tp C.Type) *Packet
 	metadata.SrcPort = C.Port(src.Port())
 	metadata.DstIP = dst.Addr()
 	metadata.DstPort = C.Port(dst.Port())
-	metadata.OriginDst = dst
+	metadata.OriginDst = originDst
 
 	return &PacketAdapter{
 		UDPPacket: packet,

@@ -257,6 +257,9 @@ func updateGeneral(general *config.General, force bool) {
 	listener.SetBindAddress(bindAddress)
 
 	general.Tun.StopRouteListener = true
+	if len(general.EBpf.RedirectToTun) > 0 {
+		general.Tun.AutoRoute = false
+	}
 
 	tcpIn := tunnel.TCPIn()
 	udpIn := tunnel.UDPIn()
@@ -270,7 +273,7 @@ func updateGeneral(general *config.General, force bool) {
 	}
 
 	listener.ReCreatePortsListeners(ports, tcpIn, udpIn)
-	listener.ReCreateAutoRedir(general.EBpf.AutoRedir, defaultInterface, tcpIn, udpIn)
+	listener.ReCreateAutoRedir(general.EBpf.AutoRedir, tcpIn, udpIn)
 	listener.ReCreateTun(&general.Tun, tcpIn, udpIn)
 	listener.ReCreateRedirToTun(general.EBpf.RedirectToTun)
 }

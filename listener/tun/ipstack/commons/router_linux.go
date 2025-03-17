@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/netip"
 	"sync"
+	"time"
 
 	"github.com/phuslu/log"
 	"github.com/vishvananda/netlink"
@@ -69,7 +70,6 @@ func ConfigInterfaceAddress(dev device.Device, addr4, addr6 netip.Prefix, _ int,
 		}
 	}
 
-	// it will set to true by eBPF, currently the eBPF feature only supports ipv4.
 	if resolver.DisableIPv6 {
 		return nil
 	}
@@ -158,13 +158,23 @@ func configInterfaceRouting(interfaceIndex int, linkAddr netip.Addr, routes []st
 			Src:       linkAddr.AsSlice(),
 			Dst:       dst,
 			Table:     unix.RT_TABLE_MAIN,
-			Scope:     unix.RT_SCOPE_LINK,
+			Scope:     unix.RT_SCOPE_UNIVERSE,
 			Protocol:  unix.RTPROT_KERNEL,
 			LinkIndex: interfaceIndex,
-			Priority:  100,
+			Priority:  0,
 		}
 
+		delay := 10 * time.Millisecond
+		tryTimes := 0
+
+	retry:
 		if err := netlink.RouteAdd(rt); err != nil {
+			if err == unix.EINVAL && tryTimes < 5 { // retry add route 6 for invalid argument
+				time.Sleep(delay)
+				delay *= 2
+				tryTimes++
+				goto retry
+			}
 			return err
 		}
 	}

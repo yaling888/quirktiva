@@ -12,6 +12,6 @@ func NewTcEBpfProgram(_ []string, _ string) (*TcEBpfProgram, error) {
 }
 
 // NewRedirEBpfProgram new ebpf redirect program
-func NewRedirEBpfProgram(_ []string, _ uint16, _ string) (*TcEBpfProgram, error) {
+func NewRedirEBpfProgram(_ []string, _ uint16) (*TcEBpfProgram, error) {
 	return nil, fmt.Errorf("system not supported")
 }

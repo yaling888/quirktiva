@@ -508,10 +508,10 @@ tunnels:
 ```
 
 ### eBPF
-It requires Linux kernel version >= 4.5, support `redirect-to-tun` and `auto-redir` features.
+Attach `BPF_PROG_TYPE_SCHED_CLS` eBPF program.
 
 #### redirect-to-tun:
-only hook traffic of the egress NIC, conflict with `auto-route` and `auto-redir`.
+Only hook traffic of the egress NIC, conflict with `auto-route` and `auto-redir`, requires Linux kernel >= v4.5.
 ```yaml
 interface-name: eth0
 
@@ -528,23 +528,16 @@ tun:
 ```
 
 #### auto-redir:
-only hook TCP traffic of the ingress NIC and conflict with `redirect-to-tun`, It can be replaced with redir-port (TCP) without any network config.
+Hook TCP and UDP traffic of the ingress NIC and conflict with `redirect-to-tun`, it can be replaced with redir-port without any network config.
 
-It's recommended to work with TUN to handle UDP traffic. It improves the network throughput performance of some low performance devices compared to using exclusively TUN.
+It unnecessary to set up TUN, route, iprule, iptables, nftables, interface-name for transparent proxy gateway, just use the `auto-redir`. 
+
+It improves the network throughput performance of some low performance devices compared to using exclusively TUN and requires Linux kernel >= v5.5.
 ```yaml
-interface-name: eth0
-
 ebpf:
   auto-redir:
     - eth0
     # - wlan0
-
-tun:
-  enable: true
-  stack: system
-  dns-hijack:
-    - any:53
-  auto-route: true
 ```
 
 ### Template

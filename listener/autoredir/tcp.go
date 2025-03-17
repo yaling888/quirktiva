@@ -8,14 +8,13 @@ import (
 
 	"github.com/yaling888/quirktiva/adapter/inbound"
 	C "github.com/yaling888/quirktiva/constant"
-	"github.com/yaling888/quirktiva/transport/socks5"
 )
 
 type Listener struct {
 	listener   net.Listener
 	addr       string
 	closed     bool
-	lookupFunc func(netip.AddrPort) (socks5.Addr, error)
+	lookupFunc func(netip.AddrPort) (netip.AddrPort, error)
 }
 
 // RawAddress implements C.Listener
@@ -38,36 +37,34 @@ func (l *Listener) TCPAddr() netip.AddrPort {
 	return l.listener.Addr().(*net.TCPAddr).AddrPort()
 }
 
-func (l *Listener) SetLookupFunc(lookupFunc func(netip.AddrPort) (socks5.Addr, error)) {
-	l.lookupFunc = lookupFunc
-}
-
 func (l *Listener) handleRedir(conn net.Conn, in chan<- C.ConnContext) {
-	if l.lookupFunc == nil {
-		log.Error().Msg("[Auto Redirect] lookup function is nil")
-		return
-	}
-
-	target, err := l.lookupFunc(conn.RemoteAddr().(*net.TCPAddr).AddrPort())
+	src := conn.RemoteAddr().(*net.TCPAddr).AddrPort()
+	dst, err := l.lookupFunc(src)
 	if err != nil {
-		log.Warn().Err(err).Msg("[Auto Redirect]")
+		log.Warn().Err(err).Msg("[Auto Redirect] handle tcp")
 		_ = conn.Close()
 		return
 	}
 
+	if dst.Addr().Is4In6() {
+		src = netip.AddrPortFrom(src.Addr().Unmap(), src.Port())
+		dst = netip.AddrPortFrom(dst.Addr().Unmap(), dst.Port())
+	}
+
 	_ = conn.(*net.TCPConn).SetKeepAlive(true)
 
-	in <- inbound.NewSocket(target, conn, C.REDIR)
+	in <- inbound.NewSocketBy(conn, src, dst, C.REDIR)
 }
 
-func New(addr string, in chan<- C.ConnContext) (*Listener, error) {
+func New(addr string, in chan<- C.ConnContext, lookupFunc func(netip.AddrPort) (netip.AddrPort, error)) (*Listener, error) {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
 	al := &Listener{
-		listener: l,
-		addr:     addr,
+		listener:   l,
+		addr:       addr,
+		lookupFunc: lookupFunc,
 	}
 
 	go func() {
