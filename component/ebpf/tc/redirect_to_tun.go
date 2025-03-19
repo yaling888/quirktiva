@@ -3,9 +3,11 @@
 package tc
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net/netip"
 	"os"
+	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -27,15 +29,30 @@ type EBpfTC struct {
 	ifIndex    int
 	ifMark     uint32
 	tunIfIndex uint32
+
+	fakeIP4Prefix uint32 // host byte order
+	fakeIP6Prefix [8]byte
 }
 
-func NewEBpfTc(ifName string, ifIndex int, ifMark uint32, tunIfIndex uint32) *EBpfTC {
-	return &EBpfTC{
+func NewEBpfTc(ifName string, ifIndex int, ifMark uint32, tunIfIndex uint32, fakeIP4Prefix, fakeIP6Prefix *netip.Prefix) *EBpfTC {
+	tc := &EBpfTC{
 		ifName:     ifName,
 		ifIndex:    ifIndex,
 		ifMark:     ifMark,
 		tunIfIndex: tunIfIndex,
 	}
+
+	if fakeIP4Prefix != nil {
+		a4 := netip.PrefixFrom(fakeIP4Prefix.Addr(), 16).Masked().Addr().As4()
+		tc.fakeIP4Prefix = binary.BigEndian.Uint32(a4[:])
+	}
+
+	if fakeIP6Prefix != nil {
+		a16 := netip.PrefixFrom(fakeIP6Prefix.Addr(), 64).Masked().Addr().As16()
+		tc.fakeIP6Prefix = [8]byte(a16[:8])
+	}
+
+	return tc
 }
 
 func (e *EBpfTC) Start() error {
@@ -60,6 +77,14 @@ func (e *EBpfTC) Start() error {
 
 		if err = spec.Variables["tun_ifindex"].Set(e.tunIfIndex); err != nil {
 			return fmt.Errorf("setting variable tun_ifindex value: %w", err)
+		}
+
+		if err = spec.Variables["fake_ip4_prefix"].Set(e.fakeIP4Prefix); err != nil {
+			return fmt.Errorf("setting variable fake_ip4_prefix value: %w", err)
+		}
+
+		if err = spec.Variables["fake_ip6_prefix"].Set(e.fakeIP6Prefix[:]); err != nil {
+			return fmt.Errorf("setting variable fake_ip6_prefix value: %w", err)
 		}
 
 		var objs struct {
@@ -93,8 +118,10 @@ func (e *EBpfTC) Start() error {
 		}
 
 		params := bpfParams{
-			ClashMark:  e.ifMark,
-			TunIfindex: e.tunIfIndex,
+			ClashMark:     e.ifMark,
+			TunIfindex:    e.tunIfIndex,
+			FakeIp4Prefix: e.fakeIP4Prefix,
+			FakeIp6Prefix: *(*[2]uint32)(unsafe.Pointer(&e.fakeIP6Prefix)),
 		}
 		if err = objs.ParamsMap.Update(uint32(0), params, ebpf.UpdateAny); err != nil {
 			return fmt.Errorf("update params map value: %w", err)

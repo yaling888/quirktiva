@@ -33,6 +33,10 @@
 
 #define UDP_DST_OFF     (ETH_HLEN + sizeof(struct iphdr) + offsetof(struct udphdr, dest))
 
+#define ICMP_CSUM_OFF   (ETH_HLEN + sizeof(struct iphdr) + offsetof(struct icmphdr, checksum))
+
+#define ICMP_TYPE_OFF   (ETH_HLEN + sizeof(struct iphdr) + offsetof(struct icmphdr, type))
+
 #define IP6_DST_OFF     (ETH_HLEN + offsetof(struct ipv6hdr, daddr))
 
 #define IP6_SRC_OFF     (ETH_HLEN + offsetof(struct ipv6hdr, saddr))
@@ -48,3 +52,7 @@
 #define UDP6_SRC_OFF    (ETH_HLEN + sizeof(struct ipv6hdr) + offsetof(struct udphdr, source))
 
 #define UDP6_DST_OFF    (ETH_HLEN + sizeof(struct ipv6hdr) + offsetof(struct udphdr, dest))
+
+#define ICMP6_CSUM_OFF  (ETH_HLEN + sizeof(struct ipv6hdr) + offsetof(struct icmp6hdr, icmp6_cksum))
+
+#define ICMP6_TYPE_OFF  (ETH_HLEN + sizeof(struct ipv6hdr) + offsetof(struct icmp6hdr, icmp6_type))

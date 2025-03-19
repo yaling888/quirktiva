@@ -13,8 +13,10 @@ import (
 )
 
 type bpfParams struct {
-	ClashMark  uint32
-	TunIfindex uint32
+	ClashMark     uint32
+	TunIfindex    uint32
+	FakeIp4Prefix uint32
+	FakeIp6Prefix [2]uint32
 }
 
 // loadBpf returns the embedded CollectionSpec for bpf.
@@ -74,8 +76,10 @@ type bpfMapSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type bpfVariableSpecs struct {
-	ClashMark  *ebpf.VariableSpec `ebpf:"clash_mark"`
-	TunIfindex *ebpf.VariableSpec `ebpf:"tun_ifindex"`
+	ClashMark     *ebpf.VariableSpec `ebpf:"clash_mark"`
+	FakeIp4Prefix *ebpf.VariableSpec `ebpf:"fake_ip4_prefix"`
+	FakeIp6Prefix *ebpf.VariableSpec `ebpf:"fake_ip6_prefix"`
+	TunIfindex    *ebpf.VariableSpec `ebpf:"tun_ifindex"`
 }
 
 // bpfObjects contains all objects after they have been loaded into the kernel.
@@ -111,8 +115,10 @@ func (m *bpfMaps) Close() error {
 //
 // It can be passed to loadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type bpfVariables struct {
-	ClashMark  *ebpf.Variable `ebpf:"clash_mark"`
-	TunIfindex *ebpf.Variable `ebpf:"tun_ifindex"`
+	ClashMark     *ebpf.Variable `ebpf:"clash_mark"`
+	FakeIp4Prefix *ebpf.Variable `ebpf:"fake_ip4_prefix"`
+	FakeIp6Prefix *ebpf.Variable `ebpf:"fake_ip6_prefix"`
+	TunIfindex    *ebpf.Variable `ebpf:"tun_ifindex"`
 }
 
 // bpfPrograms contains all programs after they have been loaded into the kernel.

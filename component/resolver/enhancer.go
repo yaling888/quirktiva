@@ -12,6 +12,8 @@ type Enhancer interface {
 	IsFakeBroadcastIP(netip.Addr) bool
 	IsExistFakeIP(netip.Addr) bool
 	FindHostByIP(netip.Addr) (string, bool)
+	FakeIP4Prefix() *netip.Prefix
+	FakeIP6Prefix() *netip.Prefix
 	FlushFakeIP() error
 	StoreFakePoolState()
 }
@@ -70,6 +72,22 @@ func FindHostByIP(ip netip.Addr) (string, bool) {
 	}
 
 	return "", false
+}
+
+func FakeIP4Prefix() *netip.Prefix {
+	if mapper := DefaultHostMapper; mapper != nil {
+		return mapper.FakeIP4Prefix()
+	}
+
+	return nil
+}
+
+func FakeIP6Prefix() *netip.Prefix {
+	if mapper := DefaultHostMapper; mapper != nil {
+		return mapper.FakeIP6Prefix()
+	}
+
+	return nil
 }
 
 func FlushFakeIP() error {

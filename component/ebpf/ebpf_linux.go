@@ -10,6 +10,7 @@ import (
 	"github.com/yaling888/quirktiva/component/dialer"
 	"github.com/yaling888/quirktiva/component/ebpf/redir"
 	"github.com/yaling888/quirktiva/component/ebpf/tc"
+	"github.com/yaling888/quirktiva/component/resolver"
 	C "github.com/yaling888/quirktiva/constant"
 )
 
@@ -26,6 +27,9 @@ func NewTcEBpfProgram(ifaceNames []string, tunName string) (*TcEBpfProgram, erro
 
 	ifMark := uint32(dialer.DefaultRoutingMark.Load())
 
+	fakeIP4Prefix := resolver.FakeIP4Prefix()
+	fakeIP6Prefix := resolver.FakeIP6Prefix()
+
 	var pros []C.EBpf
 	for _, ifaceName := range ifaceNames {
 		iface, err := netlink.LinkByName(ifaceName)
@@ -39,7 +43,7 @@ func NewTcEBpfProgram(ifaceNames []string, tunName string) (*TcEBpfProgram, erro
 		attrs := iface.Attrs()
 		index := attrs.Index
 
-		tcPro := tc.NewEBpfTc(ifaceName, index, ifMark, tunIndex)
+		tcPro := tc.NewEBpfTc(ifaceName, index, ifMark, tunIndex, fakeIP4Prefix, fakeIP6Prefix)
 		if err = tcPro.Start(); err != nil {
 			return nil, err
 		}
@@ -54,6 +58,9 @@ func NewTcEBpfProgram(ifaceNames []string, tunName string) (*TcEBpfProgram, erro
 
 // NewRedirEBpfProgram new auto redirect ebpf program
 func NewRedirEBpfProgram(ifaceNames []string, redirPort uint16) (*TcEBpfProgram, error) {
+	fakeIP4Prefix := resolver.FakeIP4Prefix()
+	fakeIP6Prefix := resolver.FakeIP6Prefix()
+
 	var pros []C.EBpf
 	for _, ifaceName := range ifaceNames {
 		iface, err := netlink.LinkByName(ifaceName)
@@ -90,7 +97,7 @@ func NewRedirEBpfProgram(ifaceNames []string, redirPort uint16) (*TcEBpfProgram,
 
 		redirAddrPort := netip.AddrPortFrom(addr4, redirPort)
 
-		redirPro := redir.NewEBpfRedirect(ifaceName, index, redirAddrPort, addr6)
+		redirPro := redir.NewEBpfRedirect(ifaceName, index, redirAddrPort, addr6, fakeIP4Prefix, fakeIP6Prefix)
 		if err = redirPro.Start(); err != nil {
 			return nil, err
 		}

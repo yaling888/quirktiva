@@ -1048,9 +1048,15 @@ func parseDNS(rawCfg *RawConfig, hosts *trie.DomainTrie[netip.Addr]) (*DNS, erro
 		if err != nil {
 			return nil, err
 		}
+		if !ipnet.Addr().Is4() {
+			return nil, fmt.Errorf("fake-ip-range does not contain any ipv4 addresses: %s", cfg.FakeIPRange)
+		}
 		ipnet6, err := netip.ParsePrefix(cfg.FakeIPRange6)
 		if err != nil {
 			return nil, err
+		}
+		if !ipnet6.Addr().Is6() {
+			return nil, fmt.Errorf("fake-ip-range6 does not contain any ipv6 addresses: %s", cfg.FakeIPRange6)
 		}
 
 		defaultFakeIPFilter := []string{

@@ -1,13 +1,15 @@
 #include <linux/types.h>
 #include <bpf/bpf_endian.h>
-#include <bpf/bpf_helpers.h>
 #include <linux/bpf.h>
+#include <bpf/bpf_helpers.h>
 #include <linux/pkt_cls.h>
 #include <linux/if_ether.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
+#include <linux/icmp.h>
+#include <linux/icmpv6.h>
 #include "helper.h"
 
 struct socks_info {
@@ -38,8 +40,11 @@ struct context {
   __be16          dst_port;
   __be16          redir_port;
   __u16           _pad;
+  __u8            src_mac[ETH_ALEN];
+  __u8            dst_mac[ETH_ALEN];
   int             is6;
   int             is_tcp;
+  int             is_ping;
   int             connect;
   int             disconnect;
 };
@@ -47,6 +52,8 @@ struct context {
 const volatile struct in6_addr  redir_ip4;
 const volatile struct in6_addr  redir_ip6;
 const volatile        __be16    redir_port; // network byte order
+const volatile        __u32     fake_ip4_prefix; // host byte order, 16 bits
+const volatile        __be32    fake_ip6_prefix[2]; // 64 bits
 
 static __always_inline struct in6_addr ip4_map_6(__be32 *ip) {
   struct in6_addr ip6    = {};
@@ -161,6 +168,38 @@ static __always_inline int rewrite_port(struct __sk_buff *skb, __be16 old_port, 
   return 1;
 }
 
+static __always_inline int handle_ping4(struct __sk_buff *skb, struct context *ctx) {
+  bpf_skb_store_bytes(skb, offsetof(struct ethhdr, h_source), ctx->dst_mac, ETH_ALEN, 0);
+  bpf_skb_store_bytes(skb, offsetof(struct ethhdr, h_dest), ctx->src_mac, ETH_ALEN, 0);
+
+  bpf_skb_store_bytes(skb, IP_SRC_OFF, &ctx->dst_addr.in6_u.u6_addr32[3], sizeof(ctx->dst_addr.in6_u.u6_addr32[3]), 0);
+  bpf_skb_store_bytes(skb, IP_DST_OFF, &ctx->src_addr.in6_u.u6_addr32[3], sizeof(ctx->src_addr.in6_u.u6_addr32[3]), 0);
+
+  __u8 new_type = 0; // ICMP_ECHOREPLY
+  bpf_l4_csum_replace(skb, ICMP_CSUM_OFF, ICMP_ECHO, new_type, sizeof(__u16));
+	bpf_skb_store_bytes(skb, ICMP_TYPE_OFF, &new_type, sizeof(new_type), 0);
+
+	bpf_clone_redirect(skb, skb->ifindex, 0);
+
+	return TC_ACT_SHOT;
+}
+
+static __always_inline int handle_ping6(struct __sk_buff *skb, struct context *ctx) {
+  bpf_skb_store_bytes(skb, offsetof(struct ethhdr, h_source), ctx->dst_mac, ETH_ALEN, 0);
+  bpf_skb_store_bytes(skb, offsetof(struct ethhdr, h_dest), ctx->src_mac, ETH_ALEN, 0);
+
+  bpf_skb_store_bytes(skb, IP6_SRC_OFF, &ctx->dst_addr, sizeof(ctx->dst_addr), 0);
+  bpf_skb_store_bytes(skb, IP6_DST_OFF, &ctx->src_addr, sizeof(ctx->src_addr), 0);
+
+  __u8 new_type = 129; // ICMPV6_ECHO_REPLY
+  bpf_l4_csum_replace(skb, ICMP6_CSUM_OFF, ICMPV6_ECHO_REQUEST, new_type, sizeof(__u16));
+	bpf_skb_store_bytes(skb, ICMP6_TYPE_OFF, &new_type, sizeof(new_type), 0);
+
+	bpf_clone_redirect(skb, skb->ifindex, 0);
+
+  return TC_ACT_SHOT;
+}
+
 static int extract_context_from_skb(struct __sk_buff *skb, struct context *ctx) {
   void *data          = (void *)(long)skb->data;
   void *data_end      = (void *)(long)skb->data_end;
@@ -195,6 +234,17 @@ static int extract_context_from_skb(struct __sk_buff *skb, struct context *ctx) 
       }
       ctx->src_port = udph->source;
       ctx->dst_port = udph->dest;
+    } else if (iph->protocol == IPPROTO_ICMP) {
+      struct icmphdr *icmp = (struct icmphdr *)(iph + 1);
+      if ((void *)(icmp + 1) > data_end) {
+        return -1;
+      }
+      if (icmp->type != ICMP_ECHO) {
+        return -1;
+      }
+      __builtin_memcpy(ctx->src_mac, eth->h_source, ETH_ALEN);
+      __builtin_memcpy(ctx->dst_mac, eth->h_dest, ETH_ALEN);
+      ctx->is_ping = 1;
     } else {
       return -1;
     }
@@ -232,6 +282,17 @@ static int extract_context_from_skb(struct __sk_buff *skb, struct context *ctx) 
       }
       ctx->src_port = udph->source;
       ctx->dst_port = udph->dest;
+    } else if (ip6h->nexthdr == IPPROTO_ICMPV6) {
+      struct icmp6hdr *icmp = (struct icmp6hdr *)(ip6h + 1);
+      if ((void *)(icmp + 1) > data_end) {
+        return -1;
+      }
+      if (icmp->icmp6_type != ICMPV6_ECHO_REQUEST) {
+        return -1;
+      }
+      __builtin_memcpy(ctx->src_mac, eth->h_source, ETH_ALEN);
+      __builtin_memcpy(ctx->dst_mac, eth->h_dest, ETH_ALEN);
+      ctx->is_ping = 1;
     } else {
       return -1;
     }
@@ -267,10 +328,24 @@ int tc_redir_ingress_func(struct __sk_buff *skb) {
         IN6_IS_ADDR_MULTICAST(&ctx.dst_addr)) {
       return TC_ACT_OK;
     }
+
+    if (ctx.is_ping == 1) {
+      if (ctx.dst_addr.in6_u.u6_addr32[0] != fake_ip6_prefix[0] || ctx.dst_addr.in6_u.u6_addr32[1] != fake_ip6_prefix[1]) {
+        return TC_ACT_OK;
+      }
+      return handle_ping6(skb, &ctx);
+    }
   } else {
     __u32 dst_ip_h = bpf_ntohl(ctx.dst_addr.in6_u.u6_addr32[3]);
     if (IN_LOOPBACK(dst_ip_h) || IN_PRIVATE(dst_ip_h) || IN_MULTICAST(dst_ip_h) || dst_ip_h == INADDR_BROADCAST) {
       return TC_ACT_OK;
+    }
+
+    if (ctx.is_ping == 1) {
+      if ((dst_ip_h & 0xffff0000) != fake_ip4_prefix) {
+        return TC_ACT_OK;
+      }
+      return handle_ping4(skb, &ctx);
     }
   }
 

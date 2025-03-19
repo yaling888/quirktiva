@@ -107,6 +107,22 @@ func (h *ResolverEnhancer) FlushFakeIP() (err error) {
 	return
 }
 
+func (h *ResolverEnhancer) FakeIP4Prefix() *netip.Prefix {
+	if pool := h.fakePool; pool != nil {
+		p := *pool.IPNet()
+		return &p
+	}
+	return nil
+}
+
+func (h *ResolverEnhancer) FakeIP6Prefix() *netip.Prefix {
+	if pool := h.fakePool6; pool != nil {
+		p := *pool.IPNet()
+		return &p
+	}
+	return nil
+}
+
 func (h *ResolverEnhancer) PatchFrom(o *ResolverEnhancer) {
 	if h.mapping != nil && o.mapping != nil {
 		o.mapping.CloneTo(h.mapping)

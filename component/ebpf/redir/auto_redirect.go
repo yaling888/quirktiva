@@ -32,15 +32,30 @@ type EBpfRedirect struct {
 	ifIndex       int
 	redirAddrPort netip.AddrPort
 	redirAddr6    netip.Addr
+
+	fakeIP4Prefix uint32 // host byte order
+	fakeIP6Prefix [8]byte
 }
 
-func NewEBpfRedirect(ifName string, ifIndex int, redirAddrPort netip.AddrPort, redirAddr6 netip.Addr) *EBpfRedirect {
-	return &EBpfRedirect{
+func NewEBpfRedirect(ifName string, ifIndex int, redirAddrPort netip.AddrPort, redirAddr6 netip.Addr, fakeIP4Prefix, fakeIP6Prefix *netip.Prefix) *EBpfRedirect {
+	redir := &EBpfRedirect{
 		ifName:        ifName,
 		ifIndex:       ifIndex,
 		redirAddrPort: redirAddrPort,
 		redirAddr6:    redirAddr6,
 	}
+
+	if fakeIP4Prefix != nil {
+		a4 := netip.PrefixFrom(fakeIP4Prefix.Addr(), 16).Masked().Addr().As4()
+		redir.fakeIP4Prefix = binary.BigEndian.Uint32(a4[:])
+	}
+
+	if fakeIP6Prefix != nil {
+		a16 := netip.PrefixFrom(fakeIP6Prefix.Addr(), 64).Masked().Addr().As16()
+		redir.fakeIP6Prefix = [8]byte(a16[:8])
+	}
+
+	return redir
 }
 
 func (e *EBpfRedirect) Start() error {
@@ -66,6 +81,14 @@ func (e *EBpfRedirect) Start() error {
 	binary.BigEndian.PutUint16(tmp[:], e.redirAddrPort.Port())
 	if err = spec.Variables["redir_port"].Set(tmp[:2]); err != nil {
 		return fmt.Errorf("setting variable redir_port value: %w", err)
+	}
+
+	if err = spec.Variables["fake_ip4_prefix"].Set(e.fakeIP4Prefix); err != nil {
+		return fmt.Errorf("setting variable fake_ip4_prefix value: %w", err)
+	}
+
+	if err = spec.Variables["fake_ip6_prefix"].Set(e.fakeIP6Prefix[:]); err != nil {
+		return fmt.Errorf("setting variable fake_ip6_prefix value: %w", err)
 	}
 
 	var objs bpfObjects

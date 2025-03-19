@@ -78,9 +78,11 @@ type bpfMapSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type bpfVariableSpecs struct {
-	RedirIp4  *ebpf.VariableSpec `ebpf:"redir_ip4"`
-	RedirIp6  *ebpf.VariableSpec `ebpf:"redir_ip6"`
-	RedirPort *ebpf.VariableSpec `ebpf:"redir_port"`
+	FakeIp4Prefix *ebpf.VariableSpec `ebpf:"fake_ip4_prefix"`
+	FakeIp6Prefix *ebpf.VariableSpec `ebpf:"fake_ip6_prefix"`
+	RedirIp4      *ebpf.VariableSpec `ebpf:"redir_ip4"`
+	RedirIp6      *ebpf.VariableSpec `ebpf:"redir_ip6"`
+	RedirPort     *ebpf.VariableSpec `ebpf:"redir_port"`
 }
 
 // bpfObjects contains all objects after they have been loaded into the kernel.
@@ -118,9 +120,11 @@ func (m *bpfMaps) Close() error {
 //
 // It can be passed to loadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type bpfVariables struct {
-	RedirIp4  *ebpf.Variable `ebpf:"redir_ip4"`
-	RedirIp6  *ebpf.Variable `ebpf:"redir_ip6"`
-	RedirPort *ebpf.Variable `ebpf:"redir_port"`
+	FakeIp4Prefix *ebpf.Variable `ebpf:"fake_ip4_prefix"`
+	FakeIp6Prefix *ebpf.Variable `ebpf:"fake_ip6_prefix"`
+	RedirIp4      *ebpf.Variable `ebpf:"redir_ip4"`
+	RedirIp6      *ebpf.Variable `ebpf:"redir_ip6"`
+	RedirPort     *ebpf.Variable `ebpf:"redir_port"`
 }
 
 // bpfPrograms contains all programs after they have been loaded into the kernel.

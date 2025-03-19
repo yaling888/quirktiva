@@ -1,16 +1,20 @@
 #include <linux/types.h>
 #include <bpf/bpf_endian.h>
-#include <bpf/bpf_helpers.h>
 #include <linux/bpf.h>
+#include <bpf/bpf_helpers.h>
 #include <linux/pkt_cls.h>
 #include <linux/if_ether.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
+#include <linux/icmp.h>
+#include <linux/icmpv6.h>
 #include "helper.h"
 
 struct params {
-  __u32 clash_mark;
-  __u32 tun_ifindex;
+  __u32   clash_mark;
+  __u32   tun_ifindex;
+  __u32   fake_ip4_prefix;
+  __be32  fake_ip6_prefix[2];
 };
 
 struct {
@@ -46,11 +50,21 @@ int tc_tun_func(struct __sk_buff *skb) {
       return TC_ACT_OK;
     }
 
+    __u32 dst_ip_h = bpf_ntohl(iph->daddr);
+
     if (iph->protocol == IPPROTO_ICMP) {
-      return TC_ACT_OK;
+      struct icmphdr *icmp = (struct icmphdr *)(iph + 1);
+      if ((void *)(icmp + 1) > data_end) {
+        return TC_ACT_OK;
+      }
+      if (icmp->type != ICMP_ECHO) {
+        return TC_ACT_OK;
+      }
+      if ((dst_ip_h & 0xffff0000) != vars->fake_ip4_prefix) {
+        return TC_ACT_OK;
+      }
     }
 
-    __u32 dst_ip_h = bpf_ntohl(iph->daddr);
     if (IN_LOOPBACK(dst_ip_h) || IN_PRIVATE(dst_ip_h) || IN_MULTICAST(dst_ip_h) || dst_ip_h == INADDR_BROADCAST) {
       return TC_ACT_OK;
     }
@@ -60,12 +74,24 @@ int tc_tun_func(struct __sk_buff *skb) {
       return TC_ACT_OK;
     }
 
-    if (ip6h->nexthdr == IPPROTO_ICMPV6 || ip6h->nexthdr == IPPROTO_HOPOPTS || ip6h->nexthdr == IPPROTO_NONE) {
-      return TC_ACT_OK;
+    if (ip6h->nexthdr == IPPROTO_ICMPV6) {
+      struct icmp6hdr *icmp = (struct icmp6hdr *)(ip6h + 1);
+      if ((void *)(icmp + 1) > data_end) {
+        return TC_ACT_OK;
+      }
+      if (icmp->icmp6_type != ICMPV6_ECHO_REQUEST) {
+        return TC_ACT_OK;
+      }
+      if (ip6h->daddr.in6_u.u6_addr32[0] != vars->fake_ip6_prefix[0] ||
+          ip6h->daddr.in6_u.u6_addr32[1] != vars->fake_ip6_prefix[1]) {
+        return TC_ACT_OK;
+      }
     }
 
-    struct in6_addr dst_addr = ip6h->daddr;
-    if (IN6_IS_ADDR_LOOPBACK(&dst_addr) || IN6_IS_ADDR_LINKLOCAL(&dst_addr) || IN6_IS_ADDR_SITELOCAL(&dst_addr) || IN6_IS_ADDR_MULTICAST(&dst_addr)) {
+    if (IN6_IS_ADDR_LOOPBACK(&ip6h->daddr)  ||
+        IN6_IS_ADDR_LINKLOCAL(&ip6h->daddr) ||
+        IN6_IS_ADDR_SITELOCAL(&ip6h->daddr) ||
+        IN6_IS_ADDR_MULTICAST(&ip6h->daddr)) {
       return TC_ACT_OK;
     }
   } else {
@@ -78,7 +104,8 @@ int tc_tun_func(struct __sk_buff *skb) {
 
 // below is to use the new Variable API and better than traditional bpf maps.
 // the Variable API requires kernel >= v5.5.
-const volatile __u32 clash_mark, tun_ifindex;
+const volatile __u32  clash_mark, tun_ifindex, fake_ip4_prefix;
+const volatile __be32 fake_ip6_prefix[2];
 
 SEC("tc_clash_redirect_to_tun_5_5")
 int tc_tun_5_5_func(struct __sk_buff *skb) {
@@ -100,11 +127,21 @@ int tc_tun_5_5_func(struct __sk_buff *skb) {
       return TC_ACT_OK;
     }
 
+    __u32 dst_ip_h = bpf_ntohl(iph->daddr);
+
     if (iph->protocol == IPPROTO_ICMP) {
-      return TC_ACT_OK;
+      struct icmphdr *icmp = (struct icmphdr *)(iph + 1);
+      if ((void *)(icmp + 1) > data_end) {
+        return TC_ACT_OK;
+      }
+      if (icmp->type != ICMP_ECHO) {
+        return TC_ACT_OK;
+      }
+      if ((dst_ip_h & 0xffff0000) != fake_ip4_prefix) {
+        return TC_ACT_OK;
+      }
     }
 
-    __u32 dst_ip_h = bpf_ntohl(iph->daddr);
     if (IN_LOOPBACK(dst_ip_h) || IN_PRIVATE(dst_ip_h) || IN_MULTICAST(dst_ip_h) || dst_ip_h == INADDR_BROADCAST) {
       return TC_ACT_OK;
     }
@@ -114,12 +151,24 @@ int tc_tun_5_5_func(struct __sk_buff *skb) {
       return TC_ACT_OK;
     }
 
-    if (ip6h->nexthdr == IPPROTO_ICMPV6 || ip6h->nexthdr == IPPROTO_HOPOPTS || ip6h->nexthdr == IPPROTO_NONE) {
-      return TC_ACT_OK;
+    if (ip6h->nexthdr == IPPROTO_ICMPV6) {
+      struct icmp6hdr *icmp = (struct icmp6hdr *)(ip6h + 1);
+      if ((void *)(icmp + 1) > data_end) {
+        return TC_ACT_OK;
+      }
+      if (icmp->icmp6_type != ICMPV6_ECHO_REQUEST) {
+        return TC_ACT_OK;
+      }
+      if (ip6h->daddr.in6_u.u6_addr32[0] != fake_ip6_prefix[0] ||
+          ip6h->daddr.in6_u.u6_addr32[1] != fake_ip6_prefix[1]) {
+        return TC_ACT_OK;
+      }
     }
 
-    struct in6_addr dst_addr = ip6h->daddr;
-    if (IN6_IS_ADDR_LOOPBACK(&dst_addr) || IN6_IS_ADDR_LINKLOCAL(&dst_addr) || IN6_IS_ADDR_SITELOCAL(&dst_addr) || IN6_IS_ADDR_MULTICAST(&dst_addr)) {
+    if (IN6_IS_ADDR_LOOPBACK(&ip6h->daddr)  ||
+        IN6_IS_ADDR_LINKLOCAL(&ip6h->daddr) ||
+        IN6_IS_ADDR_SITELOCAL(&ip6h->daddr) ||
+        IN6_IS_ADDR_MULTICAST(&ip6h->daddr)) {
       return TC_ACT_OK;
     }
   } else {
