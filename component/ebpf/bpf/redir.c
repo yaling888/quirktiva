@@ -177,11 +177,9 @@ static __always_inline int handle_ping4(struct __sk_buff *skb, struct context *c
 
   __u8 new_type = 0; // ICMP_ECHOREPLY
   bpf_l4_csum_replace(skb, ICMP_CSUM_OFF, ICMP_ECHO, new_type, sizeof(__u16));
-	bpf_skb_store_bytes(skb, ICMP_TYPE_OFF, &new_type, sizeof(new_type), 0);
+  bpf_skb_store_bytes(skb, ICMP_TYPE_OFF, &new_type, sizeof(new_type), 0);
 
-	bpf_clone_redirect(skb, skb->ifindex, 0);
-
-	return TC_ACT_SHOT;
+  return bpf_redirect(skb->ifindex, 0);
 }
 
 static __always_inline int handle_ping6(struct __sk_buff *skb, struct context *ctx) {
@@ -193,11 +191,9 @@ static __always_inline int handle_ping6(struct __sk_buff *skb, struct context *c
 
   __u8 new_type = 129; // ICMPV6_ECHO_REPLY
   bpf_l4_csum_replace(skb, ICMP6_CSUM_OFF, ICMPV6_ECHO_REQUEST, new_type, sizeof(__u16));
-	bpf_skb_store_bytes(skb, ICMP6_TYPE_OFF, &new_type, sizeof(new_type), 0);
+  bpf_skb_store_bytes(skb, ICMP6_TYPE_OFF, &new_type, sizeof(new_type), 0);
 
-	bpf_clone_redirect(skb, skb->ifindex, 0);
-
-  return TC_ACT_SHOT;
+  return bpf_redirect(skb->ifindex, 0);
 }
 
 static int extract_context_from_skb(struct __sk_buff *skb, struct context *ctx) {
