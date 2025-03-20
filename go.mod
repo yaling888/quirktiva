@@ -7,7 +7,7 @@ require (
 	github.com/apernet/hysteria/extras/v2 v2.5.3-0.20241104183808-a2c7b8fd198d
 	github.com/cilium/ebpf v0.17.3
 	github.com/dlclark/regexp2 v1.11.5
-	github.com/expr-lang/expr v1.17.0
+	github.com/expr-lang/expr v1.17.1
 	github.com/go-chi/chi/v5 v5.2.1
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/render v1.0.3
