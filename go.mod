@@ -16,7 +16,7 @@ require (
 	github.com/miekg/dns v1.1.63
 	github.com/oschwald/geoip2-golang v1.11.0
 	github.com/phuslu/log v1.0.113
-	github.com/quic-go/quic-go v0.50.0
+	github.com/quic-go/quic-go v0.50.1
 	github.com/samber/lo v1.49.1
 	github.com/stretchr/testify v1.10.0
 	github.com/vishvananda/netlink v1.3.1-0.20250303224720-0e7078ed04c8
@@ -60,4 +60,4 @@ require (
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 )
 
-replace github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.50.0
+replace github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.50.1
