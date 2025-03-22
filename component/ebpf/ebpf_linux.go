@@ -3,6 +3,7 @@ package ebpf
 import (
 	"fmt"
 	"net/netip"
+	"net/url"
 
 	"github.com/vishvananda/netlink"
 
@@ -16,6 +17,9 @@ import (
 
 // NewTcEBpfProgram new redirect to tun ebpf program
 func NewTcEBpfProgram(ifaceNames []string, tunName string) (*TcEBpfProgram, error) {
+	if u, err := url.Parse(tunName); err == nil {
+		tunName = u.Host
+	}
 	tunIface, err := netlink.LinkByName(tunName)
 	if err != nil {
 		return nil, fmt.Errorf("lookup network iface %s: %w", tunName, err)

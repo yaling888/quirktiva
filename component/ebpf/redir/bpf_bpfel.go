@@ -12,14 +12,6 @@ import (
 	"github.com/cilium/ebpf"
 )
 
-type bpfIn6Addr struct{ In6U struct{ U6Addr8 [16]uint8 } }
-
-type bpfSocksInfo struct {
-	Addr struct{ In6U struct{ U6Addr8 [16]uint8 } }
-	Port uint16
-	Pad  uint16
-}
-
 // loadBpf returns the embedded CollectionSpec for bpf.
 func loadBpf() (*ebpf.CollectionSpec, error) {
 	reader := bytes.NewReader(_BpfBytes)
