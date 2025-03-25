@@ -25,24 +25,39 @@ var (
 )
 
 func ConfigInterfaceAddress(dev device.Device, addr4, addr6 netip.Prefix, _ int, autoRoute bool) error {
-	if !addr4.IsValid() {
-		return fmt.Errorf("invalid tun address4: %s", addr4)
-	}
-	if !addr6.IsValid() {
-		return fmt.Errorf("invalid tun address6: %s", addr6)
-	}
-
-	devInterface, err := netlink.LinkByName(dev.Name())
+	link, err := netlink.LinkByName(dev.Name())
 	if err != nil {
 		return err
 	}
 
-	if err = netlink.LinkSetUp(devInterface); err != nil {
+	if err = netlink.LinkSetUp(link); err != nil {
 		return err
+	}
+
+	return ConfigInterfaceAddressAndRoutes(link, addr4, addr6, autoRoute, false)
+}
+
+func ConfigInterfaceAddressAndRoutes(devInterface netlink.Link, addr4, addr6 netip.Prefix, autoRoute, nextIP bool) (err error) {
+	if !addr4.IsValid() {
+		addr4 = DefaultPrefix4
+	}
+	if !addr6.IsValid() {
+		addr6 = DefaultPrefix6
+	}
+
+	if (devInterface.Attrs().Flags & net.FlagUp) == 0 {
+		if err = netlink.LinkSetUp(devInterface); err != nil {
+			return fmt.Errorf("failed to set interface up, iface: %s, error: %w", devInterface.Attrs().Name, err)
+		}
 	}
 
 	ip4 := GetFirstAvailableIP(addr4)
 	ip6 := GetFirstAvailableIP(addr6)
+
+	if nextIP {
+		ip4 = ip4.Next()
+		ip6 = ip6.Next()
+	}
 
 	bits4 := ip4.BitLen()
 	ones4 := addr4.Bits()
@@ -61,12 +76,12 @@ func ConfigInterfaceAddress(dev device.Device, addr4, addr6 netip.Prefix, _ int,
 	}
 
 	if err = netlink.AddrAdd(devInterface, address4); err != nil {
-		return fmt.Errorf("failed to add tun ipv4 address: %w", err)
+		return fmt.Errorf("failed to add ipv4 address, iface: %s, error: %w", devInterface.Attrs().Name, err)
 	}
 
 	if autoRoute {
 		if err = configInterfaceRouting(devInterface.Attrs().Index, ip4, defaultRoutes); err != nil { // route 4
-			return fmt.Errorf("failed to add tun ipv4 route: %w", err)
+			return fmt.Errorf("failed to add ipv4 route, iface: %s, error: %w", devInterface.Attrs().Name, err)
 		}
 	}
 
@@ -83,12 +98,12 @@ func ConfigInterfaceAddress(dev device.Device, addr4, addr6 netip.Prefix, _ int,
 	}
 
 	if err = netlink.AddrAdd(devInterface, address6); err != nil {
-		return fmt.Errorf("failed to add tun ipv6 address: %w", err)
+		return fmt.Errorf("failed to add ipv6 address, iface: %s, error: %w", devInterface.Attrs().Name, err)
 	}
 
 	if autoRoute {
 		if err = configInterfaceRouting(devInterface.Attrs().Index, ip6, defaultRoutes6); err != nil { // route 6
-			return fmt.Errorf("failed to add tun ipv6 route: %w", err)
+			return fmt.Errorf("failed to add ipv6 route, iface: %s, error: %w", devInterface.Attrs().Name, err)
 		}
 	}
 	return nil
@@ -155,13 +170,20 @@ func configInterfaceRouting(interfaceIndex int, linkAddr netip.Addr, routes []st
 	for _, route := range routes {
 		_, dst, _ := net.ParseCIDR(route)
 		rt := &netlink.Route{
-			Src:       linkAddr.AsSlice(),
 			Dst:       dst,
 			Table:     unix.RT_TABLE_MAIN,
-			Scope:     unix.RT_SCOPE_UNIVERSE,
+			Scope:     unix.RT_SCOPE_LINK,
 			Protocol:  unix.RTPROT_KERNEL,
 			LinkIndex: interfaceIndex,
-			Priority:  0,
+			Priority:  100,
+		}
+
+		if linkAddr.Is4() {
+			rt.Src = linkAddr.AsSlice()
+		} else {
+			rt.Type = unix.RTN_UNICAST
+			rt.Scope = unix.RT_SCOPE_UNIVERSE
+			rt.Priority = 256
 		}
 
 		delay := 10 * time.Millisecond
@@ -175,7 +197,7 @@ func configInterfaceRouting(interfaceIndex int, linkAddr netip.Addr, routes []st
 				tryTimes++
 				goto retry
 			}
-			return err
+			return fmt.Errorf("route %s: %w", route, err)
 		}
 	}
 

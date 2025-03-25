@@ -14,7 +14,6 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/waiter"
 
-	"github.com/yaling888/quirktiva/common/pool"
 	"github.com/yaling888/quirktiva/listener/tun/ipstack/gvisor/adapter"
 	"github.com/yaling888/quirktiva/listener/tun/ipstack/gvisor/option"
 )
@@ -22,7 +21,7 @@ import (
 const (
 	// defaultWndSize if set to zero, the default
 	// receive window buffer size is used instead.
-	defaultWndSize = pool.NetBufferSize
+	defaultWndSize = 0
 
 	// maxConnAttempts specifies the maximum number
 	// of in-flight tcp connection attempts.
@@ -99,7 +98,7 @@ func setSocketOptions(s *stack.Stack, ep tcpip.Endpoint) tcpip.Error {
 	{ /* TCP recv/send buffer size */
 		var ss tcpip.TCPSendBufferSizeRangeOption
 		if err := s.TransportProtocolOption(header.TCPProtocolNumber, &ss); err == nil {
-			ep.SocketOptions().SetReceiveBufferSize(int64(ss.Default), false)
+			ep.SocketOptions().SetSendBufferSize(int64(ss.Default), false)
 		}
 
 		var rs tcpip.TCPReceiveBufferSizeRangeOption

@@ -22,8 +22,7 @@ import (
 	"github.com/yaling888/quirktiva/listener/tun/ipstack/system"
 )
 
-// New TunAdapter
-func New(
+func newTunAdapter(
 	tunConf *C.Tun,
 	tcpIn chan<- C.ConnContext,
 	udpIn chan<- *inbound.PacketAdapter,
@@ -166,7 +165,7 @@ func parseDevice(s string, mtu uint32) (device.Device, error) {
 	return tun.Open(name, mtu)
 }
 
-func setAtLatest(stackType C.TUNStack, devName string) {
+func setAtLatest(_ C.TUNStack, devNames ...string) {
 	switch runtime.GOOS {
 	case "darwin":
 		// _, _ = cmd.ExecCmd("/usr/sbin/sysctl -w net.inet.ip.forwarding=1")
@@ -180,17 +179,19 @@ func setAtLatest(stackType C.TUNStack, devName string) {
 		_, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.all.accept_local=1")
 		_, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.all.accept_redirects=1")
 		_, _ = cmd.ExecCmd("sysctl -w net.ipv4.conf.all.rp_filter=0")
-		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.forwarding=1", devName))
-		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.accept_local=1", devName))
-		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.accept_redirects=1", devName))
-		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.rp_filter=0", devName))
 		// _, _ = cmd.ExecCmd("sysctl -w net.ipv6.conf.all.disable_ipv6=0")
 		// _, _ = cmd.ExecCmd("sysctl -w net.ipv6.conf.default.disable_ipv6=0")
 		_, _ = cmd.ExecCmd("sysctl -w net.ipv6.conf.all.forwarding=1")
 		_, _ = cmd.ExecCmd("sysctl -w net.ipv6.conf.all.accept_redirects=1")
-		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv6.conf.%s.disable_ipv6=0", devName))
-		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv6.conf.%s.forwarding=1", devName))
-		_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv6.conf.%s.accept_redirects=1", devName))
 		// _, _ = cmd.ExecCmd("iptables -t filter -P FORWARD ACCEPT")
+		for _, devName := range devNames {
+			_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.forwarding=1", devName))
+			_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.accept_local=1", devName))
+			_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.accept_redirects=1", devName))
+			_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv4.conf.%s.rp_filter=0", devName))
+			_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv6.conf.%s.disable_ipv6=0", devName))
+			_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv6.conf.%s.forwarding=1", devName))
+			_, _ = cmd.ExecCmd(fmt.Sprintf("sysctl -w net.ipv6.conf.%s.accept_redirects=1", devName))
+		}
 	}
 }

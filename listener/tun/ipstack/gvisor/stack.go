@@ -68,6 +68,7 @@ func New(
 		dnsHijack: dnsHijack,
 		tcpIn:     tcpIn,
 		udpIn:     udpIn,
+		tp:        C.TUN,
 	}
 
 	// Generate unique NIC id.

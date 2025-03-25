@@ -27,6 +27,8 @@ type gvHandler struct {
 
 	tcpIn chan<- C.ConnContext
 	udpIn chan<- *inbound.PacketAdapter
+
+	tp C.Type
 }
 
 func (gh *gvHandler) HandleTCP(tunConn net.Conn) {
@@ -94,7 +96,7 @@ func (gh *gvHandler) HandleTCP(tunConn net.Conn) {
 		return
 	}
 
-	gh.tcpIn <- inbound.NewSocketBy(tunConn, lAddrPort, rAddrPort, C.TUN)
+	gh.tcpIn <- inbound.NewSocketBy(tunConn, lAddrPort, rAddrPort, gh.tp)
 }
 
 func (gh *gvHandler) HandleUDP(stack *stack.Stack, id stack.TransportEndpointID, pkt *stack.PacketBuffer) {
@@ -158,7 +160,7 @@ func (gh *gvHandler) HandleUDP(stack *stack.Stack, id stack.TransportEndpointID,
 	}
 
 	select {
-	case gh.udpIn <- inbound.NewPacketBy(udpPkt, lAddrPort, rAddrPort, C.TUN):
+	case gh.udpIn <- inbound.NewPacketBy(udpPkt, lAddrPort, rAddrPort, gh.tp):
 	default:
 		log.Debug().
 			NetIPAddrPort("lAddrPort", lAddrPort).
