@@ -191,7 +191,7 @@ again:
 		TXChecksumOffload: false,
 		RXChecksumOffload: true,
 		Bind:              true,
-		GRO:               true,
+		GRO:               false,
 	})
 	if err != nil {
 		return adp, fmt.Errorf("failed to create XDP endpoint: %w", err)

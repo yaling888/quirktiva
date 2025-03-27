@@ -30,6 +30,7 @@ const (
 	MITM
 	TUNNEL
 	XDP
+	TAP
 )
 
 type NetWork int
@@ -71,6 +72,8 @@ func (t Type) String() string {
 		return "Tunnel"
 	case XDP:
 		return "XDP"
+	case TAP:
+		return "TAP"
 	default:
 		return "Unknown"
 	}

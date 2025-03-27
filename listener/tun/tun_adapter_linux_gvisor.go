@@ -24,6 +24,10 @@ func New(
 	udpIn chan<- *inbound.PacketAdapter,
 	tunChangeCallback C.TUNChangeCallback,
 ) (ipstack.Stack, error) {
+	if tunConf.Stack != C.TunGvisor {
+		return newTunAdapter(tunConf, tcpIn, udpIn, tunChangeCallback)
+	}
+
 	var dev string
 	if u, err := url.Parse(tunConf.Device); err == nil {
 		dev = strings.ToUpper(u.Scheme)
@@ -32,6 +36,10 @@ func New(
 	switch dev {
 	case "XDP":
 		return newXDPAdapter(tunConf, tcpIn, udpIn)
+	case "TAP":
+		return newFDAdapter(tunConf, tcpIn, udpIn, true)
+	case "TUN":
+		return newFDAdapter(tunConf, tcpIn, udpIn, false)
 	default:
 	}
 
