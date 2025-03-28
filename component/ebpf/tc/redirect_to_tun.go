@@ -29,17 +29,22 @@ type EBpfTC struct {
 	ifIndex    int
 	ifMark     uint32
 	tunIfIndex uint32
+	tunMAC     [6]byte
 
 	fakeIP4Prefix uint32 // host byte order
 	fakeIP6Prefix [8]byte
 }
 
-func NewEBpfTc(ifName string, ifIndex int, ifMark uint32, tunIfIndex uint32, fakeIP4Prefix, fakeIP6Prefix *netip.Prefix) *EBpfTC {
+func NewEBpfTc(ifName string, ifIndex int, ifMark uint32, tunIfIndex uint32, tunMAC []byte, fakeIP4Prefix, fakeIP6Prefix *netip.Prefix) *EBpfTC {
 	tc := &EBpfTC{
 		ifName:     ifName,
 		ifIndex:    ifIndex,
 		ifMark:     ifMark,
 		tunIfIndex: tunIfIndex,
+	}
+
+	if len(tunMAC) == 6 {
+		tc.tunMAC = [6]byte(tunMAC)
 	}
 
 	if fakeIP4Prefix != nil {
@@ -87,6 +92,10 @@ func (e *EBpfTC) Start() error {
 			return fmt.Errorf("setting variable fake_ip6_prefix value: %w", err)
 		}
 
+		if err = spec.Variables["tun_mac"].Set(e.tunMAC[:]); err != nil {
+			return fmt.Errorf("setting variable tun_mac value: %w", err)
+		}
+
 		var objs struct {
 			TcTun55Func *ebpf.Program `ebpf:"tc_tun_5_5_func"`
 			bpfVariables
@@ -120,6 +129,7 @@ func (e *EBpfTC) Start() error {
 		params := bpfParams{
 			ClashMark:     e.ifMark,
 			TunIfindex:    e.tunIfIndex,
+			TunMac:        e.tunMAC,
 			FakeIp4Prefix: e.fakeIP4Prefix,
 			FakeIp6Prefix: *(*[2]uint32)(unsafe.Pointer(&e.fakeIP6Prefix)),
 		}

@@ -15,6 +15,8 @@ struct params {
   __u32   tun_ifindex;
   __u32   fake_ip4_prefix;
   __be32  fake_ip6_prefix[2];
+  __u8    tun_mac[ETH_ALEN];
+  __u8    _pad[2];
 };
 
 struct {
@@ -57,10 +59,10 @@ int tc_tun_func(struct __sk_buff *skb) {
       if ((void *)(icmp + 1) > data_end) {
         return TC_ACT_OK;
       }
-      if (icmp->type != ICMP_ECHO) {
+      if (icmp->type == ICMP_ECHOREPLY) {
         return TC_ACT_OK;
       }
-      if ((dst_ip_h & 0xffff0000) != vars->fake_ip4_prefix) {
+      if (icmp->type == ICMP_ECHO && (dst_ip_h & 0xffff0000) != vars->fake_ip4_prefix) {
         return TC_ACT_OK;
       }
     }
@@ -79,11 +81,12 @@ int tc_tun_func(struct __sk_buff *skb) {
       if ((void *)(icmp + 1) > data_end) {
         return TC_ACT_OK;
       }
-      if (icmp->icmp6_type != ICMPV6_ECHO_REQUEST) {
+      if (icmp->icmp6_type == ICMPV6_ECHO_REPLY) {
         return TC_ACT_OK;
       }
-      if (ip6h->daddr.in6_u.u6_addr32[0] != vars->fake_ip6_prefix[0] ||
-          ip6h->daddr.in6_u.u6_addr32[1] != vars->fake_ip6_prefix[1]) {
+      if (icmp->icmp6_type == ICMPV6_ECHO_REQUEST &&
+          (ip6h->daddr.in6_u.u6_addr32[0] != vars->fake_ip6_prefix[0] ||
+           ip6h->daddr.in6_u.u6_addr32[1] != vars->fake_ip6_prefix[1])) {
         return TC_ACT_OK;
       }
     }
@@ -98,14 +101,17 @@ int tc_tun_func(struct __sk_buff *skb) {
     return TC_ACT_OK;
   }
 
+  bpf_skb_store_bytes(skb, offsetof(struct ethhdr, h_dest), vars->tun_mac, ETH_ALEN, 0);
+
   // return bpf_redirect(vars->tun_ifindex, BPF_F_INGRESS); // __bpf_rx_skb
   return bpf_redirect(vars->tun_ifindex, 0); // __bpf_tx_skb / __dev_xmit_skb
 }
 
-// below is to use the new Variable API and better than traditional bpf maps.
+// below is to use the new Variable API and rather than traditional bpf maps.
 // the Variable API requires kernel >= v5.5.
 const volatile __u32  clash_mark, tun_ifindex, fake_ip4_prefix;
 const volatile __be32 fake_ip6_prefix[2];
+const          __u8   tun_mac[ETH_ALEN];
 
 SEC("tc_clash_redirect_to_tun_5_5")
 int tc_tun_5_5_func(struct __sk_buff *skb) {
@@ -134,10 +140,10 @@ int tc_tun_5_5_func(struct __sk_buff *skb) {
       if ((void *)(icmp + 1) > data_end) {
         return TC_ACT_OK;
       }
-      if (icmp->type != ICMP_ECHO) {
+      if (icmp->type == ICMP_ECHOREPLY) {
         return TC_ACT_OK;
       }
-      if ((dst_ip_h & 0xffff0000) != fake_ip4_prefix) {
+      if (icmp->type == ICMP_ECHO && (dst_ip_h & 0xffff0000) != fake_ip4_prefix) {
         return TC_ACT_OK;
       }
     }
@@ -156,11 +162,12 @@ int tc_tun_5_5_func(struct __sk_buff *skb) {
       if ((void *)(icmp + 1) > data_end) {
         return TC_ACT_OK;
       }
-      if (icmp->icmp6_type != ICMPV6_ECHO_REQUEST) {
+      if (icmp->icmp6_type == ICMPV6_ECHO_REPLY) {
         return TC_ACT_OK;
       }
-      if (ip6h->daddr.in6_u.u6_addr32[0] != fake_ip6_prefix[0] ||
-          ip6h->daddr.in6_u.u6_addr32[1] != fake_ip6_prefix[1]) {
+      if (icmp->icmp6_type == ICMPV6_ECHO_REQUEST &&
+          (ip6h->daddr.in6_u.u6_addr32[0] != fake_ip6_prefix[0] ||
+           ip6h->daddr.in6_u.u6_addr32[1] != fake_ip6_prefix[1])) {
         return TC_ACT_OK;
       }
     }
@@ -174,6 +181,8 @@ int tc_tun_5_5_func(struct __sk_buff *skb) {
   } else {
     return TC_ACT_OK;
   }
+
+  bpf_skb_store_bytes(skb, offsetof(struct ethhdr, h_dest), tun_mac, ETH_ALEN, 0);
 
   return bpf_redirect(tun_ifindex, 0);
 }

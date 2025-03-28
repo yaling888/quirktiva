@@ -5,7 +5,6 @@ package tun
 import (
 	"crypto/rand"
 	"net"
-	"net/url"
 	"strings"
 
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -29,8 +28,8 @@ func New(
 	}
 
 	var dev string
-	if u, err := url.Parse(tunConf.Device); err == nil {
-		dev = strings.ToUpper(u.Scheme)
+	if b, a, f := strings.Cut(tunConf.Device, "://"); f && a != "" {
+		dev = strings.ToUpper(b)
 	}
 
 	switch dev {

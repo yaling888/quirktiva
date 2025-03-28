@@ -17,6 +17,8 @@ type bpfParams struct {
 	TunIfindex    uint32
 	FakeIp4Prefix uint32
 	FakeIp6Prefix [2]uint32
+	TunMac        [6]uint8
+	Pad           [2]uint8
 }
 
 // loadBpf returns the embedded CollectionSpec for bpf.
@@ -80,6 +82,7 @@ type bpfVariableSpecs struct {
 	FakeIp4Prefix *ebpf.VariableSpec `ebpf:"fake_ip4_prefix"`
 	FakeIp6Prefix *ebpf.VariableSpec `ebpf:"fake_ip6_prefix"`
 	TunIfindex    *ebpf.VariableSpec `ebpf:"tun_ifindex"`
+	TunMac        *ebpf.VariableSpec `ebpf:"tun_mac"`
 }
 
 // bpfObjects contains all objects after they have been loaded into the kernel.
@@ -119,6 +122,7 @@ type bpfVariables struct {
 	FakeIp4Prefix *ebpf.Variable `ebpf:"fake_ip4_prefix"`
 	FakeIp6Prefix *ebpf.Variable `ebpf:"fake_ip6_prefix"`
 	TunIfindex    *ebpf.Variable `ebpf:"tun_ifindex"`
+	TunMac        *ebpf.Variable `ebpf:"tun_mac"`
 }
 
 // bpfPrograms contains all programs after they have been loaded into the kernel.

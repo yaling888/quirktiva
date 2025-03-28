@@ -2,8 +2,9 @@ package ebpf
 
 import (
 	"fmt"
+	"net"
 	"net/netip"
-	"net/url"
+	"strings"
 
 	"github.com/vishvananda/netlink"
 
@@ -17,15 +18,16 @@ import (
 
 // NewTcEBpfProgram new redirect to tun ebpf program
 func NewTcEBpfProgram(ifaceNames []string, tunName string) (*TcEBpfProgram, error) {
-	if u, err := url.Parse(tunName); err == nil {
-		tunName = u.Host
+	if _, a, f := strings.Cut(tunName, "://"); f && a != "" {
+		tunName = a
 	}
 	tunIface, err := netlink.LinkByName(tunName)
 	if err != nil {
 		return nil, fmt.Errorf("lookup network iface %s: %w", tunName, err)
 	}
 
-	tunIndex := uint32(tunIface.Attrs().Index)
+	tunIndex := tunIface.Attrs().Index
+	tunMAC := tunIface.Attrs().HardwareAddr
 
 	dialer.DefaultRoutingMark.CompareAndSwap(0, C.ClashTrafficMark)
 
@@ -34,24 +36,44 @@ func NewTcEBpfProgram(ifaceNames []string, tunName string) (*TcEBpfProgram, erro
 	fakeIP4Prefix := resolver.FakeIP4Prefix()
 	fakeIP6Prefix := resolver.FakeIP6Prefix()
 
+	var hostObjs []tc.HostObj
 	var pros []C.EBpf
 	for _, ifaceName := range ifaceNames {
 		iface, err := netlink.LinkByName(ifaceName)
 		if err != nil {
 			return nil, fmt.Errorf("lookup network iface %s: %w", ifaceName, err)
 		}
-		if iface.Attrs().OperState != netlink.OperUp {
+		if (iface.Attrs().Flags & net.FlagUp) == 0 {
 			return nil, fmt.Errorf("network iface %s is down", ifaceName)
 		}
 
 		attrs := iface.Attrs()
 		index := attrs.Index
+		mac := attrs.HardwareAddr
 
-		tcPro := tc.NewEBpfTc(ifaceName, index, ifMark, tunIndex, fakeIP4Prefix, fakeIP6Prefix)
+		tcPro := tc.NewEBpfTc(ifaceName, index, ifMark, uint32(tunIndex), tunMAC, fakeIP4Prefix, fakeIP6Prefix)
 		if err = tcPro.Start(); err != nil {
 			return nil, err
 		}
 
+		if len(mac) == 6 {
+			hostObjs = append(hostObjs, tc.HostObj{
+				IFIndex: uint32(index),
+				MAC:     [6]byte(mac),
+			})
+		}
+
+		pros = append(pros, tcPro)
+	}
+
+	if len(tunMAC) == 6 && len(hostObjs) > 0 {
+		tcPro := tc.NewEBpfRTH(tunIndex, hostObjs)
+		if err = tcPro.Start(); err != nil {
+			for _, p := range pros {
+				p.Close()
+			}
+			return nil, err
+		}
 		pros = append(pros, tcPro)
 	}
 
