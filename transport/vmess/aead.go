@@ -31,11 +31,8 @@ func (w *aeadWriter) Write(b []byte) (n int, err error) {
 		w.writeLock.Unlock()
 		pool.PutNetBuf(bufP)
 	}()
-	length := len(b)
-	for {
-		if length == 0 {
-			break
-		}
+
+	for length := len(b); length > 0; {
 		readLen := chunkSize - w.Overhead()
 		if length < readLen {
 			readLen = length

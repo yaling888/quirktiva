@@ -258,7 +258,7 @@ func (a *authAES128) packAuthData(poolBuf *bytes.Buffer, data []byte) {
 	poolBuf.WriteByte(byte(rand.IntN(256)))
 	poolBuf.Write(a.hmac(macKey.Bytes(), poolBuf.Bytes())[:6])
 	poolBuf.Write(a.userID[:])
-	err := a.authData.putEncryptedData(poolBuf, a.userKey, [2]int{packedAuthDataLength, randDataLength}, a.salt)
+	err := a.putEncryptedData(poolBuf, a.userKey, [2]int{packedAuthDataLength, randDataLength}, a.salt)
 	if err != nil {
 		poolBuf.Reset()
 		return

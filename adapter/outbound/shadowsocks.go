@@ -95,7 +95,7 @@ func (ss *ShadowSocks) StreamPacketConn(c net.Conn, _ *C.Metadata) (net.Conn, er
 
 // DialContext implements C.ProxyAdapter
 func (ss *ShadowSocks) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (_ C.Conn, err error) {
-	c, err := dialer.DialContext(ctx, "tcp", ss.addr, ss.Base.DialOptions(opts...)...)
+	c, err := dialer.DialContext(ctx, "tcp", ss.addr, ss.DialOptions(opts...)...)
 	if err != nil {
 		return nil, fmt.Errorf("%s connect error: %w", ss.addr, err)
 	}
@@ -111,7 +111,7 @@ func (ss *ShadowSocks) DialContext(ctx context.Context, metadata *C.Metadata, op
 
 // ListenPacketContext implements C.ProxyAdapter
 func (ss *ShadowSocks) ListenPacketContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.PacketConn, error) {
-	pc, err := dialer.ListenPacket(ctx, "udp", "", ss.Base.DialOptions(opts...)...)
+	pc, err := dialer.ListenPacket(ctx, "udp", "", ss.DialOptions(opts...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +139,9 @@ func NewShadowSocks(option ShadowSocksOption) (*ShadowSocks, error) {
 	obfsMode := ""
 
 	decoder := structure.NewDecoder(structure.Option{TagName: "obfs", WeaklyTypedInput: true})
-	if option.Plugin == "obfs" {
+
+	switch option.Plugin {
+	case "obfs":
 		opts := simpleObfsOption{Host: "bing.com", RandomHost: option.RandomHost}
 		if err := decoder.Decode(option.PluginOpts, &opts); err != nil {
 			return nil, fmt.Errorf("ss %s initialize obfs error: %w", addr, err)
@@ -150,7 +152,7 @@ func NewShadowSocks(option ShadowSocksOption) (*ShadowSocks, error) {
 		}
 		obfsMode = opts.Mode
 		obfsOption = &opts
-	} else if option.Plugin == "v2ray-plugin" {
+	case "v2ray-plugin":
 		opts := v2rayObfsOption{Host: "bing.com", Mux: true}
 		if err := decoder.Decode(option.PluginOpts, &opts); err != nil {
 			return nil, fmt.Errorf("ss %s initialize v2ray-plugin error: %w", addr, err)

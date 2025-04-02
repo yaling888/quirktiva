@@ -33,7 +33,7 @@ func (s *gvStack) Close() error {
 		err = s.device.Close2()
 	}
 	if s.Stack != nil {
-		s.Stack.Destroy()
+		s.Destroy()
 	}
 	return err
 }
@@ -72,7 +72,7 @@ func New(
 	}
 
 	// Generate unique NIC id.
-	nicID := s.Stack.NextNICID()
+	nicID := s.NextNICID()
 
 	opts := []option.Option{option.WithDefault()}
 

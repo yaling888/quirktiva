@@ -79,11 +79,8 @@ type chunkWriter struct {
 func (cw *chunkWriter) Write(b []byte) (n int, err error) {
 	bufP := pool.GetNetBuf()
 	defer pool.PutNetBuf(bufP)
-	length := len(b)
-	for {
-		if length == 0 {
-			break
-		}
+
+	for length := len(b); length > 0; {
 		readLen := chunkSize
 		if length < chunkSize {
 			readLen = length

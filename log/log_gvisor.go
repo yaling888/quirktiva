@@ -47,9 +47,10 @@ func SetLevel(newLevel LogLevel) {
 	}
 
 	gLevel := gLog.Warning
-	if newLevel == DEBUG {
+	switch newLevel {
+	case DEBUG:
 		gLevel = gLog.Debug
-	} else if newLevel == INFO {
+	case INFO:
 		gLevel = gLog.Info
 	}
 	gLog.SetLevel(gLevel)

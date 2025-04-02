@@ -51,7 +51,7 @@ func (p *lazyProc) Find() error {
 		return fmt.Errorf("error getting %s address: %w", p.Name, err)
 	}
 
-	atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&p.addr)), unsafe.Pointer(addr))
+	atomic.StorePointer((*unsafe.Pointer)(unsafe.Pointer(&p.addr)), unsafe.Pointer(addr)) //nolint:govet
 	return nil
 }
 

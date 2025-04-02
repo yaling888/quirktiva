@@ -136,7 +136,7 @@ func (w *WireGuard) UpdateBind() {
 		return
 	}
 	if s, ok := w.bind.(*wireguard.StdNetBind); ok {
-		s.UpdateControlFns(getBindControlFns(w.Base.name))
+		s.UpdateControlFns(getBindControlFns(w.name))
 	}
 
 	_ = w.wgDevice.BindUpdate()
@@ -146,7 +146,7 @@ func (w *WireGuard) UpdateBind() {
 // bindSocketToInterface used by WinRingBind
 func (w *WireGuard) bindSocketToInterface() error {
 	if b, ok := w.bind.(bind.BindSocketToInterface); ok {
-		interfaceName := getInterfaceName(w.Base.iface)
+		interfaceName := getInterfaceName(w.iface)
 		if interfaceName == "" {
 			return nil
 		}
@@ -219,7 +219,7 @@ func (w *WireGuard) up() {
 }
 
 func (w *WireGuard) init() error {
-	host, port, _ := net.SplitHostPort(w.Base.Addr())
+	host, port, _ := net.SplitHostPort(w.Addr())
 	tryTimes := 0
 
 lookup:
@@ -230,7 +230,7 @@ lookup:
 			time.Sleep(2 * time.Second)
 			goto lookup
 		}
-		return fmt.Errorf("parse server endpoint [%s] failure, cause: %w", w.Base.Addr(), err)
+		return fmt.Errorf("parse server endpoint [%s] failure, cause: %w", w.Addr(), err)
 	}
 
 	p, _ := strconv.ParseUint(port, 10, 16)
@@ -251,7 +251,7 @@ lookup:
 		return err
 	}
 
-	wgBind := wireguard.NewDefaultBind(getBindControlFns(w.Base.iface), w.Base.iface, w.reserved)
+	wgBind := wireguard.NewDefaultBind(getBindControlFns(w.iface), w.iface, w.reserved)
 	w.bind = wgBind
 
 	logger := &device.Logger{

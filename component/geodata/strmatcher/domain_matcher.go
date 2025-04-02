@@ -64,12 +64,8 @@ func (g *DomainMatcherGroup) Match(domain string) []uint32 {
 	}
 
 	matches := [][]uint32{}
-	idx := len(domain)
-	for {
-		if idx == -1 || current.sub == nil {
-			break
-		}
 
+	for idx := len(domain); idx != -1 && current.sub != nil; {
 		nidx := nextPart(idx)
 		part := domain[nidx+1 : idx]
 		next := current.sub[part]

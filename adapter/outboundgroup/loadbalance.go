@@ -80,7 +80,7 @@ func (lb *LoadBalance) DialContext(ctx context.Context, metadata *C.Metadata, op
 
 	proxy := lb.Unwrap(metadata)
 
-	c, err = proxy.DialContext(ctx, metadata, lb.Base.DialOptions(opts...)...)
+	c, err = proxy.DialContext(ctx, metadata, lb.DialOptions(opts...)...)
 	return
 }
 
@@ -93,7 +93,7 @@ func (lb *LoadBalance) ListenPacketContext(ctx context.Context, metadata *C.Meta
 	}()
 
 	proxy := lb.Unwrap(metadata)
-	return proxy.ListenPacketContext(ctx, metadata, lb.Base.DialOptions(opts...)...)
+	return proxy.ListenPacketContext(ctx, metadata, lb.DialOptions(opts...)...)
 }
 
 // SupportUDP implements C.ProxyAdapter

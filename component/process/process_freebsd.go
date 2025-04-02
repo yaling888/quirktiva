@@ -102,13 +102,14 @@ func findProcessPath12(network string, from netip.AddrPort, to netip.AddrPort) (
 				connFromAddr netip.Addr
 				connToAddr   netip.Addr
 			)
-			if tcb.Family == unix.AF_INET {
+			switch tcb.Family {
+			case unix.AF_INET:
 				connFromAddr = netip.AddrFrom4([4]byte(tcb.InEndpoints.LAddr[12:16]))
 				connToAddr = netip.AddrFrom4([4]byte(tcb.InEndpoints.FAddr[12:16]))
-			} else if tcb.Family == unix.AF_INET6 {
+			case unix.AF_INET6:
 				connFromAddr = netip.AddrFrom16(tcb.InEndpoints.LAddr)
 				connToAddr = netip.AddrFrom16(tcb.InEndpoints.FAddr)
-			} else {
+			default:
 				continue
 			}
 
@@ -144,11 +145,12 @@ func findProcessPath12(network string, from netip.AddrPort, to netip.AddrPort) (
 			data = data[icb.Len:]
 
 			var connFromAddr netip.Addr
-			if icb.Family == unix.AF_INET {
+			switch icb.Family {
+			case unix.AF_INET:
 				connFromAddr = netip.AddrFrom4([4]byte(icb.InEndpoints.LAddr[12:16]))
-			} else if icb.Family == unix.AF_INET6 {
+			case unix.AF_INET6:
 				connFromAddr = netip.AddrFrom16(icb.InEndpoints.LAddr)
-			} else {
+			default:
 				continue
 			}
 

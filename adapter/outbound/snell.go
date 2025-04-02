@@ -88,7 +88,7 @@ func (s *Snell) DialContext(ctx context.Context, metadata *C.Metadata, opts ...d
 		return NewConn(c, s), err
 	}
 
-	c, err := dialer.DialContext(ctx, "tcp", s.addr, s.Base.DialOptions(opts...)...)
+	c, err := dialer.DialContext(ctx, "tcp", s.addr, s.DialOptions(opts...)...)
 	if err != nil {
 		return nil, fmt.Errorf("%s connect error: %w", s.addr, err)
 	}
@@ -104,7 +104,7 @@ func (s *Snell) DialContext(ctx context.Context, metadata *C.Metadata, opts ...d
 
 // ListenPacketContext implements C.ProxyAdapter
 func (s *Snell) ListenPacketContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.PacketConn, error) {
-	c, err := dialer.DialContext(ctx, "tcp", s.addr, s.Base.DialOptions(opts...)...)
+	c, err := dialer.DialContext(ctx, "tcp", s.addr, s.DialOptions(opts...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +167,7 @@ func NewSnell(option SnellOption) (*Snell, error) {
 
 	if option.Version == snell.Version2 {
 		s.pool = snell.NewPool(func(ctx context.Context) (*snell.Snell, error) {
-			c, err := dialer.DialContext(ctx, "tcp", addr, s.Base.DialOptions()...)
+			c, err := dialer.DialContext(ctx, "tcp", addr, s.DialOptions()...)
 			if err != nil {
 				return nil, err
 			}

@@ -92,7 +92,7 @@ func CreateTUN(ifname string, mtu int) (T.Device, error) {
 func CreateTUNWithRequestedGUID(ifname string, requestedGUID *windows.GUID, mtu int) (T.Device, error) {
 	wt, err := wintun.CreateAdapter(ifname, WintunTunnelType, requestedGUID)
 	if err != nil {
-		return nil, fmt.Errorf("Error creating interface: %w", err)
+		return nil, fmt.Errorf("failed to creating interface: %w", err)
 	}
 
 	forcedMTU := 1420
@@ -112,7 +112,7 @@ func CreateTUNWithRequestedGUID(ifname string, requestedGUID *windows.GUID, mtu 
 	if err != nil {
 		_ = tun.wt.Close()
 		close(tun.events)
-		return nil, fmt.Errorf("Error starting session: %w", err)
+		return nil, fmt.Errorf("failed to starting session: %w", err)
 	}
 	tun.readWait = tun.session.ReadWaitEvent()
 	return tun, nil
@@ -197,9 +197,9 @@ retry:
 		case windows.ERROR_HANDLE_EOF:
 			return 0, os.ErrClosed
 		case windows.ERROR_INVALID_DATA:
-			return 0, errors.New("Send ring corrupt")
+			return 0, errors.New("send ring corrupt")
 		}
-		return 0, fmt.Errorf("Read failed: %w", err)
+		return 0, fmt.Errorf("read failed: %w", err)
 	}
 }
 
@@ -226,7 +226,7 @@ func (tun *NativeTun) Write(buffs [][]byte, offset int) (int, error) {
 		case windows.ERROR_BUFFER_OVERFLOW:
 			continue // Dropping when ring is full.
 		default:
-			return i, fmt.Errorf("Write failed: %w", err)
+			return i, fmt.Errorf("write failed: %w", err)
 		}
 	}
 	return len(buffs), nil

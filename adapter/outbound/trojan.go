@@ -280,14 +280,14 @@ func (t *Trojan) ListenPacketContext(ctx context.Context, metadata *C.Metadata, 
 func (t *Trojan) dialContext(ctx context.Context, opts ...dialer.Option) (net.Conn, error) {
 	switch t.option.Network {
 	case "quic":
-		c, err := dialer.ListenPacket(ctx, "udp", "", t.Base.DialOptions(opts...)...)
+		c, err := dialer.ListenPacket(ctx, "udp", "", t.DialOptions(opts...)...)
 		if err != nil {
 			return nil, fmt.Errorf("%s connect error: %w", t.addr, err)
 		}
 		return c.(*net.UDPConn), nil
 	}
 
-	c, err := dialer.DialContext(ctx, "tcp", t.addr, t.Base.DialOptions(opts...)...)
+	c, err := dialer.DialContext(ctx, "tcp", t.addr, t.DialOptions(opts...)...)
 	if err != nil {
 		return nil, fmt.Errorf("%s connect error: %w", t.addr, err)
 	}
@@ -336,7 +336,7 @@ func NewTrojan(option TrojanOption) (*Trojan, error) {
 		dialFn := func(_, _ string) (net.Conn, error) {
 			ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTCPTimeout)
 			defer cancel()
-			c, err := dialer.DialContext(ctx, "tcp", t.addr, t.Base.DialOptions()...)
+			c, err := dialer.DialContext(ctx, "tcp", t.addr, t.DialOptions()...)
 			if err != nil {
 				return nil, fmt.Errorf("%s connect error: %w", t.addr, err)
 			}

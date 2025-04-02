@@ -163,7 +163,8 @@ func ConvertsV2Ray(buf []byte) ([]map[string]any, error) {
 				isTls = true
 			}
 
-			if network == "ws" {
+			switch network {
+			case "ws":
 				headers := make(map[string]any)
 				wsOpts := make(map[string]any)
 
@@ -183,7 +184,7 @@ func ConvertsV2Ray(buf []byte) ([]map[string]any, error) {
 				wsOpts["headers"] = headers
 
 				vmess["ws-opts"] = wsOpts
-			} else if network == "http" {
+			case "http":
 				headers := make(map[string][]string)
 				httpOpts := make(map[string]any)
 

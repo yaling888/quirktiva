@@ -155,7 +155,7 @@ func (p *DNSAddrPort) UnmarshalText(text []byte) error {
 func (p DNSAddrPort) String() string {
 	addrPort := p.AddrPort.String()
 	if p.AddrPort.Addr().IsUnspecified() {
-		addrPort = "any:" + strconv.Itoa(int(p.AddrPort.Port()))
+		addrPort = "any:" + strconv.Itoa(int(p.Port()))
 	}
 	return addrPort
 }

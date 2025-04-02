@@ -101,8 +101,8 @@ func (e *EBpfRedirect) Start() error {
 		_ = objs.bpfPrograms.Close()
 	}()
 
-	e.tcpMap = objs.bpfMaps.TcpMap
-	e.udpMap = objs.bpfMaps.UdpMap
+	e.tcpMap = objs.TcpMap
+	e.udpMap = objs.UdpMap
 
 	if e.linkIngress, e.linkEgress, err = attachTCx(e.ifIndex, objs.TcRedirIngressFunc, objs.TcRedirEgressFunc); err == nil {
 		return nil

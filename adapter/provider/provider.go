@@ -181,7 +181,7 @@ func (pp *ProxySetProvider) Finalize() {
 		pp.tmCheck = nil
 	}
 	pp.healthCheck.close()
-	_ = pp.fetcher.Destroy()
+	_ = pp.Destroy()
 }
 
 func (pp *ProxySetProvider) setProxies(proxies []C.Proxy) {
@@ -266,7 +266,7 @@ func newOrUpdateFetcher(
 			globalFCV:   globalForceCertVerify,
 		}
 	} else {
-		_ = pd.fetcher.Destroy()
+		_ = pd.Destroy()
 	}
 
 	pd.fetcher = newFetcher[[]C.Proxy](

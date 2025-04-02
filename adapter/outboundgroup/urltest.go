@@ -39,7 +39,7 @@ func (u *URLTest) Now() string {
 
 // DialContext implements C.ProxyAdapter
 func (u *URLTest) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (c C.Conn, err error) {
-	c, err = u.fast(true).DialContext(ctx, metadata, u.Base.DialOptions(opts...)...)
+	c, err = u.fast(true).DialContext(ctx, metadata, u.DialOptions(opts...)...)
 	if err == nil {
 		c.AppendToChains(u)
 	}
@@ -48,7 +48,7 @@ func (u *URLTest) DialContext(ctx context.Context, metadata *C.Metadata, opts ..
 
 // ListenPacketContext implements C.ProxyAdapter
 func (u *URLTest) ListenPacketContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.PacketConn, error) {
-	pc, err := u.fast(true).ListenPacketContext(ctx, metadata, u.Base.DialOptions(opts...)...)
+	pc, err := u.fast(true).ListenPacketContext(ctx, metadata, u.DialOptions(opts...)...)
 	if err == nil {
 		pc.AppendToChains(u)
 	}

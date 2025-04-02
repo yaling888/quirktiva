@@ -237,12 +237,12 @@ type wrapPacketConn struct {
 }
 
 func (wpc *wrapPacketConn) Read(b []byte) (n int, err error) {
-	n, _, err = wpc.PacketConn.ReadFrom(b)
+	n, _, err = wpc.ReadFrom(b)
 	return n, err
 }
 
 func (wpc *wrapPacketConn) Write(b []byte) (n int, err error) {
-	return wpc.PacketConn.WriteTo(b, wpc.rAddr)
+	return wpc.WriteTo(b, wpc.rAddr)
 }
 
 func (wpc *wrapPacketConn) RemoteAddr() net.Addr {
@@ -435,7 +435,7 @@ func logDnsResponse(q D.Question, msg *rMsg, err error) {
 		if e := log.Debug(); e != nil {
 			var http3Err *http3.Error
 			if !errors.Is(err, context.Canceled) &&
-				!(errors.As(err, &http3Err) && http3Err.ErrorCode == http3.ErrCodeRequestCanceled) {
+				(!errors.As(err, &http3Err) || http3Err.ErrorCode != http3.ErrCodeRequestCanceled) {
 				e.
 					Err(err).
 					Str("source", msg.Source).

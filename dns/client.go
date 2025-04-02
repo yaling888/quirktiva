@@ -39,7 +39,7 @@ func (c *client) Exchange(m *D.Msg) (*rMsg, error) {
 }
 
 func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*rMsg, error) {
-	if c.Client.Net != "tcp-tls" && m.Question[0].Qtype == D.TypeHTTPS {
+	if c.Net != "tcp-tls" && m.Question[0].Qtype == D.TypeHTTPS {
 		return nil, resolver.ErrECHNotSupport
 	}
 
@@ -62,7 +62,7 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*rMsg, error) {
 	}
 
 	network := "udp"
-	if strings.HasPrefix(c.Client.Net, "tcp") {
+	if strings.HasPrefix(c.Net, "tcp") {
 		network = "tcp"
 	}
 
@@ -92,15 +92,15 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*rMsg, error) {
 		return msg, err
 	}
 
-	if c.Client.Net == "tcp-tls" {
+	if c.Net == "tcp-tls" {
 		conn = tls.Client(conn, c.TLSConfig)
 	}
 
 	co := &D.Conn{
 		Conn:         conn,
-		UDPSize:      c.Client.UDPSize,
-		TsigSecret:   c.Client.TsigSecret,
-		TsigProvider: c.Client.TsigProvider,
+		UDPSize:      c.UDPSize,
+		TsigSecret:   c.TsigSecret,
+		TsigProvider: c.TsigProvider,
 	}
 
 	defer co.Close()
@@ -115,7 +115,7 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*rMsg, error) {
 	ch := make(chan result, 1)
 
 	go func() {
-		msg1, _, err1 := c.Client.ExchangeWithConn(m, co)
+		msg1, _, err1 := c.ExchangeWithConn(m, co)
 		ch <- result{msg1, err1}
 	}()
 

@@ -71,7 +71,7 @@ func (hc *h2Conn) establishConn() error {
 	}
 
 	// it will be close at :  `func (hc *h2Conn) Close() error`
-	resp, err := hc.ClientConn.RoundTrip(req)
+	resp, err := hc.RoundTrip(req)
 	if err != nil {
 		hc.eErr = err
 		return err
@@ -137,7 +137,7 @@ func (hc *h2Conn) Close() error {
 		defer cancel()
 		ctx = ctx1
 	}
-	if err := hc.ClientConn.Shutdown(ctx); err != nil {
+	if err := hc.Shutdown(ctx); err != nil {
 		return err
 	}
 	return hc.Conn.Close()

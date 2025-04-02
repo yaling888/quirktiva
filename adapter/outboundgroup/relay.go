@@ -39,9 +39,9 @@ func (r *Relay) DialContext(ctx context.Context, metadata *C.Metadata, opts ...d
 
 	switch length {
 	case 0:
-		return outbound.NewDirect().DialContext(ctx, metadata, r.Base.DialOptions(opts...)...)
+		return outbound.NewDirect().DialContext(ctx, metadata, r.DialOptions(opts...)...)
 	case 1:
-		return proxies[0].DialContext(ctx, metadata, r.Base.DialOptions(opts...)...)
+		return proxies[0].DialContext(ctx, metadata, r.DialOptions(opts...)...)
 	}
 
 	timeout := time.Duration(length) * C.DefaultTCPTimeout
@@ -49,7 +49,7 @@ func (r *Relay) DialContext(ctx context.Context, metadata *C.Metadata, opts ...d
 	defer cancel()
 	ctx = subCtx
 
-	c, err := r.streamContext(ctx, proxies, r.Base.DialOptions(opts...)...)
+	c, err := r.streamContext(ctx, proxies, r.DialOptions(opts...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -76,13 +76,13 @@ func (r *Relay) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 
 	switch length {
 	case 0:
-		return outbound.NewDirect().ListenPacketContext(ctx, metadata, r.Base.DialOptions(opts...)...)
+		return outbound.NewDirect().ListenPacketContext(ctx, metadata, r.DialOptions(opts...)...)
 	case 1:
 		proxy := proxies[0]
 		if !proxy.SupportUDP() {
 			return nil, fmt.Errorf("%s connect error: proxy [%s] UDP is not supported", proxy.Addr(), proxy.Name())
 		}
-		return proxy.ListenPacketContext(ctx, metadata, r.Base.DialOptions(opts...)...)
+		return proxy.ListenPacketContext(ctx, metadata, r.DialOptions(opts...)...)
 	}
 
 	var (
@@ -113,7 +113,7 @@ func (r *Relay) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 	rawUDPRelay, lastUDPOverTCPIndex = isRawUDPRelay(proxies)
 
 	if first.Type() == C.Socks5 {
-		cc1, err1 := dialer.DialContext(ctx, "tcp", first.Addr(), r.Base.DialOptions(opts...)...)
+		cc1, err1 := dialer.DialContext(ctx, "tcp", first.Addr(), r.DialOptions(opts...)...)
 		if err1 != nil {
 			return nil, fmt.Errorf("%s connect error: %w", first.Addr(), err)
 		}
@@ -121,17 +121,17 @@ func (r *Relay) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 		tcpKeepAlive(cc)
 
 		var pc net.PacketConn
-		pc, err = dialer.ListenPacket(ctx, "udp", "", r.Base.DialOptions(opts...)...)
+		pc, err = dialer.ListenPacket(ctx, "udp", "", r.DialOptions(opts...)...)
 		c = outbound.WrapConn(pc)
 	} else if rawUDPRelay {
 		var pc net.PacketConn
-		pc, err = dialer.ListenPacket(ctx, "udp", "", r.Base.DialOptions(opts...)...)
+		pc, err = dialer.ListenPacket(ctx, "udp", "", r.DialOptions(opts...)...)
 		c = outbound.WrapConn(pc)
 	} else {
 		firstIndex = lastUDPOverTCPIndex
 		nextIndex = firstIndex + 1
 		first = proxies[firstIndex]
-		c, err = r.streamContext(ctx, proxies[:nextIndex], r.Base.DialOptions(opts...)...)
+		c, err = r.streamContext(ctx, proxies[:nextIndex], r.DialOptions(opts...)...)
 	}
 
 	if err != nil {
@@ -171,7 +171,7 @@ func (r *Relay) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 
 			if proxy.Type() == C.Socks5 {
 				endIndex := nextIndex + i + 1
-				cc, err = r.streamContext(ctx, proxies[:endIndex], r.Base.DialOptions(opts...)...)
+				cc, err = r.streamContext(ctx, proxies[:endIndex], r.DialOptions(opts...)...)
 				if err != nil {
 					return nil, fmt.Errorf("%s connect error: %w", first.Addr(), err)
 				}

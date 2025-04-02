@@ -124,7 +124,7 @@ func (p *Proxy) URLTest(ctx context.Context, url string) (delay, avgDelay uint16
 		if alive {
 			record.Delay = delay
 			record.AvgDelay = avgDelay
-			if p.hasV6 == nil && resolver.RemoteDnsResolve && !p.ProxyAdapter.DisableDnsResolve() {
+			if p.hasV6 == nil && resolver.RemoteDnsResolve && !p.DisableDnsResolve() {
 				go p.v6Test(url)
 			}
 		}

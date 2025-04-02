@@ -139,7 +139,7 @@ func (e *EBpfTC) Start() error {
 
 		defer func() {
 			_ = objs.TcTunFunc.Close()
-			_ = objs.bpfMaps.Close()
+			_ = objs.Close()
 		}()
 
 		prog = objs.TcTunFunc

@@ -46,5 +46,5 @@ func (d *digest) Write(p []byte) (n int, err error) {
 func (d *digest) Reset() {
 	d.clen = 0
 	d.tail = nil
-	d.bmixer.reset()
+	d.reset()
 }

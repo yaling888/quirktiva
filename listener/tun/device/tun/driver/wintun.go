@@ -56,15 +56,16 @@ func logMessage(level loggerLevel, _ uint64, msg *uint16) int {
 
 func setupLogger(dll *lazyDLL) {
 	var callback uintptr
-	if runtime.GOARCH == "386" {
+	switch runtime.GOARCH {
+	case "386":
 		callback = windows.NewCallback(func(level loggerLevel, _, _ uint32, msg *uint16) int {
 			return logMessage(level, 0, msg)
 		})
-	} else if runtime.GOARCH == "arm" {
+	case "arm":
 		callback = windows.NewCallback(func(level loggerLevel, _, _, _ uint32, msg *uint16) int {
 			return logMessage(level, 0, msg)
 		})
-	} else if runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64" {
+	case "amd64", "arm64":
 		callback = windows.NewCallback(logMessage)
 	}
 	_, _, _ = syscall.SyscallN(dll.NewProc("WintunSetLogger").Addr(), callback)

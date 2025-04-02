@@ -390,14 +390,14 @@ func (v *Vless) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 func (v *Vless) dialContext(ctx context.Context, opts ...dialer.Option) (net.Conn, error) {
 	switch v.option.Network {
 	case "quic":
-		c, err := dialer.ListenPacket(ctx, "udp", "", v.Base.DialOptions(opts...)...)
+		c, err := dialer.ListenPacket(ctx, "udp", "", v.DialOptions(opts...)...)
 		if err != nil {
 			return nil, fmt.Errorf("%s connect error: %w", v.addr, err)
 		}
 		return c.(*net.UDPConn), nil
 	}
 
-	c, err := dialer.DialContext(ctx, "tcp", v.addr, v.Base.DialOptions(opts...)...)
+	c, err := dialer.DialContext(ctx, "tcp", v.addr, v.DialOptions(opts...)...)
 	if err != nil {
 		return nil, fmt.Errorf("%s connect error: %w", v.addr, err)
 	}
@@ -478,7 +478,7 @@ func (vc *vlessPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	if vc.remain > 0 {
 		length := min(len(b), vc.remain)
 
-		n, err := vc.Conn.Read(b[:length])
+		n, err := vc.Read(b[:length])
 		if err != nil {
 			return n, vc.rAddr, err
 		}
@@ -560,7 +560,7 @@ func NewVless(option VlessOption) (*Vless, error) {
 		dialFn := func(_, _ string) (net.Conn, error) {
 			ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTCPTimeout)
 			defer cancel()
-			c, err := dialer.DialContext(ctx, "tcp", v.addr, v.Base.DialOptions()...)
+			c, err := dialer.DialContext(ctx, "tcp", v.addr, v.DialOptions()...)
 			if err != nil {
 				return nil, fmt.Errorf("%s connect error: %w", v.addr, err)
 			}

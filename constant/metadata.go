@@ -36,9 +36,10 @@ const (
 type NetWork int
 
 func (n NetWork) String() string {
-	if n == TCP {
+	switch n {
+	case TCP:
 		return "tcp"
-	} else if n == UDP {
+	case UDP:
 		return "udp"
 	}
 	return "all"

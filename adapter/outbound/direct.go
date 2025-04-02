@@ -18,7 +18,7 @@ type Direct struct {
 // DialContext implements C.ProxyAdapter
 func (d *Direct) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.Conn, error) {
 	opts = append(opts, dialer.WithDirect())
-	c, err := dialer.DialContext(ctx, "tcp", metadata.RemoteAddress(), d.Base.DialOptions(opts...)...)
+	c, err := dialer.DialContext(ctx, "tcp", metadata.RemoteAddress(), d.DialOptions(opts...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +37,7 @@ func (d *Direct) DialContext(ctx context.Context, metadata *C.Metadata, opts ...
 // ListenPacketContext implements C.ProxyAdapter
 func (d *Direct) ListenPacketContext(ctx context.Context, _ *C.Metadata, opts ...dialer.Option) (C.PacketConn, error) {
 	opts = append(opts, dialer.WithDirect())
-	pc, err := dialer.ListenPacket(ctx, "udp", "", d.Base.DialOptions(opts...)...)
+	pc, err := dialer.ListenPacket(ctx, "udp", "", d.DialOptions(opts...)...)
 	if err != nil {
 		return nil, err
 	}

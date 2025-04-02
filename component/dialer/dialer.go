@@ -154,7 +154,7 @@ func dualStackDialContext(ctx context.Context, network, address string, opt *opt
 			case results <- result:
 			case <-returned:
 				if result.Conn != nil {
-					_ = result.Conn.Close()
+					_ = result.Close()
 				}
 			}
 		}()

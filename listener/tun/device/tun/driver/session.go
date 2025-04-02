@@ -68,7 +68,7 @@ func (session Session) ReceivePacket() (packet []byte, err error) {
 		err = e1
 		return
 	}
-	packet = unsafe.Slice((*byte)(unsafe.Pointer(r0)), packetSize)
+	packet = unsafe.Slice((*byte)(unsafe.Pointer(r0)), packetSize) //nolint:govet
 	return
 }
 
@@ -82,7 +82,7 @@ func (session Session) AllocateSendPacket(packetSize int) (packet []byte, err er
 		err = e1
 		return
 	}
-	packet = unsafe.Slice((*byte)(unsafe.Pointer(r0)), packetSize)
+	packet = unsafe.Slice((*byte)(unsafe.Pointer(r0)), packetSize) //nolint:govet
 	return
 }
 

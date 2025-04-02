@@ -1,10 +1,9 @@
+version: "2"
+
 linters:
-  disable-all: true
+  default: none
   enable:
     - copyloopvar
-    - gci
-    - gofumpt
-    - gosimple
     - govet
     - ineffassign
     - misspell
@@ -13,12 +12,18 @@ linters:
     - unused
     - usestdlibvars
 
-linters-settings:
-  gci:
-    sections:
-      - standard
-      - prefix(github.com/yaling888/quirktiva)
-      - default
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+  settings:
+    gci:
+      sections:
+        - standard
+        - prefix(github.com/yaling888/quirktiva)
+        - default
 
 run:
   concurrency: 4

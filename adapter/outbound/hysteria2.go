@@ -133,7 +133,7 @@ func (h *Hysteria2) makeDialer() func(addr net.Addr) (net.PacketConn, error) {
 	dialFn := func() (net.PacketConn, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), C.DefaultUDPTimeout)
 		defer cancel()
-		return dialer.ListenPacket(ctx, "udp", "", h.Base.DialOptions([]dialer.Option{}...)...)
+		return dialer.ListenPacket(ctx, "udp", "", h.DialOptions([]dialer.Option{}...)...)
 	}
 	return func(addr net.Addr) (pc net.PacketConn, err error) {
 		if hAddr, ok := addr.(*udphop.UDPHopAddr); ok {
@@ -273,8 +273,8 @@ func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
 			return cfg, nil
 		},
 		func(c client.Client, info *client.HandshakeInfo, count int) {
-			if !h.Base.udp {
-				h.Base.udp = info.UDPEnabled
+			if !h.udp {
+				h.udp = info.UDPEnabled
 			}
 		},
 		true,

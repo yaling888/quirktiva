@@ -270,9 +270,10 @@ func lookupIPByResolverAndType(ctx context.Context, host string, r Resolver, t u
 	}
 
 	if r != nil {
-		if t == typeA {
+		switch t {
+		case typeA:
 			return r.LookupIPv4(ctx, host)
-		} else if t == typeAAAA {
+		case typeAAAA:
 			return r.LookupIPv6(ctx, host)
 		}
 		if DisableIPv6 && !both {
@@ -295,9 +296,10 @@ func lookupIPByResolverAndType(ctx context.Context, host string, r Resolver, t u
 	}
 
 	network := "ip"
-	if t == typeA {
+	switch t {
+	case typeA:
 		network = "ip4"
-	} else if t == typeAAAA {
+	case typeAAAA:
 		network = "ip6"
 	}
 

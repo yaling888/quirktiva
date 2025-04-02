@@ -48,7 +48,7 @@ func (vc *Conn) sendRequest() error {
 	buf.PutUint8(vc.dst.AddrType)
 	buf.PutSlice(vc.dst.Addr)
 
-	_, err := vc.Conn.Write(buf.Bytes())
+	_, err := vc.Write(buf.Bytes())
 	return err
 }
 

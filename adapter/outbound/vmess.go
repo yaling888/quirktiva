@@ -406,14 +406,14 @@ func (v *Vmess) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 func (v *Vmess) dialContext(ctx context.Context, opts ...dialer.Option) (net.Conn, error) {
 	switch v.option.Network {
 	case "quic":
-		c, err := dialer.ListenPacket(ctx, "udp", "", v.Base.DialOptions(opts...)...)
+		c, err := dialer.ListenPacket(ctx, "udp", "", v.DialOptions(opts...)...)
 		if err != nil {
 			return nil, fmt.Errorf("%s connect error: %w", v.addr, err)
 		}
 		return c.(*net.UDPConn), nil
 	}
 
-	c, err := dialer.DialContext(ctx, "tcp", v.addr, v.Base.DialOptions(opts...)...)
+	c, err := dialer.DialContext(ctx, "tcp", v.addr, v.DialOptions(opts...)...)
 	if err != nil {
 		return nil, fmt.Errorf("%s connect error: %w", v.addr, err)
 	}
@@ -470,7 +470,7 @@ func NewVmess(option VmessOption) (*Vmess, error) {
 		dialFn := func(_, _ string) (net.Conn, error) {
 			ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTCPTimeout)
 			defer cancel()
-			c, err := dialer.DialContext(ctx, "tcp", v.addr, v.Base.DialOptions()...)
+			c, err := dialer.DialContext(ctx, "tcp", v.addr, v.DialOptions()...)
 			if err != nil {
 				return nil, fmt.Errorf("%s connect error: %w", v.addr, err)
 			}
@@ -549,10 +549,10 @@ func (uc *vmessPacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	if !realAddr.IP.Equal(destAddr.IP) || realAddr.Port != destAddr.Port {
 		return 0, errors.New("udp packet dropped due to mismatched remote address")
 	}
-	return uc.Conn.Write(b)
+	return uc.Write(b)
 }
 
 func (uc *vmessPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
-	n, err := uc.Conn.Read(b)
+	n, err := uc.Read(b)
 	return n, uc.rAddr, err
 }

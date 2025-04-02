@@ -42,14 +42,14 @@ type PoolConn struct {
 
 func (pc *PoolConn) Read(b []byte) (int, error) {
 	// save old status of reply (it mutable by Read)
-	reply := pc.Snell.reply
+	reply := pc.reply
 
 	n, err := pc.Snell.Read(b)
 	if err == shadowaead.ErrZeroChunk {
 		// if reply is false, it should be client halfclose.
 		// ignore error and read data again.
 		if !reply {
-			pc.Snell.reply = false
+			pc.reply = false
 			return pc.Snell.Read(b)
 		}
 	}
@@ -63,7 +63,7 @@ func (pc *PoolConn) Write(b []byte) (int, error) {
 func (pc *PoolConn) Close() error {
 	// clash use SetReadDeadline to break bidirectional copy between client and server.
 	// reset it before reuse connection to avoid io timeout error.
-	_ = pc.Snell.Conn.SetReadDeadline(time.Time{})
+	_ = pc.SetReadDeadline(time.Time{})
 	pc.pool.Put(pc.Snell)
 	return nil
 }
