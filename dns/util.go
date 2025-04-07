@@ -34,21 +34,21 @@ func putMsgToCache(c *cache.LruCache[string, *rMsg], key string, msg *rMsg) {
 }
 
 func putMsgToCacheWithExpire(c *cache.LruCache[string, *rMsg], key string, msg *rMsg, sec uint32) {
+	sortAnswer(msg.Msg.Answer)
+
 	if sec == 0 {
 		if sec = minTTL(msg.Msg.Answer); sec == 0 {
 			if sec = minTTL(msg.Msg.Ns); sec == 0 {
 				sec = minTTL(msg.Msg.Extra)
 			}
 		}
-		if sec == 0 {
+		if sec <= 1 {
 			return
 		}
 		if !msg.Lan {
 			sec = max(sec, 300) // at least 5 minutes to cache
 		}
 	}
-
-	sortAnswer(msg.Msg.Answer)
 
 	c.SetWithExpire(key, msg.Copy(), time.Now().Add(time.Duration(sec)*time.Second))
 }
@@ -103,6 +103,8 @@ func minTTL(records []D.RR) uint32 {
 	return 0
 }
 
+var maxAddr = netip.MustParseAddr("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")
+
 func sortAnswer(answer []D.RR) {
 	slices.SortFunc(answer, func(ip1, ip2 D.RR) int {
 		var (
@@ -116,7 +118,7 @@ func sortAnswer(answer []D.RR) {
 			addr1, ok = netip.AddrFromSlice(a.AAAA)
 		}
 		if !ok {
-			addr1 = netip.MustParseAddr("ffff::")
+			addr1 = maxAddr
 		}
 		ok = false
 		switch a := ip2.(type) {
@@ -126,7 +128,7 @@ func sortAnswer(answer []D.RR) {
 			addr2, ok = netip.AddrFromSlice(a.AAAA)
 		}
 		if !ok {
-			addr2 = netip.MustParseAddr("ffff::")
+			addr2 = maxAddr
 		}
 		return addr1.Compare(addr2)
 	})

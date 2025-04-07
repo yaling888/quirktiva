@@ -85,7 +85,7 @@ func ParseProxy(mapping map[string]any, option ProxyOption) (C.Proxy, error) {
 		if option.DisableDNS {
 			socksOption.RemoteDnsResolve = false
 		}
-		proxy = outbound.NewSocks5(*socksOption)
+		proxy, err = outbound.NewSocks5(*socksOption)
 	case "http":
 		httpOption := &outbound.HttpOption{RemoteDnsResolve: true}
 		err = decoder.Decode(mapping, httpOption)
@@ -98,7 +98,7 @@ func ParseProxy(mapping map[string]any, option ProxyOption) (C.Proxy, error) {
 		if option.DisableDNS {
 			httpOption.RemoteDnsResolve = false
 		}
-		proxy = outbound.NewHttp(*httpOption)
+		proxy, err = outbound.NewHttp(*httpOption)
 	case "vmess":
 		vmessOption := &outbound.VmessOption{
 			HTTPOpts: outbound.HTTPOptions{

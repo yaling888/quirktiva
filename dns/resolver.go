@@ -241,8 +241,16 @@ func (r *Resolver) exchangeWithoutCache(ctx context.Context, m *D.Msg, q D.Quest
 			}
 
 			if resolver.IsProxyServer(ctx) {
-				// reset proxy server ip cache expire time to at least 20 minutes
-				sec := max(minTTL(msg1.Msg.Answer), 1200)
+				var sec uint32
+				if q.Qtype == D.TypeHTTPS {
+					sec = minTTL(msg1.Msg.Answer)
+					if sec == 0 {
+						return
+					}
+				} else {
+					// reset proxy server ip cache expire time to at least 20 minutes
+					sec = max(minTTL(msg1.Msg.Answer), 1200)
+				}
 				putMsgToCacheWithExpire(r.lruCache, key, msg1, sec)
 				return
 			}

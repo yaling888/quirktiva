@@ -44,7 +44,9 @@ type Option struct {
 	Password       string
 	ALPN           []string
 	ServerName     string
+	ECHConfig      string
 	SkipCertVerify bool
+	LookupECH      bool
 }
 
 type HTTPOptions struct {
@@ -65,7 +67,7 @@ type WebsocketOption struct {
 type Trojan struct {
 	option      *Option
 	hexPassword []byte
-	useECH      bool
+	lookupECH   bool
 }
 
 func (t *Trojan) StreamConn(conn net.Conn) (net.Conn, error) {
@@ -81,9 +83,11 @@ func (t *Trojan) StreamConn(conn net.Conn) (net.Conn, error) {
 		ServerName:         t.option.ServerName,
 	}
 
-	if t.useECH {
-		t.useECH = resolver.SetECHConfigList(tlsConfig)
+	if t.lookupECH {
+		t.lookupECH = resolver.SetECHConfigList(tlsConfig)
 	}
+
+	t.setECHConfig(tlsConfig)
 
 	tlsConn := tls.Client(conn, tlsConfig)
 
@@ -105,9 +109,11 @@ func (t *Trojan) StreamH2Conn(conn net.Conn, h2Option *HTTPOptions) (net.Conn, e
 		ServerName:         t.option.ServerName,
 	}
 
-	if t.useECH {
-		t.useECH = resolver.SetECHConfigList(tlsConfig)
+	if t.lookupECH {
+		t.lookupECH = resolver.SetECHConfigList(tlsConfig)
 	}
+
+	t.setECHConfig(tlsConfig)
 
 	tlsConn := tls.Client(conn, tlsConfig)
 
@@ -137,9 +143,11 @@ func (t *Trojan) StreamWebsocketConn(conn net.Conn, wsOptions *WebsocketOption) 
 		ServerName:         t.option.ServerName,
 	}
 
-	if t.useECH {
-		t.useECH = resolver.SetECHConfigList(tlsConfig)
+	if t.lookupECH {
+		t.lookupECH = resolver.SetECHConfigList(tlsConfig)
 	}
+
+	t.setECHConfig(tlsConfig)
 
 	return vmess.StreamWebsocketConn(conn, &vmess.WebsocketConfig{
 		Host:      wsOptions.Host,
@@ -168,6 +176,20 @@ func (t *Trojan) WriteHeader(w io.Writer, command Command, socks5Addr []byte) er
 func (t *Trojan) PacketConn(conn net.Conn) net.PacketConn {
 	return &PacketConn{
 		Conn: conn,
+	}
+}
+
+func (t *Trojan) setECHConfig(tlsConfig *tls.Config) {
+	if t.option.ECHConfig != "" {
+		tlsConfig.MinVersion = tls.VersionTLS13
+		tlsConfig.InsecureSkipVerify = false
+		tlsConfig.EncryptedClientHelloConfigList = []byte(t.option.ECHConfig)
+		tlsConfig.EncryptedClientHelloRejectionVerify = func(state tls.ConnectionState) error {
+			if !state.ECHAccepted {
+				return resolver.ErrECHServerReject
+			}
+			return nil
+		}
 	}
 }
 
@@ -260,7 +282,7 @@ func New(option *Option) *Trojan {
 	return &Trojan{
 		option:      option,
 		hexPassword: hexSha224([]byte(option.Password)),
-		useECH:      true,
+		lookupECH:   option.LookupECH,
 	}
 }
 

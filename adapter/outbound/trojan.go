@@ -3,6 +3,7 @@ package outbound
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
 	"net"
 	"net/http"
@@ -33,8 +34,9 @@ type Trojan struct {
 	gunConfig    *gun.Config
 	transport    *http2.Transport
 
-	quicAEAD *crypto.AEAD
-	useECH   bool
+	quicAEAD  *crypto.AEAD
+	echConfig string
+	lookupECH bool
 }
 
 type TrojanOption struct {
@@ -45,6 +47,8 @@ type TrojanOption struct {
 	Password         string            `proxy:"password"`
 	ALPN             []string          `proxy:"alpn,omitempty"`
 	SNI              string            `proxy:"sni,omitempty"`
+	ECHConfig        string            `proxy:"ech-config,omitempty"`
+	ECH              bool              `proxy:"ech,omitempty"`
 	SkipCertVerify   bool              `proxy:"skip-cert-verify,omitempty"`
 	UDP              bool              `proxy:"udp,omitempty"`
 	Network          string            `proxy:"network,omitempty"`
@@ -127,9 +131,11 @@ func (t *Trojan) plainStream(conn net.Conn) (net.Conn, error) {
 			MinVersion:         tls.VersionTLS13,
 		}
 
-		if t.useECH {
-			t.useECH = resolver.SetECHConfigList(tlsConfig)
+		if t.lookupECH {
+			t.lookupECH = resolver.SetECHConfigList(tlsConfig)
 		}
+
+		t.setECHConfig(tlsConfig)
 
 		return quic.StreamQUICConn(conn, tlsConfig, quicOpts)
 	}
@@ -141,9 +147,9 @@ func (t *Trojan) trojanStream(c net.Conn, metadata *C.Metadata) (net.Conn, error
 	var err error
 	if t.transport != nil {
 		tlsConfig := t.gunTLSConfig
-		if t.useECH {
-			tlsConfig = copyTLSConfig(t.gunTLSConfig)
-			t.useECH = resolver.SetECHConfigList(tlsConfig)
+		if t.lookupECH {
+			tlsConfig = t.gunTLSConfig.Clone()
+			t.lookupECH = resolver.SetECHConfigList(tlsConfig)
 		}
 		c, err = gun.StreamGunWithConn(c, tlsConfig, t.gunConfig)
 	} else {
@@ -191,9 +197,9 @@ func (t *Trojan) DialContext(ctx context.Context, metadata *C.Metadata, opts ...
 	// gun transport
 	if t.transport != nil && len(opts) == 0 {
 		tlsConfig := t.gunTLSConfig
-		if t.useECH {
-			tlsConfig = copyTLSConfig(t.gunTLSConfig)
-			t.useECH = resolver.SetECHConfigList(tlsConfig)
+		if t.lookupECH {
+			tlsConfig = t.gunTLSConfig.Clone()
+			t.lookupECH = resolver.SetECHConfigList(tlsConfig)
 		}
 		c, err = gun.StreamGunWithTransport(t.transport, tlsConfig, t.gunConfig)
 		if err != nil {
@@ -236,9 +242,9 @@ func (t *Trojan) ListenPacketContext(ctx context.Context, metadata *C.Metadata, 
 	// gun transport
 	if t.transport != nil && len(opts) == 0 {
 		tlsConfig := t.gunTLSConfig
-		if t.useECH {
-			tlsConfig = copyTLSConfig(t.gunTLSConfig)
-			t.useECH = resolver.SetECHConfigList(tlsConfig)
+		if t.lookupECH {
+			tlsConfig = t.gunTLSConfig.Clone()
+			t.lookupECH = resolver.SetECHConfigList(tlsConfig)
 		}
 		c, err = gun.StreamGunWithTransport(t.transport, tlsConfig, t.gunConfig)
 		if err != nil {
@@ -294,9 +300,36 @@ func (t *Trojan) dialContext(ctx context.Context, opts ...dialer.Option) (net.Co
 	return c, nil
 }
 
+func (t *Trojan) setECHConfig(tlsConfig *tls.Config) {
+	if t.echConfig != "" {
+		tlsConfig.MinVersion = tls.VersionTLS13
+		tlsConfig.InsecureSkipVerify = false
+		tlsConfig.EncryptedClientHelloConfigList = []byte(t.echConfig)
+		tlsConfig.EncryptedClientHelloRejectionVerify = func(state tls.ConnectionState) error {
+			if !state.ECHAccepted {
+				return resolver.ErrECHServerReject
+			}
+			return nil
+		}
+	}
+}
+
 func NewTrojan(option TrojanOption) (*Trojan, error) {
 	if _, err := crypto.VerifyAEADOption(option.AEADOpts, true); err != nil {
 		return nil, err
+	}
+
+	var (
+		echConfig string
+		lookupECH = option.ECH
+	)
+	if option.ECHConfig != "" {
+		ech, err := base64.StdEncoding.DecodeString(option.ECHConfig)
+		if err != nil {
+			return nil, fmt.Errorf("invalid ECH config: %w", err)
+		}
+		echConfig = string(ech)
+		lookupECH = false
 	}
 
 	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
@@ -305,7 +338,9 @@ func NewTrojan(option TrojanOption) (*Trojan, error) {
 		Password:       option.Password,
 		ALPN:           option.ALPN,
 		ServerName:     option.Server,
+		ECHConfig:      echConfig,
 		SkipCertVerify: option.SkipCertVerify,
+		LookupECH:      lookupECH,
 	}
 
 	if option.SNI != "" {
@@ -322,9 +357,10 @@ func NewTrojan(option TrojanOption) (*Trojan, error) {
 			rmark: option.RoutingMark,
 			dns:   option.RemoteDnsResolve,
 		},
-		instance: trojan.New(tOption),
-		option:   &option,
-		useECH:   true,
+		instance:  trojan.New(tOption),
+		option:    &option,
+		echConfig: echConfig,
+		lookupECH: lookupECH,
 	}
 
 	switch option.Network {
@@ -350,6 +386,8 @@ func NewTrojan(option TrojanOption) (*Trojan, error) {
 			InsecureSkipVerify: tOption.SkipCertVerify,
 			ServerName:         tOption.ServerName,
 		}
+
+		t.setECHConfig(tlsConfig)
 
 		t.transport = gun.NewHTTP2Client(dialFn)
 

@@ -25,7 +25,7 @@ type Http struct {
 	*Base
 	user      string
 	pass      string
-	useECH    bool
+	lookupECH bool
 	tlsConfig *tls.Config
 	headers   http.Header
 }
@@ -39,6 +39,8 @@ type HttpOption struct {
 	Password         string            `proxy:"password,omitempty"`
 	TLS              bool              `proxy:"tls,omitempty"`
 	SNI              string            `proxy:"sni,omitempty"`
+	ECHConfig        string            `proxy:"ech-config,omitempty"`
+	ECH              bool              `proxy:"ech,omitempty"`
 	SkipCertVerify   bool              `proxy:"skip-cert-verify,omitempty"`
 	Headers          map[string]string `proxy:"headers,omitempty"`
 	RemoteDnsResolve bool              `proxy:"remote-dns-resolve,omitempty"`
@@ -48,9 +50,9 @@ type HttpOption struct {
 func (h *Http) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 	if h.tlsConfig != nil {
 		var cc *tls.Conn
-		if h.useECH {
-			tlsConfig := copyTLSConfig(h.tlsConfig)
-			h.useECH = resolver.SetECHConfigList(tlsConfig)
+		if h.lookupECH {
+			tlsConfig := h.tlsConfig.Clone()
+			h.lookupECH = resolver.SetECHConfigList(tlsConfig)
 			cc = tls.Client(c, tlsConfig)
 		} else {
 			cc = tls.Client(c, h.tlsConfig)
@@ -141,8 +143,11 @@ func (h *Http) shakeHand(metadata *C.Metadata, rw io.ReadWriter) error {
 	return fmt.Errorf("can not connect remote err code: %d", resp.StatusCode)
 }
 
-func NewHttp(option HttpOption) *Http {
-	var tlsConfig *tls.Config
+func NewHttp(option HttpOption) (*Http, error) {
+	var (
+		lookupECH = option.ECH
+		tlsConfig *tls.Config
+	)
 	if option.TLS {
 		sni := option.Server
 		if option.SNI != "" {
@@ -151,6 +156,22 @@ func NewHttp(option HttpOption) *Http {
 		tlsConfig = &tls.Config{
 			InsecureSkipVerify: option.SkipCertVerify,
 			ServerName:         sni,
+		}
+		if option.ECHConfig != "" {
+			ech, err := base64.StdEncoding.DecodeString(option.ECHConfig)
+			if err != nil {
+				return nil, fmt.Errorf("invalid ECH config: %w", err)
+			}
+			tlsConfig.MinVersion = tls.VersionTLS13
+			tlsConfig.InsecureSkipVerify = false
+			tlsConfig.EncryptedClientHelloConfigList = ech
+			tlsConfig.EncryptedClientHelloRejectionVerify = func(state tls.ConnectionState) error {
+				if !state.ECHAccepted {
+					return resolver.ErrECHServerReject
+				}
+				return nil
+			}
+			lookupECH = false
 		}
 	}
 
@@ -176,6 +197,6 @@ func NewHttp(option HttpOption) *Http {
 		pass:      option.Password,
 		tlsConfig: tlsConfig,
 		headers:   headers,
-		useECH:    true,
-	}
+		lookupECH: lookupECH,
+	}, nil
 }

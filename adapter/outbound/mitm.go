@@ -50,12 +50,16 @@ func NewMitm(serverAddr string, auths auth.Authenticator) *Mitm {
 			option.Password = user.Pass
 		}
 	}
+	cl, err := NewHttp(option)
+	if err != nil {
+		panic("unreachable")
+	}
 	return &Mitm{
 		Base: &Base{
 			name: "Mitm",
 			tp:   C.Mitm,
 		},
 		serverAddr:      tcpAddr,
-		httpProxyClient: NewHttp(option),
+		httpProxyClient: cl,
 	}
 }

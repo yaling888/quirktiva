@@ -3,6 +3,7 @@ package outbound
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -24,7 +25,7 @@ type Socks5 struct {
 	pass           string
 	tls            bool
 	skipCertVerify bool
-	useECH         bool
+	lookupECH      bool
 	tlsConfig      *tls.Config
 }
 
@@ -35,6 +36,8 @@ type Socks5Option struct {
 	Port             int    `proxy:"port"`
 	UserName         string `proxy:"username,omitempty"`
 	Password         string `proxy:"password,omitempty"`
+	ECHConfig        string `proxy:"ech-config,omitempty"`
+	ECH              bool   `proxy:"ech,omitempty"`
 	TLS              bool   `proxy:"tls,omitempty"`
 	UDP              bool   `proxy:"udp,omitempty"`
 	SkipCertVerify   bool   `proxy:"skip-cert-verify,omitempty"`
@@ -92,9 +95,9 @@ func (ss *Socks5) StreamSocks5PacketConn(c net.Conn, pc net.PacketConn, metadata
 func (ss *Socks5) streamConn(c net.Conn, metadata *C.Metadata) (_ net.Conn, bindAddr socks5.Addr, err error) {
 	if ss.tls {
 		var cc *tls.Conn
-		if ss.useECH {
-			tlsConfig := copyTLSConfig(ss.tlsConfig)
-			ss.useECH = resolver.SetECHConfigList(tlsConfig)
+		if ss.lookupECH {
+			tlsConfig := ss.tlsConfig.Clone()
+			ss.lookupECH = resolver.SetECHConfigList(tlsConfig)
 			cc = tls.Client(c, tlsConfig)
 		} else {
 			cc = tls.Client(c, ss.tlsConfig)
@@ -172,12 +175,31 @@ func (ss *Socks5) ListenPacketContext(ctx context.Context, metadata *C.Metadata,
 	return NewPacketConn(pc, ss), nil
 }
 
-func NewSocks5(option Socks5Option) *Socks5 {
-	var tlsConfig *tls.Config
+func NewSocks5(option Socks5Option) (*Socks5, error) {
+	var (
+		lookupECH = option.ECH
+		tlsConfig *tls.Config
+	)
 	if option.TLS {
 		tlsConfig = &tls.Config{
 			InsecureSkipVerify: option.SkipCertVerify,
 			ServerName:         option.Server,
+		}
+		if option.ECHConfig != "" {
+			ech, err := base64.StdEncoding.DecodeString(option.ECHConfig)
+			if err != nil {
+				return nil, fmt.Errorf("invalid ECH config: %w", err)
+			}
+			tlsConfig.MinVersion = tls.VersionTLS13
+			tlsConfig.InsecureSkipVerify = false
+			tlsConfig.EncryptedClientHelloConfigList = ech
+			tlsConfig.EncryptedClientHelloRejectionVerify = func(state tls.ConnectionState) error {
+				if !state.ECHAccepted {
+					return resolver.ErrECHServerReject
+				}
+				return nil
+			}
+			lookupECH = false
 		}
 	}
 
@@ -196,8 +218,8 @@ func NewSocks5(option Socks5Option) *Socks5 {
 		tls:            option.TLS,
 		skipCertVerify: option.SkipCertVerify,
 		tlsConfig:      tlsConfig,
-		useECH:         true,
-	}
+		lookupECH:      lookupECH,
+	}, nil
 }
 
 type socksPacketConn struct {

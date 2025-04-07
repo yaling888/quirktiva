@@ -1,7 +1,6 @@
 package outbound
 
 import (
-	"crypto/tls"
 	"net"
 	"time"
 
@@ -52,14 +51,5 @@ func resolveUDPAddr(network, address string) (*net.UDPAddr, error) {
 func safeConnClose(c net.Conn, err error) {
 	if err != nil && c != nil {
 		_ = c.Close()
-	}
-}
-
-func copyTLSConfig(config *tls.Config) *tls.Config {
-	return &tls.Config{
-		MinVersion:         config.MinVersion,
-		NextProtos:         config.NextProtos,
-		ServerName:         config.ServerName,
-		InsecureSkipVerify: config.InsecureSkipVerify,
 	}
 }

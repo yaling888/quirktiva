@@ -3,6 +3,7 @@ package outbound
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -48,8 +49,9 @@ type Vless struct {
 	gunConfig    *gun.Config
 	transport    *http2.Transport
 
-	quicAEAD *crypto.AEAD
-	useECH   bool
+	quicAEAD  *crypto.AEAD
+	echConfig string
+	lookupECH bool
 }
 
 type VlessOption struct {
@@ -64,6 +66,8 @@ type VlessOption struct {
 	SkipCertVerify   bool              `proxy:"skip-cert-verify,omitempty"`
 	ALPN             []string          `proxy:"alpn,omitempty"`
 	ServerName       string            `proxy:"servername,omitempty"`
+	ECHConfig        string            `proxy:"ech-config,omitempty"`
+	ECH              bool              `proxy:"ech,omitempty"`
 	HTTPOpts         HTTPOptions       `proxy:"http-opts,omitempty"`
 	HTTP2Opts        HTTP2Options      `proxy:"h2-opts,omitempty"`
 	GrpcOpts         GrpcOptions       `proxy:"grpc-opts,omitempty"`
@@ -110,9 +114,11 @@ func (v *Vless) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 				wsOpts.Host = host1
 			}
 
-			if v.useECH {
-				v.useECH = resolver.SetECHConfigList(tlsConfig)
+			if v.lookupECH {
+				v.lookupECH = resolver.SetECHConfigList(tlsConfig)
 			}
+
+			v.setECHConfig(tlsConfig)
 
 			wsOpts.TLSConfig = tlsConfig
 		} else if v.option.RandomHost || wsOpts.Headers.Get("Host") == "" {
@@ -136,9 +142,11 @@ func (v *Vless) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 				tlsConfig.ServerName = v.option.ServerName
 			}
 
-			if v.useECH {
-				v.useECH = resolver.SetECHConfigList(tlsConfig)
+			if v.lookupECH {
+				v.lookupECH = resolver.SetECHConfigList(tlsConfig)
 			}
+
+			v.setECHConfig(tlsConfig)
 
 			c, err = tls2.StreamTLSConn(c, tlsConfig)
 			if err != nil {
@@ -178,9 +186,11 @@ func (v *Vless) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 			tlsConfig.ServerName = v.option.ServerName
 		}
 
-		if v.useECH {
-			v.useECH = resolver.SetECHConfigList(tlsConfig)
+		if v.lookupECH {
+			v.lookupECH = resolver.SetECHConfigList(tlsConfig)
 		}
+
+		v.setECHConfig(tlsConfig)
 
 		c, err = tls2.StreamTLSConn(c, tlsConfig)
 		if err != nil {
@@ -206,9 +216,9 @@ func (v *Vless) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 		c, err = h2.StreamH2Conn(c, h2Opts)
 	case "grpc":
 		tlsConfig := v.gunTLSConfig
-		if v.useECH {
-			tlsConfig = copyTLSConfig(v.gunTLSConfig)
-			v.useECH = resolver.SetECHConfigList(tlsConfig)
+		if v.lookupECH {
+			tlsConfig = v.gunTLSConfig.Clone()
+			v.lookupECH = resolver.SetECHConfigList(tlsConfig)
 		}
 		c, err = gun.StreamGunWithConn(c, tlsConfig, v.gunConfig)
 	case "quic":
@@ -238,9 +248,11 @@ func (v *Vless) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 			MinVersion:         tls.VersionTLS13,
 		}
 
-		if v.useECH {
-			v.useECH = resolver.SetECHConfigList(tlsConfig)
+		if v.lookupECH {
+			v.lookupECH = resolver.SetECHConfigList(tlsConfig)
 		}
+
+		v.setECHConfig(tlsConfig)
 
 		c, err = quic.StreamQUICConn(c, tlsConfig, quicOpts)
 	default:
@@ -256,9 +268,11 @@ func (v *Vless) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 				tlsConfig.ServerName = v.option.ServerName
 			}
 
-			if v.useECH {
-				v.useECH = resolver.SetECHConfigList(tlsConfig)
+			if v.lookupECH {
+				v.lookupECH = resolver.SetECHConfigList(tlsConfig)
 			}
+
+			v.setECHConfig(tlsConfig)
 
 			c, err = tls2.StreamTLSConn(c, tlsConfig)
 		}
@@ -301,9 +315,9 @@ func (v *Vless) DialContext(ctx context.Context, metadata *C.Metadata, opts ...d
 	// gun transport
 	if v.transport != nil && len(opts) == 0 {
 		tlsConfig := v.gunTLSConfig
-		if v.useECH {
-			tlsConfig = copyTLSConfig(v.gunTLSConfig)
-			v.useECH = resolver.SetECHConfigList(tlsConfig)
+		if v.lookupECH {
+			tlsConfig = v.gunTLSConfig.Clone()
+			v.lookupECH = resolver.SetECHConfigList(tlsConfig)
 		}
 		c, err := gun.StreamGunWithTransport(v.transport, tlsConfig, v.gunConfig)
 		if err != nil {
@@ -349,9 +363,9 @@ func (v *Vless) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 		}
 
 		tlsConfig := v.gunTLSConfig
-		if v.useECH {
-			tlsConfig = copyTLSConfig(v.gunTLSConfig)
-			v.useECH = resolver.SetECHConfigList(tlsConfig)
+		if v.lookupECH {
+			tlsConfig = v.gunTLSConfig.Clone()
+			v.lookupECH = resolver.SetECHConfigList(tlsConfig)
 		}
 		c, err = gun.StreamGunWithTransport(v.transport, tlsConfig, v.gunConfig)
 		if err != nil {
@@ -402,6 +416,20 @@ func (v *Vless) dialContext(ctx context.Context, opts ...dialer.Option) (net.Con
 		return nil, fmt.Errorf("%s connect error: %w", v.addr, err)
 	}
 	return c, nil
+}
+
+func (v *Vless) setECHConfig(tlsConfig *tls.Config) {
+	if v.echConfig != "" {
+		tlsConfig.MinVersion = tls.VersionTLS13
+		tlsConfig.InsecureSkipVerify = false
+		tlsConfig.EncryptedClientHelloConfigList = []byte(v.echConfig)
+		tlsConfig.EncryptedClientHelloRejectionVerify = func(state tls.ConnectionState) error {
+			if !state.ECHAccepted {
+				return resolver.ErrECHServerReject
+			}
+			return nil
+		}
+	}
 }
 
 func parseVlessAddr(metadata *C.Metadata) *vless.DstAddr {
@@ -523,6 +551,19 @@ func NewVless(option VlessOption) (*Vless, error) {
 		return nil, errors.New("TLS must be true with tcp/http/h2/grpc/quic network")
 	}
 
+	var (
+		echConfig string
+		lookupECH = option.ECH
+	)
+	if option.ECHConfig != "" {
+		ech, err := base64.StdEncoding.DecodeString(option.ECHConfig)
+		if err != nil {
+			return nil, fmt.Errorf("invalid ECH config: %w", err)
+		}
+		echConfig = string(ech)
+		lookupECH = false
+	}
+
 	if _, err := crypto.VerifyAEADOption(option.AEADOpts, true); err != nil {
 		return nil, err
 	}
@@ -541,9 +582,10 @@ func NewVless(option VlessOption) (*Vless, error) {
 			iface: option.Interface,
 			dns:   option.RemoteDnsResolve,
 		},
-		client: client,
-		option: &option,
-		useECH: true,
+		client:    client,
+		option:    &option,
+		echConfig: echConfig,
+		lookupECH: lookupECH,
 	}
 
 	host := option.Server
@@ -582,6 +624,8 @@ func NewVless(option VlessOption) (*Vless, error) {
 			tlsConfig.ServerName = host
 			gunConfig.Host = host
 		}
+
+		v.setECHConfig(tlsConfig)
 
 		v.gunTLSConfig = tlsConfig
 		v.gunConfig = gunConfig
