@@ -14,9 +14,9 @@ require (
 
 require (
 	github.com/Microsoft/go-winio v0.6.1 // indirect
-	github.com/apernet/hysteria/core/v2 v2.5.1-0.20240816231605-7e70547dbdf1 // indirect
-	github.com/apernet/hysteria/extras/v2 v2.5.3-0.20241104183808-a2c7b8fd198d // indirect
-	github.com/apernet/quic-go v0.48.2-0.20241104191913-cb103fcecfe7 // indirect
+	github.com/apernet/hysteria/core/v2 v2.6.2-0.20250420212931-b2567df63ca8 // indirect
+	github.com/apernet/hysteria/extras/v2 v2.6.2-0.20250420212931-b2567df63ca8 // indirect
+	github.com/apernet/quic-go v0.51.1-0.20250420212127-ede9b032759a // indirect
 	github.com/cilium/ebpf v0.17.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
@@ -79,6 +79,6 @@ require (
 )
 
 replace (
-	github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.51.0
+	github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.51.1
 	github.com/yaling888/quirktiva => ../
 )

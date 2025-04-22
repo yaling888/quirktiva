@@ -3,8 +3,8 @@ module github.com/yaling888/quirktiva
 go 1.24.1
 
 require (
-	github.com/apernet/hysteria/core/v2 v2.5.1-0.20240816231605-7e70547dbdf1
-	github.com/apernet/hysteria/extras/v2 v2.5.3-0.20241104183808-a2c7b8fd198d
+	github.com/apernet/hysteria/core/v2 v2.6.2-0.20250420212931-b2567df63ca8
+	github.com/apernet/hysteria/extras/v2 v2.6.2-0.20250420212931-b2567df63ca8
 	github.com/cilium/ebpf v0.17.3
 	github.com/dlclark/regexp2 v1.11.5
 	github.com/expr-lang/expr v1.17.2
@@ -39,7 +39,7 @@ require (
 
 require (
 	github.com/ajg/form v1.5.1 // indirect
-	github.com/apernet/quic-go v0.48.2-0.20241104191913-cb103fcecfe7 // indirect
+	github.com/apernet/quic-go v0.51.1-0.20250420212127-ede9b032759a // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/google/btree v1.1.2 // indirect
@@ -60,4 +60,4 @@ require (
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 )
 
-replace github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.51.0
+replace github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.51.1
