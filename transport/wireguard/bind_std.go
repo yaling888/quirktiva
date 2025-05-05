@@ -20,28 +20,28 @@ import (
 )
 
 //go:linkname getSrcFromControl golang.zx2c4.com/wireguard/conn.getSrcFromControl
-func getSrcFromControl(control []byte, ep *wg.StdNetEndpoint)
+func getSrcFromControl(_ []byte, _ *wg.StdNetEndpoint)
 
 //go:linkname setSrcControl golang.zx2c4.com/wireguard/conn.setSrcControl
-func setSrcControl(control *[]byte, ep *wg.StdNetEndpoint)
+func setSrcControl(_ *[]byte, _ *wg.StdNetEndpoint)
 
 //go:linkname getGSOSize golang.zx2c4.com/wireguard/conn.getGSOSize
-func getGSOSize(control []byte) (int, error)
+func getGSOSize(_ []byte) (int, error)
 
 //go:linkname setGSOSize golang.zx2c4.com/wireguard/conn.setGSOSize
-func setGSOSize(control *[]byte, gsoSize uint16)
+func setGSOSize(_ *[]byte, _ uint16)
 
 //go:linkname supportsUDPOffload golang.zx2c4.com/wireguard/conn.supportsUDPOffload
-func supportsUDPOffload(conn *net.UDPConn) (txOffload, rxOffload bool)
+func supportsUDPOffload(_ *net.UDPConn) (txOffload, rxOffload bool)
 
 //go:linkname errShouldDisableUDPGSO golang.zx2c4.com/wireguard/conn.errShouldDisableUDPGSO
-func errShouldDisableUDPGSO(err error) bool
+func errShouldDisableUDPGSO(_ error) bool
 
 //go:linkname coalesceMessages golang.zx2c4.com/wireguard/conn.coalesceMessages
-func coalesceMessages(addr *net.UDPAddr, ep *wg.StdNetEndpoint, bufs [][]byte, msgs []ipv6.Message, setGSO setGSOFunc) int
+func coalesceMessages(_ *net.UDPAddr, _ *wg.StdNetEndpoint, _ [][]byte, _ []ipv6.Message, _ setGSOFunc) int
 
 //go:linkname splitCoalescedMessages golang.zx2c4.com/wireguard/conn.splitCoalescedMessages
-func splitCoalescedMessages(msgs []ipv6.Message, firstMsgAt int, getGSO getGSOFunc) (n int, err error)
+func splitCoalescedMessages(_ []ipv6.Message, _ int, _ getGSOFunc) (n int, err error)
 
 const udpSegmentMaxDatagrams = 64 // This is a hard limit imposed by the kernel.
 
@@ -128,7 +128,7 @@ func (s *StdNetBind) listenNet(network string, port int) (*net.UDPConn, int, err
 	return conn.(*net.UDPConn), uaddr.Port, nil
 }
 
-func (s *StdNetBind) SetMark(mark uint32) error {
+func (s *StdNetBind) SetMark(_ uint32) error {
 	return nil
 }
 
