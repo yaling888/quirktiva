@@ -391,8 +391,12 @@ func listenContextByProxyOrInterface(
 ) (net.PacketConn, error) {
 	proxy, ok := tunnel.FindProxyByName(proxyOrInterface)
 	if !ok {
+		network := "udp"
+		if dstIP.Is4() {
+			network = "udp4"
+		}
 		opts := []dialer.Option{dialer.WithInterface(proxyOrInterface), dialer.WithRoutingMark(0)}
-		conn, err := dialer.ListenPacket(ctx, "udp", "", opts...)
+		conn, err := dialer.ListenPacket(ctx, network, "", opts...)
 		if err == nil {
 			return conn, nil
 		}
@@ -420,7 +424,11 @@ func listenContextByProxyOrInterface(
 
 func getPacketConn(ctx context.Context, ip netip.Addr, port uint16, proxy string, forceHTTP3 bool) (net.PacketConn, error) {
 	if proxy == "" {
-		return dialer.ListenPacket(ctx, "udp", "")
+		network := "udp"
+		if ip.Is4() {
+			network = "udp4"
+		}
+		return dialer.ListenPacket(ctx, network, "")
 	}
 	return listenContextByProxyOrInterface(ctx, ip, port, proxy, forceHTTP3)
 }
