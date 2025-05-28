@@ -206,9 +206,9 @@ func (t *Trojan) DialContext(ctx context.Context, metadata *C.Metadata, opts ...
 			return nil, err
 		}
 
-		defer func(cc net.Conn, e error) {
-			safeConnClose(cc, e)
-		}(c, err)
+		defer func(cc net.Conn) {
+			safeConnClose(cc, err)
+		}(c)
 
 		if err = t.instance.WriteHeader(c, trojan.CommandTCP, serializesSocksAddr(metadata)); err != nil {
 			return nil, err
@@ -223,9 +223,9 @@ func (t *Trojan) DialContext(ctx context.Context, metadata *C.Metadata, opts ...
 	}
 	tcpKeepAlive(c)
 
-	defer func(cc net.Conn, e error) {
-		safeConnClose(cc, e)
-	}(c, err)
+	defer func(cc net.Conn) {
+		safeConnClose(cc, err)
+	}(c)
 
 	c, err = t.StreamConn(c, metadata)
 	if err != nil {
@@ -251,9 +251,9 @@ func (t *Trojan) ListenPacketContext(ctx context.Context, metadata *C.Metadata, 
 			return nil, err
 		}
 
-		defer func(cc net.Conn, e error) {
-			safeConnClose(cc, e)
-		}(c, err)
+		defer func(cc net.Conn) {
+			safeConnClose(cc, err)
+		}(c)
 
 		if err = t.instance.WriteHeader(c, trojan.CommandUDP, serializesSocksAddr(metadata)); err != nil {
 			return nil, err
@@ -271,9 +271,9 @@ func (t *Trojan) ListenPacketContext(ctx context.Context, metadata *C.Metadata, 
 
 	tcpKeepAlive(c)
 
-	defer func(cc net.Conn, e error) {
-		safeConnClose(cc, e)
-	}(c, err)
+	defer func(cc net.Conn) {
+		safeConnClose(cc, err)
+	}(c)
 
 	c, err = t.StreamPacketConn(c, metadata)
 	if err != nil {

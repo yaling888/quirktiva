@@ -82,15 +82,16 @@ func (ssr *ShadowSocksR) StreamPacketConn(c net.Conn, _ *C.Metadata) (net.Conn, 
 
 // DialContext implements C.ProxyAdapter
 func (ssr *ShadowSocksR) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (_ C.Conn, err error) {
-	c, err := dialer.DialContext(ctx, "tcp", ssr.addr, ssr.DialOptions(opts...)...)
+	var c net.Conn
+	c, err = dialer.DialContext(ctx, "tcp", ssr.addr, ssr.DialOptions(opts...)...)
 	if err != nil {
 		return nil, fmt.Errorf("%s connect error: %w", ssr.addr, err)
 	}
 	tcpKeepAlive(c)
 
-	defer func(cc net.Conn, e error) {
-		safeConnClose(cc, e)
-	}(c, err)
+	defer func(cc net.Conn) {
+		safeConnClose(cc, err)
+	}(c)
 
 	c, err = ssr.StreamConn(c, metadata)
 	return NewConn(c, ssr), err

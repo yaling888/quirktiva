@@ -75,8 +75,9 @@ func (s *Snell) StreamPacketConn(c net.Conn, _ *C.Metadata) (net.Conn, error) {
 
 // DialContext implements C.ProxyAdapter
 func (s *Snell) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (_ C.Conn, err error) {
+	var c net.Conn
 	if s.version == snell.Version2 && len(opts) == 0 {
-		c, err := s.pool.Get()
+		c, err = s.pool.Get()
 		if err != nil {
 			return nil, err
 		}
@@ -88,15 +89,15 @@ func (s *Snell) DialContext(ctx context.Context, metadata *C.Metadata, opts ...d
 		return NewConn(c, s), err
 	}
 
-	c, err := dialer.DialContext(ctx, "tcp", s.addr, s.DialOptions(opts...)...)
+	c, err = dialer.DialContext(ctx, "tcp", s.addr, s.DialOptions(opts...)...)
 	if err != nil {
 		return nil, fmt.Errorf("%s connect error: %w", s.addr, err)
 	}
 	tcpKeepAlive(c)
 
-	defer func(cc net.Conn, e error) {
-		safeConnClose(cc, e)
-	}(c, err)
+	defer func(cc net.Conn) {
+		safeConnClose(cc, err)
+	}(c)
 
 	c, err = s.StreamConn(c, metadata)
 	return NewConn(c, s), err

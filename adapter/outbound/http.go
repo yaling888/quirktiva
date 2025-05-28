@@ -74,15 +74,16 @@ func (h *Http) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 
 // DialContext implements C.ProxyAdapter
 func (h *Http) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (_ C.Conn, err error) {
-	c, err := dialer.DialContext(ctx, "tcp", h.addr, h.DialOptions(opts...)...)
+	var c net.Conn
+	c, err = dialer.DialContext(ctx, "tcp", h.addr, h.DialOptions(opts...)...)
 	if err != nil {
 		return nil, fmt.Errorf("%s connect error: %w", h.addr, err)
 	}
 	tcpKeepAlive(c)
 
-	defer func(cc net.Conn, e error) {
-		safeConnClose(cc, e)
-	}(c, err)
+	defer func(cc net.Conn) {
+		safeConnClose(cc, err)
+	}(c)
 
 	c, err = h.StreamConn(c, metadata)
 	if err != nil {

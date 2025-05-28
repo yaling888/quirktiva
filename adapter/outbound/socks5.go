@@ -131,15 +131,16 @@ func (ss *Socks5) streamConn(c net.Conn, metadata *C.Metadata) (_ net.Conn, bind
 
 // DialContext implements C.ProxyAdapter
 func (ss *Socks5) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (_ C.Conn, err error) {
-	c, err := dialer.DialContext(ctx, "tcp", ss.addr, ss.DialOptions(opts...)...)
+	var c net.Conn
+	c, err = dialer.DialContext(ctx, "tcp", ss.addr, ss.DialOptions(opts...)...)
 	if err != nil {
 		return nil, fmt.Errorf("%s connect error: %w", ss.addr, err)
 	}
 	tcpKeepAlive(c)
 
-	defer func(cc net.Conn, e error) {
-		safeConnClose(cc, e)
-	}(c, err)
+	defer func(cc net.Conn) {
+		safeConnClose(cc, err)
+	}(c)
 
 	c, err = ss.StreamConn(c, metadata)
 	if err != nil {
@@ -151,14 +152,15 @@ func (ss *Socks5) DialContext(ctx context.Context, metadata *C.Metadata, opts ..
 
 // ListenPacketContext implements C.ProxyAdapter
 func (ss *Socks5) ListenPacketContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (_ C.PacketConn, err error) {
-	c, err := dialer.DialContext(ctx, "tcp", ss.addr, ss.DialOptions(opts...)...)
+	var c net.Conn
+	c, err = dialer.DialContext(ctx, "tcp", ss.addr, ss.DialOptions(opts...)...)
 	if err != nil {
 		return nil, fmt.Errorf("%s connect error: %w", ss.addr, err)
 	}
 
-	defer func(cc net.Conn, e error) {
-		safeConnClose(cc, e)
-	}(c, err)
+	defer func(cc net.Conn) {
+		safeConnClose(cc, err)
+	}(c)
 
 	pc, err := dialer.ListenPacket(ctx, "udp", "", ss.DialOptions(opts...)...)
 	if err != nil {
