@@ -130,16 +130,28 @@ func (h *Hysteria2) Cleanup() {
 }
 
 func (h *Hysteria2) makeDialer() func(addr net.Addr) (net.PacketConn, error) {
-	dialFn := func() (net.PacketConn, error) {
+	dialFn := func(addr net.Addr) (net.PacketConn, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), C.DefaultUDPTimeout)
 		defer cancel()
-		return dialer.ListenPacket(ctx, "udp", "", h.DialOptions([]dialer.Option{}...)...)
+		network := "udp"
+		if ap, ok := addr.(interface{ AddrPort() netip.AddrPort }); ok && ap.AddrPort().Addr().Unmap().Is4() {
+			network = "udp4"
+		}
+		return dialer.ListenPacket(ctx, network, "", h.DialOptions([]dialer.Option{}...)...)
 	}
 	return func(addr net.Addr) (pc net.PacketConn, err error) {
 		if hAddr, ok := addr.(*udphop.UDPHopAddr); ok {
-			pc, err = udphop.NewUDPHopPacketConn(hAddr, h.option.HopInterval, dialFn)
+			pc, err = udphop.NewUDPHopPacketConn(hAddr, h.option.HopInterval, func() (net.PacketConn, error) {
+				ctx, cancel := context.WithTimeout(context.Background(), C.DefaultUDPTimeout)
+				defer cancel()
+				network := "udp"
+				if hAddr.IP.To4() != nil {
+					network = "udp4"
+				}
+				return dialer.ListenPacket(ctx, network, "", h.DialOptions([]dialer.Option{}...)...)
+			})
 		} else {
-			pc, err = dialFn()
+			pc, err = dialFn(addr)
 		}
 		if err == nil {
 			h.lAddr = pc.LocalAddr()
