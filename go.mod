@@ -7,34 +7,34 @@ require (
 	github.com/apernet/hysteria/extras/v2 v2.6.2-0.20250420212931-b2567df63ca8
 	github.com/cilium/ebpf v0.18.0
 	github.com/dlclark/regexp2 v1.11.5
-	github.com/expr-lang/expr v1.17.2
+	github.com/expr-lang/expr v1.17.5
 	github.com/go-chi/chi/v5 v5.2.1
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/render v1.0.3
 	github.com/gorilla/websocket v1.5.3
 	github.com/insomniacslk/dhcp v0.0.0-20250417080101-5f8cf70e8c5f
-	github.com/miekg/dns v1.1.65
+	github.com/miekg/dns v1.1.66
 	github.com/oschwald/geoip2-golang v1.11.0
-	github.com/phuslu/log v1.0.117
+	github.com/phuslu/log v1.0.118
 	github.com/quic-go/quic-go v0.52.0
 	github.com/samber/lo v1.50.0
 	github.com/stretchr/testify v1.10.0
-	github.com/vishvananda/netlink v1.3.1-0.20250425193846-9d88d8385bf9
+	github.com/vishvananda/netlink v1.3.1
 	go.etcd.io/bbolt v1.4.0
-	go.starlark.net v0.0.0-20250417143717-f57e51f710eb
+	go.starlark.net v0.0.0-20250603171236-27fdb1d4744d
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.6.0
-	golang.org/x/crypto v0.38.0
-	golang.org/x/net v0.40.0
-	golang.org/x/sync v0.14.0
+	golang.org/x/crypto v0.38.1-0.20250605155154-9bab96736cca
+	golang.org/x/net v0.40.1-0.20250528064528-15f7d4034523
+	golang.org/x/sync v0.15.0
 	golang.org/x/sys v0.33.0
-	golang.org/x/text v0.25.0
-	golang.org/x/time v0.11.0
-	golang.zx2c4.com/wireguard v0.0.0-20250505131008-436f7fdc1670
+	golang.org/x/text v0.26.0
+	golang.org/x/time v0.12.0
+	golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20250503011706-39ed1f5ac29c
+	gvisor.dev/gvisor v0.0.0-20250605053741-4badbeb38f66
 )
 
 require (
@@ -55,8 +55,8 @@ require (
 	github.com/vishvananda/netns v0.0.5 // indirect
 	go.uber.org/mock v0.5.0 // indirect
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842 // indirect
-	golang.org/x/mod v0.23.0 // indirect
-	golang.org/x/tools v0.30.0 // indirect
+	golang.org/x/mod v0.25.0 // indirect
+	golang.org/x/tools v0.33.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 )
 
