@@ -309,8 +309,8 @@ func (t *http3Transport) CloseIdleConnections() {
 	t.roundTripper.CloseIdleConnections()
 }
 
-func (t *http3Transport) makeDialer() func(ctx context.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (quic.EarlyConnection, error) {
-	return func(ctx context.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (quic.EarlyConnection, error) {
+func (t *http3Transport) makeDialer() func(ctx context.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (*quic.Conn, error) {
+	return func(ctx context.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (*quic.Conn, error) {
 		host, port, _ := net.SplitHostPort(addr)
 		ip, err := netip.ParseAddr(host)
 		if err != nil {
@@ -335,7 +335,7 @@ func (t *http3Transport) makeDialer() func(ctx context.Context, addr string, tls
 		transport := t.transports[key]
 		t.mux.Unlock()
 
-		var conn quic.EarlyConnection
+		var conn *quic.Conn
 		if transport != nil {
 			conn, err = transport.DialEarly(ctx, udpAddr, tlsCfg, cfg)
 			if err == nil {

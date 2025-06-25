@@ -143,8 +143,8 @@ func (rc *rawConn) SyscallConn() (syscall.RawConn, error) {
 var _ net.Conn = (*quicConn)(nil)
 
 type quicConn struct {
-	conn      quic.Connection
-	stream    quic.Stream
+	conn      *quic.Conn
+	stream    *quic.Stream
 	transport *quic.Transport
 }
 
@@ -242,11 +242,14 @@ func StreamQUICConn(conn net.Conn, tlsConfig *tls.Config, cfg *Config) (net.Conn
 
 	qConn, err := transport.Dial(ctx, &net.UDPAddr{IP: ip.AsSlice(), Port: cfg.Port}, tlsConfig, quicConfig)
 	if err != nil {
+		_ = transport.Close()
 		return nil, fmt.Errorf("quic dial -> %s:%d error: %w", ip, cfg.Port, err)
 	}
 
 	stream, err := qConn.OpenStream()
 	if err != nil {
+		_ = qConn.CloseWithError(quic.ApplicationErrorCode(quic.NoError), "")
+		_ = transport.Close()
 		return nil, fmt.Errorf("quic open stream -> %s:%d error: %w", ip, cfg.Port, err)
 	}
 

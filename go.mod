@@ -16,7 +16,7 @@ require (
 	github.com/miekg/dns v1.1.66
 	github.com/oschwald/geoip2-golang v1.11.0
 	github.com/phuslu/log v1.0.118
-	github.com/quic-go/quic-go v0.52.0
+	github.com/quic-go/quic-go v0.53.0
 	github.com/samber/lo v1.50.0
 	github.com/stretchr/testify v1.10.0
 	github.com/vishvananda/netlink v1.3.1
