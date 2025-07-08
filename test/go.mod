@@ -3,21 +3,21 @@ module quirktiva-test
 go 1.24.1
 
 require (
-	github.com/docker/docker v28.2.2+incompatible
+	github.com/docker/docker v28.3.1+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/miekg/dns v1.1.66
 	github.com/stretchr/testify v1.10.0
 	github.com/yaling888/quirktiva v0.0.0
 	go.uber.org/automaxprocs v1.6.0
-	golang.org/x/net v0.40.1-0.20250528064528-15f7d4034523
+	golang.org/x/net v0.41.0
 )
 
 require (
 	github.com/Microsoft/go-winio v0.6.1 // indirect
-	github.com/apernet/hysteria/core/v2 v2.6.2-0.20250420212931-b2567df63ca8 // indirect
-	github.com/apernet/hysteria/extras/v2 v2.6.2-0.20250420212931-b2567df63ca8 // indirect
-	github.com/apernet/quic-go v0.51.1-0.20250420212127-ede9b032759a // indirect
-	github.com/cilium/ebpf v0.18.0 // indirect
+	github.com/apernet/hysteria/core/v2 v2.6.2 // indirect
+	github.com/apernet/hysteria/extras/v2 v2.6.2 // indirect
+	github.com/apernet/quic-go v0.52.1-0.20250607183305-9320c9d14431 // indirect
+	github.com/cilium/ebpf v0.19.0 // indirect
 	github.com/containerd/errdefs v0.3.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -42,7 +42,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.9.5 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0 // indirect
-	github.com/oschwald/geoip2-golang v1.11.0 // indirect
+	github.com/oschwald/geoip2-golang v1.13.0 // indirect
 	github.com/oschwald/maxminddb-golang v1.13.0 // indirect
 	github.com/phuslu/log v1.0.118 // indirect
 	github.com/pierrec/lz4/v4 v4.1.14 // indirect
@@ -50,27 +50,27 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/quic-go/qpack v0.5.1 // indirect
 	github.com/quic-go/quic-go v0.53.0 // indirect
-	github.com/samber/lo v1.50.0 // indirect
+	github.com/samber/lo v1.51.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/u-root/uio v0.0.0-20230220225925-ffce2a382923 // indirect
 	github.com/vishvananda/netlink v1.3.1 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
-	go.etcd.io/bbolt v1.4.0 // indirect
+	go.etcd.io/bbolt v1.4.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
 	go.opentelemetry.io/otel v1.36.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.36.0 // indirect
 	go.opentelemetry.io/otel/metric v1.36.0 // indirect
 	go.opentelemetry.io/otel/trace v1.36.0 // indirect
-	go.starlark.net v0.0.0-20250603171236-27fdb1d4744d // indirect
+	go.starlark.net v0.0.0-20250701195324-d457b4515e0e // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/goleak v1.3.0 // indirect
 	go.uber.org/mock v0.5.0 // indirect
-	golang.org/x/crypto v0.38.1-0.20250605155154-9bab96736cca // indirect
+	golang.org/x/crypto v0.39.1-0.20250630195050-b3790b8d9143 // indirect
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842 // indirect
 	golang.org/x/mod v0.25.0 // indirect
-	golang.org/x/sync v0.15.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/sync v0.15.1-0.20250620182935-7fad2c9213e0 // indirect
+	golang.org/x/sys v0.33.1-0.20250617173538-751c3c6ac2a6 // indirect
 	golang.org/x/text v0.26.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	golang.org/x/tools v0.33.0 // indirect
@@ -79,10 +79,10 @@ require (
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	gvisor.dev/gvisor v0.0.0-20250605053741-4badbeb38f66 // indirect
+	gvisor.dev/gvisor v0.0.0-20250708030508-af8a1a4e46f2 // indirect
 )
 
 replace (
-	github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.52.0
+	github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.52.1
 	github.com/yaling888/quirktiva => ../
 )
