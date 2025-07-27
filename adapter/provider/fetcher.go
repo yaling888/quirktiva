@@ -212,28 +212,15 @@ func safeWrite(path string, buf []byte) error {
 		_ = root.Close()
 	}()
 
-	path, _ = strings.CutPrefix(path, root.Name()+string(os.PathSeparator))
+	path, _ = strings.CutPrefix(filepath.Clean(path), root.Name()+string(os.PathSeparator))
 	dir := filepath.Dir(path)
 	if _, err = root.Stat(dir); os.IsNotExist(err) {
-		var d string
-		for s := range strings.SplitSeq(dir, string(os.PathSeparator)) {
-			d += s + string(os.PathSeparator)
-			if _, err = root.Stat(d); os.IsNotExist(err) {
-				if err = root.Mkdir(d, dirMode); err != nil {
-					return err
-				}
-			}
+		if err = root.MkdirAll(dir, dirMode); err != nil {
+			return err
 		}
 	}
 
-	f, err := root.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fileMode)
-	if err != nil {
-		return err
-	}
-
-	_, err = f.Write(buf)
-	_ = f.Close()
-	return err
+	return root.WriteFile(path, buf, fileMode)
 }
 
 func newFetcher[V any](name string, interval time.Duration, vehicle types.Vehicle, parser parser[V], onUpdate func(V)) *fetcher[V] {
