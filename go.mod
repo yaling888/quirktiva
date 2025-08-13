@@ -1,40 +1,40 @@
 module github.com/yaling888/quirktiva
 
-go 1.25rc2
+go 1.25.0
 
 require (
 	github.com/apernet/hysteria/core/v2 v2.6.2
 	github.com/apernet/hysteria/extras/v2 v2.6.2
 	github.com/cilium/ebpf v0.19.0
 	github.com/dlclark/regexp2 v1.11.5
-	github.com/expr-lang/expr v1.17.5
+	github.com/expr-lang/expr v1.17.6
 	github.com/go-chi/chi/v5 v5.2.2
 	github.com/go-chi/cors v1.2.2
 	github.com/go-chi/render v1.0.3
 	github.com/gorilla/websocket v1.5.3
 	github.com/insomniacslk/dhcp v0.0.0-20250417080101-5f8cf70e8c5f
-	github.com/miekg/dns v1.1.66
+	github.com/miekg/dns v1.1.68
 	github.com/oschwald/geoip2-golang v1.13.0
-	github.com/phuslu/log v1.0.118
-	github.com/quic-go/quic-go v0.53.0
+	github.com/phuslu/log v1.0.119
+	github.com/quic-go/quic-go v0.54.0
 	github.com/samber/lo v1.51.0
 	github.com/stretchr/testify v1.10.0
 	github.com/vishvananda/netlink v1.3.1
 	go.etcd.io/bbolt v1.4.2
-	go.starlark.net v0.0.0-20250701195324-d457b4515e0e
+	go.starlark.net v0.0.0-20250804182900-3c9dc17c5f2e
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.6.0
-	golang.org/x/crypto v0.39.1-0.20250630195050-b3790b8d9143
-	golang.org/x/net v0.41.0
-	golang.org/x/sync v0.15.1-0.20250620182935-7fad2c9213e0
-	golang.org/x/sys v0.33.1-0.20250617173538-751c3c6ac2a6
-	golang.org/x/text v0.26.0
+	golang.org/x/crypto v0.41.0
+	golang.org/x/net v0.43.0
+	golang.org/x/sync v0.16.0
+	golang.org/x/sys v0.35.0
+	golang.org/x/text v0.28.0
 	golang.org/x/time v0.12.0
 	golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b
-	google.golang.org/protobuf v1.36.6
+	google.golang.org/protobuf v1.36.7
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20250708030508-af8a1a4e46f2
+	gvisor.dev/gvisor v0.0.0-20250813092739-7036e60afaaf
 )
 
 require (
@@ -55,8 +55,8 @@ require (
 	github.com/vishvananda/netns v0.0.5 // indirect
 	go.uber.org/mock v0.5.0 // indirect
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842 // indirect
-	golang.org/x/mod v0.25.0 // indirect
-	golang.org/x/tools v0.33.0 // indirect
+	golang.org/x/mod v0.26.0 // indirect
+	golang.org/x/tools v0.35.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 )
 
