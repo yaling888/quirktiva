@@ -4,7 +4,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Get latest go version
         id: version
@@ -30,5 +30,4 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
         with:
-          install-mode: "goinstall"
-          version: "78899340334936346907be29fff9d2212c1b1774"
+          version: latest
