@@ -8,33 +8,33 @@ require (
 	github.com/cilium/ebpf v0.19.0
 	github.com/dlclark/regexp2 v1.11.5
 	github.com/expr-lang/expr v1.17.6
-	github.com/go-chi/chi/v5 v5.2.2
+	github.com/go-chi/chi/v5 v5.2.3
 	github.com/go-chi/cors v1.2.2
 	github.com/go-chi/render v1.0.3
 	github.com/gorilla/websocket v1.5.3
-	github.com/insomniacslk/dhcp v0.0.0-20250417080101-5f8cf70e8c5f
+	github.com/insomniacslk/dhcp v0.0.0-20250828142853-d3abe7ccb0ad
 	github.com/miekg/dns v1.1.68
 	github.com/oschwald/geoip2-golang v1.13.0
-	github.com/phuslu/log v1.0.119
+	github.com/phuslu/log v1.0.120
 	github.com/quic-go/quic-go v0.54.0
 	github.com/samber/lo v1.51.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	github.com/vishvananda/netlink v1.3.1
-	go.etcd.io/bbolt v1.4.2
-	go.starlark.net v0.0.0-20250804182900-3c9dc17c5f2e
+	go.etcd.io/bbolt v1.4.3
+	go.starlark.net v0.0.0-20250826212936-2a4f36945129
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.6.0
-	golang.org/x/crypto v0.41.0
-	golang.org/x/net v0.43.0
-	golang.org/x/sync v0.16.0
-	golang.org/x/sys v0.35.0
-	golang.org/x/text v0.28.0
-	golang.org/x/time v0.12.0
+	golang.org/x/crypto v0.41.1-0.20250904143959-9d779377cff7
+	golang.org/x/net v0.43.1-0.20250904165834-b800b2045a8a
+	golang.org/x/sync v0.16.1-0.20250813144705-04914c200cb3
+	golang.org/x/sys v0.35.1-0.20250904144206-a4712b905411
+	golang.org/x/text v0.28.1-0.20250813145300-60c9786d9e6c
+	golang.org/x/time v0.12.1-0.20250813144400-c0b0320d156b
 	golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b
-	google.golang.org/protobuf v1.36.7
+	google.golang.org/protobuf v1.36.8
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20250813092739-7036e60afaaf
+	gvisor.dev/gvisor v0.0.0-20250828211149-1f30edfbb5d4
 )
 
 require (
