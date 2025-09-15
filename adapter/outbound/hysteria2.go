@@ -248,7 +248,8 @@ func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
 	if pinSHA256 != "" {
 		nHash := normalizeCertHash(pinSHA256)
 		config.TLSConfig.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-			for _, cert := range rawCerts {
+			if len(rawCerts) > 0 {
+				cert := rawCerts[0]
 				hash := sha256.Sum256(cert)
 				hashHex := hex.EncodeToString(hash[:])
 				if hashHex == nHash {

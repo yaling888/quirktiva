@@ -3,8 +3,8 @@ module github.com/yaling888/quirktiva
 go 1.25.0
 
 require (
-	github.com/apernet/hysteria/core/v2 v2.6.2
-	github.com/apernet/hysteria/extras/v2 v2.6.2
+	github.com/apernet/hysteria/core/v2 v2.6.4
+	github.com/apernet/hysteria/extras/v2 v2.6.4
 	github.com/cilium/ebpf v0.19.0
 	github.com/dlclark/regexp2 v1.11.5
 	github.com/expr-lang/expr v1.17.6
@@ -39,13 +39,10 @@ require (
 
 require (
 	github.com/ajg/form v1.5.1 // indirect
-	github.com/apernet/quic-go v0.52.1-0.20250607183305-9320c9d14431 // indirect
+	github.com/apernet/quic-go v0.54.1-0.20250907230547-eb32f8aec5e2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/google/btree v1.1.2 // indirect
-	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/josharian/native v1.1.0 // indirect
-	github.com/onsi/ginkgo/v2 v2.9.5 // indirect
 	github.com/oschwald/maxminddb-golang v1.13.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.14 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
@@ -60,4 +57,4 @@ require (
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 )
 
-replace github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.52.1
+replace github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.54.0
