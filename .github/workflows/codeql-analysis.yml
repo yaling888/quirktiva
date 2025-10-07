@@ -33,19 +33,19 @@ jobs:
           echo "go version go${go_version}"
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ steps.version.outputs.go_version }}
           check-latest: true
           cache: false
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
 
       #- name: Autobuild
-      #  uses: github/codeql-action/autobuild@v3
+      #  uses: github/codeql-action/autobuild@v4
 
       - name: Build
         env:
@@ -54,4 +54,4 @@ jobs:
         run: make docker
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
