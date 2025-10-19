@@ -34,8 +34,12 @@ func (g *GEOIP) Match(metadata *C.Metadata) bool {
 			resolver.IsFakeBroadcastIP(ip)
 	}
 
-	record, _ := mmdb.Instance().Country(ip.AsSlice())
-	return strings.EqualFold(record.Country.IsoCode, g.country)
+	record, err := mmdb.Instance().Country(ip)
+	if err != nil {
+		return false
+	}
+
+	return record.Country.HasData() && strings.EqualFold(record.Country.ISOCode, g.country)
 }
 
 func (g *GEOIP) Adapter() string {

@@ -5,7 +5,7 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/oschwald/geoip2-golang"
+	"github.com/oschwald/geoip2-golang/v2"
 
 	"github.com/yaling888/quirktiva/component/geodata"
 	C "github.com/yaling888/quirktiva/constant"

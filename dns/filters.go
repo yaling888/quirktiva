@@ -18,8 +18,16 @@ type geoipFilter struct {
 }
 
 func (gf *geoipFilter) Match(ip netip.Addr) bool {
-	record, _ := mmdb.Instance().Country(ip.AsSlice())
-	return !strings.EqualFold(record.Country.IsoCode, gf.code) && !ip.IsPrivate()
+	if !ip.IsGlobalUnicast() {
+		return false
+	}
+
+	record, err := mmdb.Instance().Country(ip)
+	if err != nil {
+		return false
+	}
+
+	return record.Country.HasData() && !strings.EqualFold(record.Country.ISOCode, gf.code)
 }
 
 type ipnetFilter struct {

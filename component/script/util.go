@@ -78,9 +78,16 @@ func uGeoIP(ip string) string {
 		return "LAN"
 	}
 
-	record, _ := mmdb.Instance().Country(dstIP.AsSlice())
+	record, err := mmdb.Instance().Country(dstIP)
+	if err != nil {
+		return ""
+	}
 
-	return strings.ToUpper(record.Country.IsoCode)
+	if !record.Country.HasData() {
+		return ""
+	}
+
+	return strings.ToUpper(record.Country.ISOCode)
 }
 
 func uMatchProvider(mtd *C.Metadata, name string) (bool, error) {

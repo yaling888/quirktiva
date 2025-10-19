@@ -3,7 +3,7 @@ package mmdb
 import (
 	"sync"
 
-	"github.com/oschwald/geoip2-golang"
+	"github.com/oschwald/geoip2-golang/v2"
 	"github.com/phuslu/log"
 
 	C "github.com/yaling888/quirktiva/constant"
@@ -17,7 +17,7 @@ var (
 func LoadFromBytes(buffer []byte) {
 	once.Do(func() {
 		var err error
-		mmdb, err = geoip2.FromBytes(buffer)
+		mmdb, err = geoip2.OpenBytes(buffer)
 		if err != nil {
 			log.Fatal().
 				Err(err).
