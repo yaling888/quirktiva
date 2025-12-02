@@ -14,27 +14,27 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/insomniacslk/dhcp v0.0.0-20251020182700-175e84fbb167
 	github.com/miekg/dns v1.1.68
-	github.com/oschwald/geoip2-golang/v2 v2.0.0
+	github.com/oschwald/geoip2-golang/v2 v2.0.1
 	github.com/phuslu/log v1.0.120
 	github.com/quic-go/quic-go v0.56.0
 	github.com/samber/lo v1.52.0
 	github.com/stretchr/testify v1.11.1
 	github.com/vishvananda/netlink v1.3.1
 	go.etcd.io/bbolt v1.4.3
-	go.starlark.net v0.0.0-20251029211736-7849196f18cf
+	go.starlark.net v0.0.0-20251109183026-be02852a5e1f
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.6.0
-	golang.org/x/crypto v0.43.1-0.20251028130051-c0531f9c3451
-	golang.org/x/net v0.46.1-0.20251104213914-5ac9daca088a
+	golang.org/x/crypto v0.45.1-0.20251202160801-f4602e404092
+	golang.org/x/net v0.47.1-0.20251128220604-7c360367ab7e
 	golang.org/x/sync v0.18.0
-	golang.org/x/sys v0.38.0
-	golang.org/x/text v0.30.1-0.20251024184222-fbf012b8c114
+	golang.org/x/sys v0.38.1-0.20251125153526-08e54827f670
+	golang.org/x/text v0.31.1-0.20251128220601-087616b6cde9
 	golang.org/x/time v0.14.0
 	golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b
 	google.golang.org/protobuf v1.36.10
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20251107011313-9e7aeb4484ae
+	gvisor.dev/gvisor v0.0.0-20251201192414-f717cbac4761
 )
 
 require (
@@ -43,7 +43,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/josharian/native v1.1.0 // indirect
-	github.com/oschwald/maxminddb-golang/v2 v2.0.0 // indirect
+	github.com/oschwald/maxminddb-golang/v2 v2.1.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.14 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/quic-go/qpack v0.5.1 // indirect
