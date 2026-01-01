@@ -65,10 +65,11 @@ func (t *Trojan) plainStream(conn net.Conn) (net.Conn, error) {
 	case "ws":
 		host, port, _ := net.SplitHostPort(t.addr)
 		wsOpts := &trojan.WebsocketOption{
-			Host:    host,
-			Port:    port,
-			Path:    t.option.WSOpts.Path,
-			Headers: http.Header{},
+			Host:             host,
+			Port:             port,
+			Path:             t.option.WSOpts.Path,
+			Headers:          http.Header{},
+			V2rayHTTPUpgrade: t.option.WSOpts.V2rayHTTPUpgrade,
 		}
 
 		if t.option.SNI != "" {

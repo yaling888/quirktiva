@@ -124,3 +124,45 @@ func TestClash_VlessWebsocketXray0RTT(t *testing.T) {
 	time.Sleep(waitTime)
 	testSuit(t, proxy)
 }
+
+func TestClash_VlessHTTPUpgrade(t *testing.T) {
+	cfg := &container.Config{
+		Image:        ImageVmess,
+		ExposedPorts: defaultExposedPorts,
+		Entrypoint:   []string{"/usr/bin/v2ray"},
+		Cmd:          []string{"run", "-c", "/etc/v2ray/config.json", "-format", "jsonv5"},
+	}
+	hostCfg := &container.HostConfig{
+		PortBindings: defaultPortBindings,
+		Binds: []string{
+			fmt.Sprintf("%s:/etc/v2ray/config.json", C.Path.Resolve("vless-httpupgrade.json")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/fullchain.pem", C.Path.Resolve("example.org.pem")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/privkey.pem", C.Path.Resolve("example.org-key.pem")),
+		},
+	}
+
+	id, err := startContainer(cfg, hostCfg, "vless-httpupgrade")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = cleanContainer(id)
+	})
+
+	proxy, err := outbound.NewVless(outbound.VlessOption{
+		Name:           "vless",
+		Server:         localIP.String(),
+		Port:           10002,
+		UUID:           "b831381d-6324-4d53-ad4f-8cda48b30811",
+		TLS:            true,
+		SkipCertVerify: true,
+		ServerName:     "example.org",
+		Network:        "ws",
+		UDP:            true,
+		WSOpts: outbound.WSOptions{
+			V2rayHTTPUpgrade: true,
+		},
+	})
+	require.NoError(t, err)
+
+	time.Sleep(waitTime)
+	testSuit(t, proxy)
+}

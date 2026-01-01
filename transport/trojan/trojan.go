@@ -58,10 +58,11 @@ type HTTPOptions struct {
 }
 
 type WebsocketOption struct {
-	Host    string
-	Port    string
-	Path    string
-	Headers http.Header
+	Host             string
+	Port             string
+	Path             string
+	Headers          http.Header
+	V2rayHTTPUpgrade bool
 }
 
 type Trojan struct {
@@ -150,12 +151,13 @@ func (t *Trojan) StreamWebsocketConn(conn net.Conn, wsOptions *WebsocketOption) 
 	t.setECHConfig(tlsConfig)
 
 	return vmess.StreamWebsocketConn(conn, &vmess.WebsocketConfig{
-		Host:      wsOptions.Host,
-		Port:      wsOptions.Port,
-		Path:      wsOptions.Path,
-		Headers:   wsOptions.Headers,
-		TLS:       true,
-		TLSConfig: tlsConfig,
+		Host:             wsOptions.Host,
+		Port:             wsOptions.Port,
+		Path:             wsOptions.Path,
+		Headers:          wsOptions.Headers,
+		V2rayHTTPUpgrade: wsOptions.V2rayHTTPUpgrade,
+		TLS:              true,
+		TLSConfig:        tlsConfig,
 	})
 }
 

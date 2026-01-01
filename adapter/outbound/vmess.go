@@ -91,6 +91,7 @@ type WSOptions struct {
 	Headers             map[string]string `proxy:"headers,omitempty"`
 	MaxEarlyData        int               `proxy:"max-early-data,omitempty"`
 	EarlyDataHeaderName string            `proxy:"early-data-header-name,omitempty"`
+	V2rayHTTPUpgrade    bool              `proxy:"v2ray-http-upgrade,omitempty"`
 }
 
 type QUICOptions struct {
@@ -112,6 +113,7 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 			Path:                v.option.WSOpts.Path,
 			MaxEarlyData:        v.option.WSOpts.MaxEarlyData,
 			EarlyDataHeaderName: v.option.WSOpts.EarlyDataHeaderName,
+			V2rayHTTPUpgrade:    v.option.WSOpts.V2rayHTTPUpgrade,
 		}
 
 		if len(v.option.WSOpts.Headers) != 0 {
@@ -143,7 +145,9 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 
 			wsOpts.TLSConfig = tlsConfig
 		} else if v.option.RandomHost || wsOpts.Headers.Get("Host") == "" {
-			wsOpts.Headers.Set("Host", convert.RandHost())
+			host1 := convert.RandHost()
+			wsOpts.Host = host1
+			wsOpts.Headers.Set("Host", host1)
 		}
 
 		if wsOpts.Headers.Get("User-Agent") == "" {
@@ -189,7 +193,9 @@ func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 		}
 
 		if !v.option.TLS && (v.option.RandomHost || len(v.option.HTTPOpts.Headers["Host"]) == 0) {
-			httpOpts.Headers["Host"] = []string{convert.RandHost()}
+			host1 := convert.RandHost()
+			httpOpts.Host = host1
+			httpOpts.Headers["Host"] = []string{host1}
 		}
 
 		if len(v.option.HTTPOpts.Headers["User-Agent"]) == 0 {

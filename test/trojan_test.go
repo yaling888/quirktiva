@@ -294,6 +294,47 @@ func TestClash_TrojanQUIC_OBFS(t *testing.T) {
 	testSuit(t, proxy)
 }
 
+func TestClash_TrojanHTTPUpgrade(t *testing.T) {
+	cfg := &container.Config{
+		Image:        ImageVmess,
+		ExposedPorts: defaultExposedPorts,
+		Entrypoint:   []string{"/usr/bin/v2ray"},
+		Cmd:          []string{"run", "-c", "/etc/v2ray/config.json", "-format", "jsonv5"},
+	}
+	hostCfg := &container.HostConfig{
+		PortBindings: defaultPortBindings,
+		Binds: []string{
+			fmt.Sprintf("%s:/etc/v2ray/config.json", C.Path.Resolve("trojan-httpupgrade.json")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/fullchain.pem", C.Path.Resolve("example.org.pem")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/privkey.pem", C.Path.Resolve("example.org-key.pem")),
+		},
+	}
+
+	id, err := startContainer(cfg, hostCfg, "trojan-httpupgrade")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = cleanContainer(id)
+	})
+
+	proxy, err := outbound.NewTrojan(outbound.TrojanOption{
+		Name:           "trojan",
+		Server:         localIP.String(),
+		Port:           10002,
+		Password:       "b831381d-6324-4d53-ad4f-8cda48b30811",
+		SNI:            "example.org",
+		SkipCertVerify: true,
+		UDP:            true,
+		Network:        "ws",
+		WSOpts: outbound.WSOptions{
+			V2rayHTTPUpgrade: true,
+		},
+	})
+	require.NoError(t, err)
+
+	time.Sleep(waitTime)
+	testSuit(t, proxy)
+}
+
 func Benchmark_Trojan(b *testing.B) {
 	cfg := &container.Config{
 		Image:        ImageTrojan,

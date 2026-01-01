@@ -18,6 +18,8 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/yaling888/quirktiva/common/errors2"
+	"github.com/yaling888/quirktiva/transport/h1"
+	tls2 "github.com/yaling888/quirktiva/transport/tls"
 )
 
 type websocketConn struct {
@@ -49,6 +51,7 @@ type WebsocketConfig struct {
 	TLSConfig           *tls.Config
 	MaxEarlyData        int
 	EarlyDataHeaderName string
+	V2rayHTTPUpgrade    bool
 }
 
 // Read implements net.Conn.Read()
@@ -243,38 +246,33 @@ func streamWebsocketWithEarlyDataConn(conn net.Conn, c *WebsocketConfig) (net.Co
 }
 
 func streamWebsocketConn(conn net.Conn, c *WebsocketConfig, earlyData *bytes.Buffer) (net.Conn, error) {
-	dialer := &websocket.Dialer{
-		NetDial: func(network, addr string) (net.Conn, error) {
-			return conn, nil
-		},
-		ReadBufferSize:   4 * 1024,
-		WriteBufferSize:  4 * 1024,
-		HandshakeTimeout: time.Second * 8,
-	}
-
-	scheme := "ws"
-	if c.TLS {
-		scheme = "wss"
-		dialer.TLSClientConfig = c.TLSConfig
-	}
-
 	u, err := url.Parse(c.Path)
 	if err != nil {
 		return nil, fmt.Errorf("parse url %s error: %w", c.Path, err)
 	}
 
 	uri := url.URL{
-		Scheme:   scheme,
+		Scheme:   "http",
 		Host:     net.JoinHostPort(c.Host, c.Port),
 		Path:     u.Path,
 		RawQuery: u.RawQuery,
 	}
 
+	if c.TLSConfig != nil {
+		conn, err = tls2.StreamTLSConn(conn, c.TLSConfig)
+		if err != nil {
+			return nil, err
+		}
+		uri.Scheme = "https"
+	}
+
 	headers := http.Header{}
 	if c.Headers != nil {
-		for k := range c.Headers {
-			headers.Add(k, c.Headers.Get(k))
-		}
+		headers = c.Headers.Clone()
+	}
+
+	if c.V2rayHTTPUpgrade {
+		return h1.StreamHTTPUpgrade(conn, uri.String(), headers)
 	}
 
 	if earlyData != nil {
@@ -283,6 +281,22 @@ func streamWebsocketConn(conn net.Conn, c *WebsocketConfig, earlyData *bytes.Buf
 		} else {
 			headers.Set(c.EarlyDataHeaderName, earlyData.String())
 		}
+	}
+
+	dialer := &websocket.Dialer{
+		ReadBufferSize:  4 * 1024,
+		WriteBufferSize: 4 * 1024,
+	}
+
+	dialFn := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return conn, nil
+	}
+	if c.TLSConfig != nil {
+		uri.Scheme = "wss"
+		dialer.NetDialTLSContext = dialFn
+	} else {
+		uri.Scheme = "ws"
+		dialer.NetDialContext = dialFn
 	}
 
 	wsConn, resp, err := dialer.Dial(uri.String(), headers)
@@ -312,7 +326,7 @@ func StreamWebsocketConn(conn net.Conn, c *WebsocketConfig) (net.Conn, error) {
 		}
 	}
 
-	if c.MaxEarlyData > 0 {
+	if c.MaxEarlyData > 0 && !c.V2rayHTTPUpgrade {
 		return streamWebsocketWithEarlyDataConn(conn, c)
 	}
 

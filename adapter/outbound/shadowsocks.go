@@ -49,13 +49,14 @@ type simpleObfsOption struct {
 }
 
 type v2rayObfsOption struct {
-	Mode           string            `obfs:"mode"`
-	Host           string            `obfs:"host,omitempty"`
-	Path           string            `obfs:"path,omitempty"`
-	TLS            bool              `obfs:"tls,omitempty"`
-	Headers        map[string]string `obfs:"headers,omitempty"`
-	SkipCertVerify bool              `obfs:"skip-cert-verify,omitempty"`
-	Mux            bool              `obfs:"mux,omitempty"`
+	Mode             string            `obfs:"mode"`
+	Host             string            `obfs:"host,omitempty"`
+	Path             string            `obfs:"path,omitempty"`
+	TLS              bool              `obfs:"tls,omitempty"`
+	Headers          map[string]string `obfs:"headers,omitempty"`
+	SkipCertVerify   bool              `obfs:"skip-cert-verify,omitempty"`
+	Mux              bool              `obfs:"mux,omitempty"`
+	V2rayHTTPUpgrade bool              `obfs:"v2ray-http-upgrade,omitempty"`
 }
 
 // StreamConn implements C.ProxyAdapter
@@ -164,11 +165,12 @@ func NewShadowSocks(option ShadowSocksOption) (*ShadowSocks, error) {
 		}
 		obfsMode = opts.Mode
 		v2rayOption = &v2rayObfs.Option{
-			Host:       opts.Host,
-			Path:       opts.Path,
-			Headers:    opts.Headers,
-			Mux:        opts.Mux,
-			RandomHost: option.RandomHost,
+			Host:             opts.Host,
+			Path:             opts.Path,
+			Headers:          opts.Headers,
+			Mux:              opts.Mux,
+			V2rayHTTPUpgrade: opts.V2rayHTTPUpgrade,
+			RandomHost:       option.RandomHost,
 		}
 
 		if opts.TLS {
