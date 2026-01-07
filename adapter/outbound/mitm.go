@@ -3,7 +3,6 @@ package outbound
 import (
 	"context"
 	"net"
-	"time"
 
 	"github.com/yaling888/quirktiva/component/auth"
 	"github.com/yaling888/quirktiva/component/dialer"
@@ -25,8 +24,7 @@ func (m *Mitm) DialContext(_ context.Context, metadata *C.Metadata, _ ...dialer.
 		return nil, err
 	}
 
-	_ = c.SetKeepAlive(true)
-	_ = c.SetKeepAlivePeriod(60 * time.Second)
+	_ = c.SetKeepAliveConfig(net.KeepAliveConfig{Enable: true})
 
 	metadata.Type = C.MITM
 

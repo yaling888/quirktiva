@@ -5,7 +5,6 @@ import (
 	"net"
 	"net/netip"
 	"strconv"
-	"time"
 
 	C "github.com/yaling888/quirktiva/constant"
 )
@@ -45,7 +44,6 @@ func addrToMetadata(rawAddress string) (addr *C.Metadata, err error) {
 
 func tcpKeepAlive(c net.Conn) {
 	if tcp, ok := c.(*net.TCPConn); ok {
-		_ = tcp.SetKeepAlive(true)
-		_ = tcp.SetKeepAlivePeriod(30 * time.Second)
+		_ = tcp.SetKeepAliveConfig(net.KeepAliveConfig{Enable: true})
 	}
 }

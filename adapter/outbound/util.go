@@ -2,7 +2,6 @@ package outbound
 
 import (
 	"net"
-	"time"
 
 	"github.com/yaling888/quirktiva/common/pool"
 	"github.com/yaling888/quirktiva/component/resolver"
@@ -12,8 +11,7 @@ import (
 
 func tcpKeepAlive(c net.Conn) {
 	if tcp, ok := c.(*net.TCPConn); ok {
-		_ = tcp.SetKeepAlive(true)
-		_ = tcp.SetKeepAlivePeriod(30 * time.Second)
+		_ = tcp.SetKeepAliveConfig(net.KeepAliveConfig{Enable: true})
 	}
 }
 
