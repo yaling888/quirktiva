@@ -195,6 +195,7 @@ func (p *Proxy) URLTest(ctx context.Context, url string) (delay, avgDelay uint16
 func (p *Proxy) v6Test(url string) {
 	p.v6Mux.Lock()
 	if p.hasV6 != nil {
+		p.v6Mux.Unlock()
 		return
 	}
 
