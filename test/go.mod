@@ -5,7 +5,7 @@ go 1.25.6
 require (
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/go-connections v0.5.0
-	github.com/miekg/dns v1.1.70
+	github.com/miekg/dns v1.1.72
 	github.com/stretchr/testify v1.11.1
 	github.com/yaling888/quirktiva v0.0.0
 	go.uber.org/automaxprocs v1.6.0
@@ -75,7 +75,7 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
-	gvisor.dev/gvisor v0.0.0-20260108002349-ace9117eb232 // indirect
+	gvisor.dev/gvisor v0.0.0-20260202191832-0bd9aedd142c // indirect
 )
 
 replace (
