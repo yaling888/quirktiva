@@ -13,7 +13,7 @@ require (
 	github.com/go-chi/render v1.0.3
 	github.com/gorilla/websocket v1.5.3
 	github.com/insomniacslk/dhcp v0.0.0-20251020182700-175e84fbb167
-	github.com/miekg/dns v1.1.70
+	github.com/miekg/dns v1.1.72
 	github.com/oschwald/geoip2-golang/v2 v2.1.0
 	github.com/phuslu/log v1.0.121
 	github.com/quic-go/quic-go v0.59.0
@@ -34,7 +34,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20260108002349-ace9117eb232
+	gvisor.dev/gvisor v0.0.0-20260202191832-0bd9aedd142c
 )
 
 require (
