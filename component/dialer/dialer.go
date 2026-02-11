@@ -3,11 +3,11 @@ package dialer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 	"strconv"
 
-	"github.com/yaling888/quirktiva/common/errors2"
 	"github.com/yaling888/quirktiva/component/resolver"
 )
 
@@ -18,10 +18,16 @@ func DialContext(ctx context.Context, network, address string, options ...Option
 	}
 
 	for _, o := range DefaultOptions {
+		if o == nil {
+			continue
+		}
 		o(opt)
 	}
 
 	for _, o := range options {
+		if o == nil {
+			continue
+		}
 		o(opt)
 	}
 
@@ -50,9 +56,9 @@ func DialContext(ctx context.Context, network, address string, options ...Option
 				}
 			} else {
 				if !opt.direct {
-					ip, err = resolver.ResolveIPv4ProxyServerHost(host)
+					ip, err = resolver.ResolveIPv4ProxyServerHostWithContext(ctx, host)
 				} else {
-					ip, err = resolver.ResolveIPv4(host)
+					ip, err = resolver.ResolveIPv4WithContext(ctx, host)
 				}
 			}
 		default:
@@ -62,9 +68,9 @@ func DialContext(ctx context.Context, network, address string, options ...Option
 				}
 			} else {
 				if !opt.direct {
-					ip, err = resolver.ResolveIPv6ProxyServerHost(host)
+					ip, err = resolver.ResolveIPv6ProxyServerHostWithContext(ctx, host)
 				} else {
-					ip, err = resolver.ResolveIPv6(host)
+					ip, err = resolver.ResolveIPv6WithContext(ctx, host)
 				}
 			}
 		}
@@ -94,10 +100,16 @@ func DialContextAddrPort(ctx context.Context, network string, destination netip.
 	}
 
 	for _, o := range DefaultOptions {
+		if o == nil {
+			continue
+		}
 		o(opt)
 	}
 
 	for _, o := range options {
+		if o == nil {
+			continue
+		}
 		o(opt)
 	}
 
@@ -111,10 +123,16 @@ func ListenPacket(ctx context.Context, network, address string, options ...Optio
 	}
 
 	for _, o := range DefaultOptions {
+		if o == nil {
+			continue
+		}
 		o(cfg)
 	}
 
 	for _, o := range options {
+		if o == nil {
+			continue
+		}
 		o(cfg)
 	}
 
@@ -174,12 +192,20 @@ func dualStackDialContext(ctx context.Context, network, address string, opt *opt
 		return nil, &net.AddrError{Err: "invalid address for " + network, Addr: address}
 	}
 
+	if ip, err := netip.ParseAddr(host); err == nil {
+		return dialContext(ctx, network, netip.AddrPortFrom(ip, uint16(portNum)), opt)
+	}
+
+	ctx1, cancel := context.WithCancel(ctx)
 	returned := make(chan struct{})
-	defer close(returned)
+	defer func() {
+		cancel()
+		close(returned)
+	}()
 
 	type dialResult struct {
-		net.Conn
-		error
+		c        net.Conn
+		err      error
 		resolved bool
 		ipv6     bool
 		done     bool
@@ -188,61 +214,57 @@ func dualStackDialContext(ctx context.Context, network, address string, opt *opt
 	var primary, fallback dialResult
 
 	startRacer := func(ctx context.Context, network, host string, direct bool, ipv6 bool) {
-		result := dialResult{ipv6: ipv6, done: true}
+		result := dialResult{ipv6: ipv6, done: true, err: net.ErrClosed}
 		defer func() {
 			select {
 			case results <- result:
 			case <-returned:
-				if result.Conn != nil {
-					_ = result.Close()
+				if result.err == nil {
+					_ = result.c.Close()
 				}
 			}
 		}()
 
-		var ip netip.Addr
-		if a, err := netip.ParseAddr(host); err == nil {
-			ip = a
-		}
-		if (ipv6 && ip.Is4()) || (!ipv6 && ip.Is6()) {
-			result.error = &net.AddrError{Err: "invalid address for " + network, Addr: address}
-			return
-		}
-		if !ip.IsValid() {
-			if ipv6 {
-				if !direct {
-					ip, result.error = resolver.ResolveIPv6ProxyServerHost(host)
-				} else {
-					ip, result.error = resolver.ResolveIPv6(host)
-				}
+		var (
+			ip  netip.Addr
+			err error
+		)
+		if ipv6 {
+			if !direct {
+				ip, err = resolver.ResolveIPv6ProxyServerHostWithContext(ctx, host)
 			} else {
-				if !direct {
-					ip, result.error = resolver.ResolveIPv4ProxyServerHost(host)
-				} else {
-					ip, result.error = resolver.ResolveIPv4(host)
-				}
+				ip, err = resolver.ResolveIPv6WithContext(ctx, host)
 			}
-			if result.error != nil {
-				if _, ok := errors.AsType[net.Error](result.error); !ok {
-					result.error = &net.DNSError{
-						Name:       host,
-						Err:        result.Error(),
-						IsNotFound: errors.Is(result.error, resolver.ErrIPNotFound),
-					}
+		} else {
+			if !direct {
+				ip, err = resolver.ResolveIPv4ProxyServerHostWithContext(ctx, host)
+			} else {
+				ip, err = resolver.ResolveIPv4WithContext(ctx, host)
+			}
+		}
+		if err != nil {
+			if _, ok := errors.AsType[net.Error](err); !ok {
+				result.err = &net.DNSError{
+					Name:       host,
+					Err:        err.Error(),
+					IsNotFound: errors.Is(err, resolver.ErrIPNotFound),
 				}
 				return
 			}
+			result.err = err
+			return
 		}
 		result.resolved = true
 
-		result.Conn, result.error = dialContext(ctx, network, netip.AddrPortFrom(ip, uint16(portNum)), opt)
+		result.c, result.err = dialContext(ctx, network, netip.AddrPortFrom(ip, uint16(portNum)), opt)
 	}
 
-	go startRacer(ctx, network+"4", host, opt.direct, false)
-	go startRacer(ctx, network+"6", host, opt.direct, true)
+	go startRacer(ctx1, network+"4", host, opt.direct, false)
+	go startRacer(ctx1, network+"6", host, opt.direct, true)
 
 	for res := range results {
-		if res.error == nil {
-			return res.Conn, nil
+		if res.err == nil {
+			return res.c, nil
 		}
 
 		if !res.ipv6 {
@@ -253,14 +275,14 @@ func dualStackDialContext(ctx context.Context, network, address string, opt *opt
 
 		if primary.done && fallback.done {
 			if primary.resolved {
-				return nil, primary.error
+				return nil, primary.err
 			} else if fallback.resolved {
-				return nil, fallback.error
+				return nil, fallback.err
 			} else {
-				return nil, errors2.Join(primary.error, fallback.error)
+				return nil, fmt.Errorf("primary error: %w, fallback error: %w", primary.err, fallback.err)
 			}
 		}
 	}
 
-	return nil, errors.New("never touched")
+	panic("never touched")
 }

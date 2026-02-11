@@ -117,32 +117,62 @@ func LookupECHForProxyServer(host string) ([]byte, error) {
 
 // ResolveIP with a host, return ip
 func ResolveIP(host string) (netip.Addr, error) {
-	return resolveIPByType(host, typeNone)
+	return ResolveIPWithContext(context.Background(), host)
 }
 
 // ResolveIPv4 with a host, return ipv4
 func ResolveIPv4(host string) (netip.Addr, error) {
-	return resolveIPByType(host, typeA)
+	return ResolveIPv4WithContext(context.Background(), host)
 }
 
 // ResolveIPv6 with a host, return ipv6
 func ResolveIPv6(host string) (netip.Addr, error) {
-	return resolveIPByType(host, typeAAAA)
+	return ResolveIPv6WithContext(context.Background(), host)
 }
 
 // ResolveProxyServerHost proxies server host only
 func ResolveProxyServerHost(host string) (netip.Addr, error) {
-	return resolveProxyServerHostByType(host, typeNone)
+	return ResolveProxyServerHostWithContext(context.Background(), host)
 }
 
 // ResolveIPv4ProxyServerHost proxies server host only
 func ResolveIPv4ProxyServerHost(host string) (netip.Addr, error) {
-	return resolveProxyServerHostByType(host, typeA)
+	return ResolveIPv4ProxyServerHostWithContext(context.Background(), host)
 }
 
 // ResolveIPv6ProxyServerHost proxies server host only
 func ResolveIPv6ProxyServerHost(host string) (netip.Addr, error) {
-	return resolveProxyServerHostByType(host, typeAAAA)
+	return ResolveIPv6ProxyServerHostWithContext(context.Background(), host)
+}
+
+// ResolveIPWithContext with a host, return ip
+func ResolveIPWithContext(ctx context.Context, host string) (netip.Addr, error) {
+	return resolveIPByType(ctx, host, typeNone)
+}
+
+// ResolveIPv4WithContext with a host, return ipv4
+func ResolveIPv4WithContext(ctx context.Context, host string) (netip.Addr, error) {
+	return resolveIPByType(ctx, host, typeA)
+}
+
+// ResolveIPv6WithContext with a host, return ipv6
+func ResolveIPv6WithContext(ctx context.Context, host string) (netip.Addr, error) {
+	return resolveIPByType(ctx, host, typeAAAA)
+}
+
+// ResolveProxyServerHostWithContext proxies server host only
+func ResolveProxyServerHostWithContext(ctx context.Context, host string) (netip.Addr, error) {
+	return resolveProxyServerHostByType(ctx, host, typeNone)
+}
+
+// ResolveIPv4ProxyServerHostWithContext proxies server host only
+func ResolveIPv4ProxyServerHostWithContext(ctx context.Context, host string) (netip.Addr, error) {
+	return resolveProxyServerHostByType(ctx, host, typeA)
+}
+
+// ResolveIPv6ProxyServerHostWithContext proxies server host only
+func ResolveIPv6ProxyServerHostWithContext(ctx context.Context, host string) (netip.Addr, error) {
+	return resolveProxyServerHostByType(ctx, host, typeAAAA)
 }
 
 // SetDisableIPv6 set DisableIPv6 & needProxyHostIPv6 value
@@ -199,7 +229,7 @@ func SetECHConfigList(cfg *tls.Config) bool {
 	return true
 }
 
-func resolveIPByType(host string, _type uint16) (netip.Addr, error) {
+func resolveIPByType(ctx context.Context, host string, _type uint16) (netip.Addr, error) {
 	var (
 		ips []netip.Addr
 		err error
@@ -207,11 +237,11 @@ func resolveIPByType(host string, _type uint16) (netip.Addr, error) {
 
 	switch _type {
 	case typeNone:
-		ips, err = LookupIP(context.Background(), host)
+		ips, err = LookupIP(ctx, host)
 	case typeA:
-		ips, err = LookupIPv4(context.Background(), host)
+		ips, err = LookupIPv4(ctx, host)
 	default:
-		ips, err = LookupIPv6(context.Background(), host)
+		ips, err = LookupIPv6(ctx, host)
 	}
 
 	if err != nil {
@@ -221,13 +251,13 @@ func resolveIPByType(host string, _type uint16) (netip.Addr, error) {
 	return ips[rand.IntN(len(ips))], nil
 }
 
-func resolveProxyServerHostByType(host string, _type uint16) (netip.Addr, error) {
+func resolveProxyServerHostByType(ctx context.Context, host string, _type uint16) (netip.Addr, error) {
 	var (
 		ips []netip.Addr
 		err error
-		ctx = context.WithValue(context.Background(), proxyServerHostKey, struct{}{})
 	)
 
+	ctx = context.WithValue(ctx, proxyServerHostKey, struct{}{})
 	ips, err = lookupIPByResolverAndType(ctx, host, DefaultResolver, _type, needProxyHostIPv6)
 	if err != nil {
 		return netip.Addr{}, err
