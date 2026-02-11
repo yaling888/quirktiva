@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/netip"
+	"strconv"
 
 	"github.com/yaling888/quirktiva/common/errors2"
 	"github.com/yaling888/quirktiva/component/resolver"
@@ -31,6 +32,11 @@ func DialContext(ctx context.Context, network, address string, options ...Option
 			return nil, err
 		}
 
+		portNum, err := strconv.ParseUint(port, 10, 16)
+		if err != nil {
+			return nil, &net.AddrError{Err: "invalid address for " + network, Addr: address}
+		}
+
 		var ip netip.Addr
 		if a, err := netip.ParseAddr(host); err == nil {
 			ip = a
@@ -40,7 +46,7 @@ func DialContext(ctx context.Context, network, address string, options ...Option
 		case "tcp4", "udp4":
 			if ip.IsValid() {
 				if !ip.Is4() {
-					return nil, &net.AddrError{Err: "invalid address for " + network, Addr: host}
+					return nil, &net.AddrError{Err: "invalid address for " + network, Addr: address}
 				}
 			} else {
 				if !opt.direct {
@@ -52,7 +58,7 @@ func DialContext(ctx context.Context, network, address string, options ...Option
 		default:
 			if ip.IsValid() {
 				if !ip.Is6() {
-					return nil, &net.AddrError{Err: "invalid address for " + network, Addr: host}
+					return nil, &net.AddrError{Err: "invalid address for " + network, Addr: address}
 				}
 			} else {
 				if !opt.direct {
@@ -63,15 +69,39 @@ func DialContext(ctx context.Context, network, address string, options ...Option
 			}
 		}
 		if err != nil {
+			if _, ok := errors.AsType[net.Error](err); !ok {
+				return nil, &net.DNSError{
+					Name:       host,
+					Err:        err.Error(),
+					IsNotFound: errors.Is(err, resolver.ErrIPNotFound),
+				}
+			}
 			return nil, err
 		}
 
-		return dialContext(ctx, network, ip, port, opt)
+		return dialContext(ctx, network, netip.AddrPortFrom(ip, uint16(portNum)), opt)
 	case "tcp", "udp":
 		return dualStackDialContext(ctx, network, address, opt)
 	default:
 		return nil, net.UnknownNetworkError(network)
 	}
+}
+
+func DialContextAddrPort(ctx context.Context, network string, destination netip.AddrPort, options ...Option) (net.Conn, error) {
+	opt := &option{
+		interfaceName: DefaultInterface.Load(),
+		routingMark:   int(DefaultRoutingMark.Load()),
+	}
+
+	for _, o := range DefaultOptions {
+		o(opt)
+	}
+
+	for _, o := range options {
+		o(opt)
+	}
+
+	return dialContext(ctx, network, destination, opt)
 }
 
 func ListenPacket(ctx context.Context, network, address string, options ...Option) (net.PacketConn, error) {
@@ -114,24 +144,34 @@ func ListenPacket(ctx context.Context, network, address string, options ...Optio
 	return lc.ListenPacket(ctx, network, address)
 }
 
-func dialContext(ctx context.Context, network string, destination netip.Addr, port string, opt *option) (net.Conn, error) {
+func dialContext(ctx context.Context, network string, destination netip.AddrPort, opt *option) (net.Conn, error) {
 	dialer := &net.Dialer{}
 	if opt.interfaceName != "" {
-		if err := bindIfaceToDialer(opt.interfaceName, dialer, network, destination); err != nil {
+		if err := bindIfaceToDialer(opt.interfaceName, dialer, network, destination.Addr()); err != nil {
 			return nil, err
 		}
 	}
 	if opt.routingMark != 0 {
-		bindMarkToDialer(opt.routingMark, dialer, network, destination)
+		bindMarkToDialer(opt.routingMark, dialer, network, destination.Addr())
 	}
 
-	return dialer.DialContext(ctx, network, net.JoinHostPort(destination.String(), port))
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+		return dialer.DialTCP(ctx, network, netip.AddrPort{}, destination)
+	default:
+		return dialer.DialUDP(ctx, network, netip.AddrPort{}, destination)
+	}
 }
 
 func dualStackDialContext(ctx context.Context, network, address string, opt *option) (net.Conn, error) {
 	host, port, err := net.SplitHostPort(address)
 	if err != nil {
 		return nil, err
+	}
+
+	portNum, err := strconv.ParseUint(port, 10, 16)
+	if err != nil {
+		return nil, &net.AddrError{Err: "invalid address for " + network, Addr: address}
 	}
 
 	returned := make(chan struct{})
@@ -164,7 +204,7 @@ func dualStackDialContext(ctx context.Context, network, address string, opt *opt
 			ip = a
 		}
 		if (ipv6 && ip.Is4()) || (!ipv6 && ip.Is6()) {
-			result.error = &net.AddrError{Err: "invalid address for " + network, Addr: host}
+			result.error = &net.AddrError{Err: "invalid address for " + network, Addr: address}
 			return
 		}
 		if !ip.IsValid() {
@@ -182,12 +222,19 @@ func dualStackDialContext(ctx context.Context, network, address string, opt *opt
 				}
 			}
 			if result.error != nil {
+				if _, ok := errors.AsType[net.Error](result.error); !ok {
+					result.error = &net.DNSError{
+						Name:       host,
+						Err:        result.Error(),
+						IsNotFound: errors.Is(result.error, resolver.ErrIPNotFound),
+					}
+				}
 				return
 			}
 		}
 		result.resolved = true
 
-		result.Conn, result.error = dialContext(ctx, network, ip, port, opt)
+		result.Conn, result.error = dialContext(ctx, network, netip.AddrPortFrom(ip, uint16(portNum)), opt)
 	}
 
 	go startRacer(ctx, network+"4", host, opt.direct, false)

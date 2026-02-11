@@ -214,7 +214,19 @@ func (dc *dohClient) newTransport(isH3 bool) http.RoundTripper {
 	return &http.Transport{
 		ForceAttemptHTTP2: true,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return getTCPConn(ctx, addr)
+			host, port, err := net.SplitHostPort(dc.addr)
+			if err != nil {
+				return nil, err
+			}
+			ip, err := netip.ParseAddr(host)
+			if err != nil {
+				return nil, err
+			}
+			portNum, err := strconv.ParseUint(port, 10, 16)
+			if err != nil {
+				return nil, err
+			}
+			return getTCPConn(ctx, netip.AddrPortFrom(ip, uint16(portNum)))
 		},
 		TLSClientConfig: &tls.Config{
 			ServerName: dc.host,

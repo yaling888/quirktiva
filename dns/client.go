@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/netip"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,14 +21,13 @@ var _ dnsClient = (*client)(nil)
 
 type client struct {
 	*D.Client
-	r      *Resolver
-	port   string
-	host   string
-	iface  string
-	proxy  string
-	ip     string
-	lan    bool
-	source string
+	r        *Resolver
+	addrPort netip.AddrPort
+	host     string
+	iface    string
+	proxy    string
+	lan      bool
+	source   string
 }
 
 func (c *client) IsLan() bool {
@@ -44,7 +44,7 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*rMsg, error) {
 	}
 
 	var err error
-	if c.ip == "" {
+	if !c.addrPort.IsValid() {
 		if c.r == nil {
 			return nil, fmt.Errorf("dns %s not a valid ip", c.host)
 		} else {
@@ -56,7 +56,7 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*rMsg, error) {
 				return nil, fmt.Errorf("%w: %s", resolver.ErrIPNotFound, c.host)
 			}
 			ip := ips[rand.IntN(len(ips))]
-			c.ip = ip.String()
+			c.addrPort = netip.AddrPortFrom(ip, c.addrPort.Port())
 			c.lan = ip.IsLoopback() || ip.IsPrivate()
 		}
 	}
@@ -83,9 +83,9 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*rMsg, error) {
 
 	if proxy != "" {
 		msg.Source += "(" + proxy + ")"
-		conn, err = dialContextByProxyOrInterface(ctx, network, netip.MustParseAddr(c.ip), c.port, proxy, options...)
+		conn, err = dialContextByProxyOrInterface(ctx, network, c.addrPort, proxy, options...)
 	} else {
-		conn, err = dialer.DialContext(ctx, network, net.JoinHostPort(c.ip, c.port), options...)
+		conn, err = dialer.DialContextAddrPort(ctx, network, c.addrPort, options...)
 	}
 
 	if err != nil {
@@ -130,12 +130,12 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*rMsg, error) {
 
 func newClient(nw, addr, proxy, iface string, dhcp bool, r *Resolver) *client {
 	host, port, _ := net.SplitHostPort(addr)
-	var (
-		ip  string
-		lan bool
-	)
+	portNum, _ := strconv.ParseUint(port, 10, 16)
+	ap := netip.AddrPortFrom(netip.Addr{}, uint16(portNum))
+
+	var lan bool
 	if a, err := netip.ParseAddr(host); err == nil {
-		ip = host
+		ap = netip.AddrPortFrom(a, ap.Port())
 		lan = a.IsLoopback() || a.IsPrivate()
 	}
 
@@ -166,13 +166,12 @@ func newClient(nw, addr, proxy, iface string, dhcp bool, r *Resolver) *client {
 			UDPSize: 4096,
 			Timeout: timeout,
 		},
-		port:   port,
-		host:   host,
-		ip:     ip,
-		iface:  iface,
-		proxy:  proxy,
-		source: source,
-		lan:    lan,
-		r:      r,
+		addrPort: ap,
+		host:     host,
+		iface:    iface,
+		proxy:    proxy,
+		source:   source,
+		lan:      lan,
+		r:        r,
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/netip"
 	"slices"
-	"strconv"
 	"time"
 
 	D "github.com/miekg/dns"
@@ -254,15 +253,14 @@ func (wpc *wrapPacketConn) RemoteAddr() net.Addr {
 func dialContextByProxyOrInterface(
 	ctx context.Context,
 	network string,
-	dstIP netip.Addr,
-	port string,
+	addrPort netip.AddrPort,
 	proxyOrInterface string,
 	opts ...dialer.Option,
 ) (net.Conn, error) {
 	proxy, ok := tunnel.FindProxyByName(proxyOrInterface)
 	if !ok {
 		opts = []dialer.Option{dialer.WithInterface(proxyOrInterface), dialer.WithRoutingMark(0)}
-		conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(dstIP.String(), port), opts...)
+		conn, err := dialer.DialContextAddrPort(ctx, network, addrPort, opts...)
 		if err == nil {
 			return conn, nil
 		}
@@ -274,12 +272,11 @@ func dialContextByProxyOrInterface(
 		networkType = C.UDP
 	}
 
-	p, _ := strconv.ParseUint(port, 10, 16)
 	metadata := &C.Metadata{
 		NetWork: networkType,
 		Host:    "",
-		DstIP:   dstIP,
-		DstPort: C.Port(p),
+		DstIP:   addrPort.Addr(),
+		DstPort: C.Port(addrPort.Port()),
 	}
 
 	if networkType == C.UDP {
@@ -356,16 +353,11 @@ func genMsgCacheKey(ctx context.Context, q D.Question) string {
 	return fmt.Sprintf("%s:%d:%d", q.Name, q.Qtype, q.Qclass)
 }
 
-func getTCPConn(ctx context.Context, addr string) (conn net.Conn, err error) {
+func getTCPConn(ctx context.Context, addrPort netip.AddrPort) (conn net.Conn, err error) {
 	if proxy, ok := ctx.Value(proxyKey).(string); ok {
-		host, port, _ := net.SplitHostPort(addr)
-		ip, err1 := netip.ParseAddr(host)
-		if err1 != nil {
-			return nil, err1
-		}
-		conn, err = dialContextByProxyOrInterface(ctx, "tcp", ip, port, proxy)
+		conn, err = dialContextByProxyOrInterface(ctx, "tcp", addrPort, proxy)
 	} else {
-		conn, err = dialer.DialContext(ctx, "tcp", addr)
+		conn, err = dialer.DialContextAddrPort(ctx, "tcp", addrPort)
 	}
 
 	if err == nil {
