@@ -24,6 +24,7 @@ import (
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
 
+	"github.com/yaling888/quirktiva/common/context2"
 	"github.com/yaling888/quirktiva/component/dialer"
 	"github.com/yaling888/quirktiva/component/iface"
 	"github.com/yaling888/quirktiva/component/resolver"
@@ -68,18 +69,15 @@ func (w *WireGuard) DialContext(ctx context.Context, metadata *C.Metadata, _ ...
 		return nil, fmt.Errorf("apply wireguard proxy %s config error: %w", w.threadId, w.upErr)
 	}
 
-	dialCtx := ctx
-	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
-		var cancel context.CancelFunc
-		dialCtx, cancel = context.WithDeadline(ctx, time.Now().Add(dialTimeout))
-		defer cancel()
-	}
+	var cancel context.CancelFunc
+	ctx, cancel = context2.WithTimeout(ctx, dialTimeout)
+	defer cancel()
 
 	if err := w.resolveDNS(metadata, false); err != nil {
 		return nil, fmt.Errorf("resolve DNS failed: %w", err)
 	}
 
-	c, err := w.netStack.DialContextTCPAddrPort(dialCtx, netip.AddrPortFrom(metadata.DstIP, uint16(metadata.DstPort)))
+	c, err := w.netStack.DialContextTCPAddrPort(ctx, netip.AddrPortFrom(metadata.DstIP, uint16(metadata.DstPort)))
 	if err != nil {
 		return nil, err
 	}

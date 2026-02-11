@@ -17,6 +17,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/yaling888/quirktiva/common/cache"
+	"github.com/yaling888/quirktiva/common/context2"
 	"github.com/yaling888/quirktiva/component/fakeip"
 	"github.com/yaling888/quirktiva/component/geodata/router"
 	"github.com/yaling888/quirktiva/component/resolver"
@@ -310,7 +311,7 @@ func (r *Resolver) exchangePolicyCombine(ctx context.Context, clients []dnsClien
 	res := new(result)
 	policyClients, match := r.matchPolicy(domain)
 	if !match {
-		ctx1, cancel := context.WithTimeout(resolver.CopyCtxValues(ctx), timeout)
+		ctx1, cancel := context2.WithTimeout(ctx, timeout)
 		defer cancel()
 		res.Msg, res.Error = batchExchange(ctx1, clients, m)
 		return res
@@ -321,13 +322,13 @@ func (r *Resolver) exchangePolicyCombine(ctx context.Context, clients []dnsClien
 	})
 
 	if !isLan {
-		ctx1, cancel := context.WithTimeout(resolver.CopyCtxValues(ctx), timeout)
+		ctx1, cancel := context2.WithTimeout(ctx, timeout)
 		defer cancel()
 		res.Msg, res.Error = batchExchange(ctx1, policyClients, m)
 		res.Policy = true
 		return res
 	} else if m.Question[0].Qtype == D.TypeHTTPS {
-		ctx1, cancel := context.WithTimeout(resolver.CopyCtxValues(ctx), timeout)
+		ctx1, cancel := context2.WithTimeout(ctx, timeout)
 		defer cancel()
 		res.Msg, res.Error = batchExchange(ctx1, clients, m)
 		return res
@@ -341,10 +342,10 @@ func (r *Resolver) exchangePolicyCombine(ctx context.Context, clients []dnsClien
 
 	wg.Add(2)
 
-	ctx1, cancel1 := context.WithTimeout(resolver.CopyCtxValues(ctx), resolver.DefaultDNSTimeout)
+	ctx1, cancel1 := context2.WithTimeout(ctx, resolver.DefaultDNSTimeout)
 	defer cancel1()
 
-	ctx2, cancel2 := context.WithTimeout(resolver.CopyCtxValues(ctx), timeout)
+	ctx2, cancel2 := context2.WithTimeout(ctx, timeout)
 	defer cancel2()
 
 	go func() {

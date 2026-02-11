@@ -9,6 +9,7 @@ import (
 
 	"github.com/yaling888/quirktiva/adapter"
 	"github.com/yaling888/quirktiva/adapter/outbound"
+	"github.com/yaling888/quirktiva/common/context2"
 	"github.com/yaling888/quirktiva/common/singledo"
 	"github.com/yaling888/quirktiva/component/dialer"
 	"github.com/yaling888/quirktiva/component/resolver"
@@ -45,7 +46,7 @@ func (r *Relay) DialContext(ctx context.Context, metadata *C.Metadata, opts ...d
 	}
 
 	timeout := time.Duration(length) * C.DefaultTCPTimeout
-	subCtx, cancel := context.WithTimeout(ctx, timeout)
+	subCtx, cancel := context2.WithTimeout(ctx, timeout)
 	defer cancel()
 	ctx = subCtx
 
@@ -106,7 +107,7 @@ func (r *Relay) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 	}
 
 	timeout := time.Duration(length) * C.DefaultTCPTimeout
-	subCtx, cancel := context.WithTimeout(ctx, timeout)
+	subCtx, cancel := context2.WithTimeout(ctx, timeout)
 	defer cancel()
 	ctx = subCtx
 

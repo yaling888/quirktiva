@@ -179,18 +179,6 @@ func WithProxy(ctx context.Context, proxy string) context.Context {
 	return context.WithValue(ctx, proxyKey, proxy)
 }
 
-// CopyCtxValues returns a new context with parent's values
-func CopyCtxValues(parent context.Context) context.Context {
-	newCtx := context.Background()
-	if v, ok := parent.Value(proxyKey).(string); ok {
-		newCtx = context.WithValue(newCtx, proxyKey, v)
-	}
-	if parent.Value(proxyServerHostKey) != nil {
-		newCtx = context.WithValue(newCtx, proxyServerHostKey, struct{}{})
-	}
-	return newCtx
-}
-
 func SetECHConfigList(cfg *tls.Config) bool {
 	ech, err := LookupECHForProxyServer(cfg.ServerName)
 	if err != nil {
