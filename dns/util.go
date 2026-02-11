@@ -443,9 +443,8 @@ func logDnsResponse(q D.Question, msg *rMsg, err error) {
 
 	if err != nil {
 		if e := log.Debug(); e != nil {
-			var http3Err *http3.Error
-			if !errors.Is(err, context.Canceled) &&
-				(!errors.As(err, &http3Err) || http3Err.ErrorCode != http3.ErrCodeRequestCanceled) {
+			http3Err, ok := errors.AsType[*http3.Error](err)
+			if !errors.Is(err, context.Canceled) && (!ok || http3Err.ErrorCode != http3.ErrCodeRequestCanceled) {
 				e.
 					Err(err).
 					Str("source", msg.Source).
