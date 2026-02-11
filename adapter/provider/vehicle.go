@@ -76,7 +76,7 @@ func (h *HTTPVehicle) Read() ([]byte, error) {
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodGet, uri.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -91,8 +91,6 @@ func (h *HTTPVehicle) Read() ([]byte, error) {
 	}
 
 	convert.SetUserAgent(req.Header)
-
-	req = req.WithContext(ctx)
 
 	transport := &http.Transport{
 		// from http.DefaultTransport

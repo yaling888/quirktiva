@@ -148,11 +148,10 @@ func (p *Proxy) URLTest(ctx context.Context, url string) (delay, avgDelay uint16
 		_ = instance.Close()
 	}()
 
-	req, err := http.NewRequest(http.MethodHead, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
 	if err != nil {
 		return
 	}
-	req = req.WithContext(ctx)
 
 	transport := &http.Transport{
 		DialContext: func(context.Context, string, string) (net.Conn, error) {
@@ -236,11 +235,10 @@ func (p *Proxy) v6Test(url string) {
 		_ = instance.Close()
 	}()
 
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return
 	}
-	req = req.WithContext(ctx)
 
 	transport := &http.Transport{
 		DialContext: func(context.Context, string, string) (net.Conn, error) {
