@@ -134,7 +134,7 @@ func (p *Proxy) URLTest(ctx context.Context, url string) (delay, avgDelay uint16
 		}
 	}()
 
-	addr, err := urlToMetadata(url)
+	u, addr, err := urlToMetadata(url)
 	if err != nil {
 		return
 	}
@@ -164,22 +164,22 @@ func (p *Proxy) URLTest(ctx context.Context, url string) (delay, avgDelay uint16
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 
-	client := http.Client{
-		Transport: transport,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
+	cc, err := transport.NewClientConn(ctx, u.Scheme, u.Host)
+	if err != nil {
+		return
 	}
-	defer client.CloseIdleConnections()
+	defer func() {
+		_ = cc.Close()
+	}()
 
-	resp, err := client.Do(req)
+	resp, err := cc.RoundTrip(req)
 	if err != nil {
 		return
 	}
 	_ = resp.Body.Close()
 	delay = uint16(time.Since(start) / time.Millisecond)
 
-	resp, err = client.Do(req)
+	resp, err = cc.RoundTrip(req)
 	if err != nil {
 		avgDelay = 0
 		err = nil
@@ -210,7 +210,7 @@ func (p *Proxy) v6Test(url string) {
 		p.v6Mux.Unlock()
 	}()
 
-	addr, err := urlToMetadata(url)
+	u, addr, err := urlToMetadata(url)
 	if err != nil {
 		return
 	}
@@ -251,15 +251,15 @@ func (p *Proxy) v6Test(url string) {
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 
-	client := http.Client{
-		Transport: transport,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
+	cc, err := transport.NewClientConn(ctx, u.Scheme, u.Host)
+	if err != nil {
+		return
 	}
-	defer client.CloseIdleConnections()
+	defer func() {
+		_ = cc.Close()
+	}()
 
-	resp, err := client.Do(req)
+	resp, err := cc.RoundTrip(req)
 	if err != nil {
 		return
 	}
@@ -274,8 +274,8 @@ func NewProxy(adapter C.ProxyAdapter) *Proxy {
 	}
 }
 
-func urlToMetadata(rawURL string) (addr C.Metadata, err error) {
-	u, err := url.Parse(rawURL)
+func urlToMetadata(rawURL string) (u *url.URL, addr C.Metadata, err error) {
+	u, err = url.Parse(rawURL)
 	if err != nil {
 		return
 	}
