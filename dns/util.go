@@ -206,30 +206,81 @@ func msgToECH(msg *D.Msg) []byte {
 	return nil
 }
 
-func msgToIPStr(msg D.Msg) []string {
-	var ips []string
+func msgToLog(msg D.Msg) []string {
+	var logs []string
 
 	for _, answer := range msg.Answer {
 		switch ans := answer.(type) {
 		case *D.AAAA:
-			ips = append(ips, ans.AAAA.String())
+			logs = append(logs, ans.AAAA.String())
 		case *D.A:
-			ips = append(ips, ans.A.String())
+			logs = append(logs, ans.A.String())
 		case *D.HTTPS:
 			for _, kv := range ans.Value {
 				switch svc := kv.(type) {
 				case *D.SVCBECHConfig:
-					ips = append(ips, svc.String())
+					logs = append(logs, svc.String())
 				case *D.SVCBIPv4Hint:
-					ips = append(ips, svc.String())
+					logs = append(logs, svc.String())
 				case *D.SVCBIPv6Hint:
-					ips = append(ips, svc.String())
+					logs = append(logs, svc.String())
+				}
+			}
+		case *D.CNAME:
+			logs = append(logs, ans.Target)
+		case *D.DNAME:
+			logs = append(logs, ans.Target)
+		case *D.MX:
+			logs = append(logs, ans.Mx)
+		case *D.NS:
+			logs = append(logs, ans.Ns)
+		case *D.PTR:
+			logs = append(logs, ans.Ptr)
+		case *D.SPF:
+			logs = append(logs, ans.Txt...)
+		case *D.TXT:
+			logs = append(logs, ans.Txt...)
+		case *D.OPT:
+			for _, o := range ans.Option {
+				switch o.(type) {
+				case *D.EDNS0_NSID:
+					logs = append(logs, "NSID: "+o.String())
+				case *D.EDNS0_SUBNET:
+					logs = append(logs, "SUBNET: "+o.String())
+				case *D.EDNS0_COOKIE:
+					logs = append(logs, "COOKIE: "+o.String())
+				case *D.EDNS0_EXPIRE:
+					logs = append(logs, "EXPIRE: "+o.String())
+				case *D.EDNS0_TCP_KEEPALIVE:
+					logs = append(logs, "KEEPALIVE: "+o.String())
+				case *D.EDNS0_UL:
+					logs = append(logs, "UPDATE LEASE: "+o.String())
+				case *D.EDNS0_LLQ:
+					logs = append(logs, "LONG LIVED QUERIES: "+o.String())
+				case *D.EDNS0_DAU:
+					logs = append(logs, "DNSSEC ALGORITHM UNDERSTOOD: "+o.String())
+				case *D.EDNS0_DHU:
+					logs = append(logs, "DS HASH UNDERSTOOD: "+o.String())
+				case *D.EDNS0_N3U:
+					logs = append(logs, "NSEC3 HASH UNDERSTOOD: "+o.String())
+				case *D.EDNS0_LOCAL:
+					logs = append(logs, "LOCAL OPT: "+o.String())
+				case *D.EDNS0_PADDING:
+					logs = append(logs, "PADDING: "+o.String())
+				case *D.EDNS0_EDE:
+					logs = append(logs, "EDE: "+o.String())
+				case *D.EDNS0_ESU:
+					logs = append(logs, "ESU: "+o.String())
+				case *D.EDNS0_REPORTING:
+					logs = append(logs, "REPORT-CHANNEL: "+o.String())
+				case *D.EDNS0_ZONEVERSION:
+					logs = append(logs, "ZONEVERSION: "+o.String())
 				}
 			}
 		}
 	}
 
-	return ips
+	return logs
 }
 
 type wrapPacketConn struct {
@@ -425,15 +476,31 @@ func logDnsResponse(q D.Question, msg *rMsg, err error) {
 	if msg == nil {
 		return
 	}
-	if q.Qtype != D.TypeA && q.Qtype != D.TypeAAAA && q.Qtype != D.TypeHTTPS {
-		return
-	}
 
 	if err != nil {
 		if e := log.Debug(); e != nil {
-			http3Err, ok := errors.AsType[*http3.Error](err)
-			if !errors.Is(err, context.Canceled) && !errors.Is(err, context2.ManualCanceled) &&
-				(!ok || http3Err.ErrorCode != http3.ErrCodeRequestCanceled) {
+			if http3Err, ok := errors.AsType[*http3.Error](err); ok && http3Err.ErrorCode == http3.ErrCodeRequestCanceled {
+				e.
+					Str("cause", "h3_request_cancelled").
+					Str("source", msg.Source).
+					Str("qType", D.Type(q.Qtype).String()).
+					Str("name", q.Name).
+					Msg("[DNS] dns request cancelled")
+			} else if errors.Is(err, context.Canceled) {
+				e.
+					Str("cause", "context_canceled").
+					Str("source", msg.Source).
+					Str("qType", D.Type(q.Qtype).String()).
+					Str("name", q.Name).
+					Msg("[DNS] dns request cancelled")
+			} else if errors.Is(err, context2.ManualCanceled) {
+				e.
+					Str("cause", "context_manual_canceled").
+					Str("source", msg.Source).
+					Str("qType", D.Type(q.Qtype).String()).
+					Str("name", q.Name).
+					Msg("[DNS] dns request cancelled")
+			} else {
 				e.
 					Err(err).
 					Str("source", msg.Source).
@@ -461,5 +528,5 @@ type LogAnswer struct {
 }
 
 func (l LogAnswer) MarshalObject(e *log.Entry) {
-	e.Strs("answer", msgToIPStr(l.ans))
+	e.Strs("answer", msgToLog(l.ans))
 }

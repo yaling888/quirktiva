@@ -273,6 +273,8 @@ func (r *Resolver) exchangeWithoutCache(ctx context.Context, m *D.Msg, q D.Quest
 			rst = r.exchangePolicyCombine(ctx, r.remote, m, domain)
 		} else if r.proxyServer != nil && resolver.IsProxyServer(ctx) {
 			rst = r.exchangePolicyCombine(ctx, r.proxyServer, m, domain)
+		} else if r.shouldOnlyQueryFallback(domain) {
+			rst = r.exchangePolicyCombine(ctx, r.fallback, m, domain)
 		} else {
 			rst = r.exchangePolicyCombine(ctx, r.main, m, domain)
 		}
