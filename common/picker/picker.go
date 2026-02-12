@@ -2,7 +2,7 @@ package picker
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -74,7 +74,11 @@ func (p *Picker[T]) Go(f func() (T, error)) {
 			})
 		} else {
 			p.errMux.Lock()
-			p.err = errors.Join(p.err, err)
+			if p.err == nil {
+				p.err = err
+			} else {
+				p.err = fmt.Errorf("%w, %w", p.err, err)
+			}
 			p.errMux.Unlock()
 		}
 	}()

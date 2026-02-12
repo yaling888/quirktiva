@@ -15,7 +15,6 @@ import (
 	"github.com/samber/lo"
 
 	"github.com/yaling888/quirktiva/common/cache"
-	"github.com/yaling888/quirktiva/common/errors2"
 	"github.com/yaling888/quirktiva/common/picker"
 	"github.com/yaling888/quirktiva/component/dialer"
 	"github.com/yaling888/quirktiva/component/resolver"
@@ -338,9 +337,9 @@ func batchExchange(ctx context.Context, clients []dnsClient, m *D.Msg) (msg *rMs
 	if elm == nil {
 		err = errors.New("all DNS requests failed")
 		if fErr := fast.Error(); fErr != nil {
-			err = errors.Join(err, fErr)
+			err = fmt.Errorf("%w: %w", err, fErr)
 		}
-		return nil, errors2.Cause(err)
+		return nil, err
 	}
 
 	return elm, nil

@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -17,7 +16,6 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/yaling888/quirktiva/common/errors2"
 	"github.com/yaling888/quirktiva/transport/h1"
 	tls2 "github.com/yaling888/quirktiva/transport/tls"
 )
@@ -86,14 +84,17 @@ func (wsc *websocketConn) Write(b []byte) (int, error) {
 func (wsc *websocketConn) Close() error {
 	var errs error
 	if err := wsc.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), time.Now().Add(time.Second*5)); err != nil {
-		errs = errors.Join(errs, err)
+		errs = err
 	}
 	if err := wsc.conn.Close(); err != nil {
-		errs = errors.Join(errs, err)
+		if errs == nil {
+			errs = err
+		} else {
+			errs = fmt.Errorf("%w, %w", errs, err)
+		}
 	}
 	if errs != nil {
-		errs = errors.Join(errors.New("failed to close connection"), errs)
-		return errors2.Cause(errs)
+		return fmt.Errorf("failed to close connection: %w", errs)
 	}
 	return nil
 }
@@ -302,9 +303,9 @@ func streamWebsocketConn(conn net.Conn, c *WebsocketConfig, earlyData *bytes.Buf
 	wsConn, resp, err := dialer.Dial(uri.String(), headers)
 	if err != nil {
 		if resp != nil {
-			err = errors.Join(err, errors.New(resp.Status))
+			err = fmt.Errorf("%w: status: %s", err, resp.Status)
 		}
-		return nil, errors2.Cause(errors.Join(fmt.Errorf("dial %s error", uri.Host), err))
+		return nil, fmt.Errorf("dial %s error: %w", uri.Host, err)
 	}
 
 	return &websocketConn{

@@ -3,14 +3,11 @@ package structure
 // references: https://github.com/mitchellh/mapstructure
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/yaling888/quirktiva/common/errors2"
 )
 
 var durationType = reflect.TypeOf(time.Duration(0))
@@ -293,19 +290,31 @@ func (d *Decoder) decodeMapFromMap(name string, dataVal reflect.Value, val refle
 
 		currentKey := reflect.Indirect(reflect.New(valKeyType))
 		if err := d.decode(fieldName, k.Interface(), currentKey); err != nil {
-			errs = errors.Join(errs, err)
+			if errs == nil {
+				errs = err
+			} else {
+				errs = fmt.Errorf("%w, %w", errs, err)
+			}
 			continue
 		}
 
 		v := dataVal.MapIndex(k).Interface()
 		if v == nil {
-			errs = errors.Join(errs, fmt.Errorf("filed %s invalid", fieldName))
+			if errs == nil {
+				errs = fmt.Errorf("filed %s invalid", fieldName)
+			} else {
+				errs = fmt.Errorf("%w, filed %s invalid", errs, fieldName)
+			}
 			continue
 		}
 
 		currentVal := reflect.Indirect(reflect.New(valElemType))
 		if err := d.decode(fieldName, v, currentVal); err != nil {
-			errs = errors.Join(errs, err)
+			if errs == nil {
+				errs = err
+			} else {
+				errs = fmt.Errorf("%w, %w", errs, err)
+			}
 			continue
 		}
 
@@ -315,7 +324,7 @@ func (d *Decoder) decodeMapFromMap(name string, dataVal reflect.Value, val refle
 	val.Set(valMap)
 
 	if errs != nil {
-		return errors2.New(errs)
+		return errs
 	}
 
 	return nil
@@ -394,10 +403,11 @@ func (d *Decoder) decodeStructFromMap(name string, dataVal, val reflect.Value) e
 
 			if squash {
 				if fieldKind != reflect.Struct {
-					errs = errors.Join(
-						errs,
-						fmt.Errorf("%s: unsupported type for squash: %s", fieldType.Name, fieldKind),
-					)
+					if errs == nil {
+						errs = fmt.Errorf("%s: unsupported type for squash: %s", fieldType.Name, fieldKind)
+					} else {
+						errs = fmt.Errorf("%w, %s: unsupported type for squash: %s", errs, fieldType.Name, fieldKind)
+					}
 				} else {
 					structs = append(structs, structVal.FieldByName(fieldType.Name))
 				}
@@ -467,12 +477,16 @@ func (d *Decoder) decodeStructFromMap(name string, dataVal, val reflect.Value) e
 		}
 
 		if err := d.decode(fieldName, rawMapVal.Interface(), fieldValue); err != nil {
-			errs = errors.Join(errs, err)
+			if errs == nil {
+				errs = err
+			} else {
+				errs = fmt.Errorf("%w, %w", errs, err)
+			}
 		}
 	}
 
 	if errs != nil {
-		return errors2.New(errs)
+		return errs
 	}
 
 	return nil
