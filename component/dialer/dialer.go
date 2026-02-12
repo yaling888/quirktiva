@@ -7,9 +7,13 @@ import (
 	"net"
 	"net/netip"
 	"strconv"
+	"time"
 
+	"github.com/yaling888/quirktiva/common/context2"
 	"github.com/yaling888/quirktiva/component/resolver"
 )
+
+const defaultDailTimeout = 8 * time.Second
 
 func DialContext(ctx context.Context, network, address string, options ...Option) (net.Conn, error) {
 	opt := &option{
@@ -173,6 +177,12 @@ func dialContext(ctx context.Context, network string, destination netip.AddrPort
 		bindMarkToDialer(opt.routingMark, dialer, network, destination.Addr())
 	}
 
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, defaultDailTimeout)
+		defer cancel()
+	}
+
 	switch network {
 	case "tcp", "tcp4", "tcp6":
 		return dialer.DialTCP(ctx, network, netip.AddrPort{}, destination)
@@ -196,10 +206,10 @@ func dualStackDialContext(ctx context.Context, network, address string, opt *opt
 		return dialContext(ctx, network, netip.AddrPortFrom(ip, uint16(portNum)), opt)
 	}
 
-	ctx1, cancel := context.WithCancel(ctx)
+	ctx1, cancel := context.WithCancelCause(ctx)
 	returned := make(chan struct{})
 	defer func() {
-		cancel()
+		cancel(context2.ManualCanceled)
 		close(returned)
 	}()
 

@@ -2,8 +2,12 @@ package context2
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+//nolint:staticcheck
+var ManualCanceled = errors.New("context manual canceled")
 
 // WithDeadline returns a derived context that points to the parent context
 // but force set the deadline to d.
@@ -14,6 +18,13 @@ import (
 // Canceling this context releases resources associated with it, so code should
 // call cancel as soon as the operations running in this [Context] complete.
 func WithDeadline(parent context.Context, d time.Time) (context.Context, context.CancelFunc) {
+	return WithDeadlineCause(parent, d, nil)
+}
+
+// WithDeadlineCause behaves like [WithDeadline] but also sets the cause of the
+// parent cancel function is called. The returned [CancelFunc] does
+// not set the cause.
+func WithDeadlineCause(parent context.Context, d time.Time, cause error) (context.Context, context.CancelFunc) {
 	if _, ok := parent.Deadline(); !ok { // no parent deadline is set
 		return context.WithDeadline(parent, d)
 	}
@@ -24,7 +35,11 @@ func WithDeadline(parent context.Context, d time.Time) (context.Context, context
 	go func() {
 		select {
 		case <-parent.Done():
-			if parent.Err() == context.Canceled { // cancel by parent call the cancel function
+			if cause == nil {
+				if parent.Err() == context.Canceled { // cancel by parent call the cancel function
+					cancel()
+				}
+			} else if context.Cause(parent) == cause { // cancel by parent call the cancel function in cause
 				cancel()
 			}
 		case <-ctx.Done():
@@ -40,4 +55,11 @@ func WithDeadline(parent context.Context, d time.Time) (context.Context, context
 // call cancel as soon as the operations running in this [Context] complete.
 func WithTimeout(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	return WithDeadline(parent, time.Now().Add(timeout))
+}
+
+// WithTimeoutCause behaves like [WithTimeout] but also sets the cause of the
+// parent cancel function is called. The returned [CancelFunc] does
+// not set the cause.
+func WithTimeoutCause(parent context.Context, timeout time.Duration, cause error) (context.Context, context.CancelFunc) {
+	return WithDeadlineCause(parent, time.Now().Add(timeout), cause)
 }

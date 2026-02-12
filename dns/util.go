@@ -15,6 +15,7 @@ import (
 	"github.com/samber/lo"
 
 	"github.com/yaling888/quirktiva/common/cache"
+	"github.com/yaling888/quirktiva/common/context2"
 	"github.com/yaling888/quirktiva/common/picker"
 	"github.com/yaling888/quirktiva/component/dialer"
 	"github.com/yaling888/quirktiva/component/resolver"
@@ -313,11 +314,7 @@ func batchExchange(ctx context.Context, clients []dnsClient, m *D.Msg) (msg *rMs
 		cs   = clients
 	)
 
-	if _, ok := ctx.Deadline(); ok {
-		fast, ctx = picker.WithContext[*rMsg](ctx)
-	} else {
-		fast, ctx = picker.WithTimeout[*rMsg](ctx, resolver.DefaultDNSTimeout)
-	}
+	fast, ctx = picker.WithCancelCause[*rMsg](ctx, context2.ManualCanceled)
 
 	for i := range cs {
 		r := cs[i]

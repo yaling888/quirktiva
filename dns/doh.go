@@ -19,6 +19,7 @@ import (
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
 
+	"github.com/yaling888/quirktiva/common/context2"
 	"github.com/yaling888/quirktiva/component/resolver"
 )
 
@@ -101,7 +102,7 @@ func (dc *dohClient) ExchangeContext(ctx context.Context, m *D.Msg) (msg *rMsg, 
 
 	var msg1 *D.Msg
 	req = req.WithContext(ctx)
-	msg1, err = dc.doRequest(req, proxy)
+	msg1, err = dc.doRequest(ctx, req, proxy)
 	if err == nil {
 		msg1.Id = m.Id
 		msg.Msg = msg1
@@ -127,7 +128,7 @@ func (dc *dohClient) newRequest(m *D.Msg) (*http.Request, error) {
 	return req, nil
 }
 
-func (dc *dohClient) doRequest(req *http.Request, proxy string) (*D.Msg, error) {
+func (dc *dohClient) doRequest(ctx context.Context, req *http.Request, proxy string) (*D.Msg, error) {
 	if tr, ok := dc.transports.Load(proxy); ok || dc.forceHTTP3 {
 		if tr == nil {
 			tr = dc.newTransport(true)
@@ -135,15 +136,18 @@ func (dc *dohClient) doRequest(req *http.Request, proxy string) (*D.Msg, error) 
 				closeTransport(t)
 			}
 		}
-		return roundTrip(req, tr.(http.RoundTripper))
+		return roundTrip(ctx, req, tr.(http.RoundTripper), proxy)
 	}
 
-	return dc.batchRoundTrip(req, proxy)
+	return dc.batchRoundTrip(ctx, req, proxy)
 }
 
-func (dc *dohClient) batchRoundTrip(req *http.Request, proxy string) (*D.Msg, error) {
-	ch3 := dc.asyncRoundTripWithNewTransport(req, proxy, true)
-	ch := dc.asyncRoundTripWithNewTransport(req, proxy, false)
+func (dc *dohClient) batchRoundTrip(ctx context.Context, req *http.Request, proxy string) (*D.Msg, error) {
+	ctx1, cancel := context.WithCancelCause(ctx)
+	defer cancel(context2.ManualCanceled)
+
+	ch3 := dc.asyncRoundTripWithNewTransport(ctx1, req, proxy, true)
+	ch := dc.asyncRoundTripWithNewTransport(ctx1, req, proxy, false)
 
 	select {
 	case rs := <-ch3:
@@ -155,7 +159,7 @@ func (dc *dohClient) batchRoundTrip(req *http.Request, proxy string) (*D.Msg, er
 	}
 }
 
-func (dc *dohClient) asyncRoundTripWithNewTransport(req *http.Request, proxy string, isH3 bool) <-chan *retMsg {
+func (dc *dohClient) asyncRoundTripWithNewTransport(ctx context.Context, req *http.Request, proxy string, isH3 bool) <-chan *retMsg {
 	ch := make(chan *retMsg, 1)
 
 	go func() {
@@ -170,22 +174,12 @@ func (dc *dohClient) asyncRoundTripWithNewTransport(req *http.Request, proxy str
 			newReq.Body = body
 		}
 
-		if isH3 {
-			newCtx := context.Background()
-			if proxy != "" {
-				newCtx = context.WithValue(newCtx, proxyKey, proxy)
-			}
-			newCtx, cancel := context.WithTimeout(newCtx, resolver.DefaultDNSTimeout)
-			defer cancel()
-			newReq = newReq.WithContext(newCtx)
-		}
-
 		tr := dc.newTransport(isH3)
 		if proxy != "" && !isH3 {
 			tr.(*http.Transport).IdleConnTimeout = 10 * time.Minute
 		}
 
-		msg, err := roundTrip(newReq, tr)
+		msg, err := roundTrip(ctx, newReq, tr, proxy)
 		if err == nil && isH3 {
 			if t, loaded := dc.transports.Swap(proxy, tr); loaded {
 				closeTransport(t)
@@ -236,8 +230,16 @@ func (dc *dohClient) newTransport(isH3 bool) http.RoundTripper {
 	}
 }
 
-func roundTrip(req *http.Request, transport http.RoundTripper) (*D.Msg, error) {
-	client1 := &http.Client{Transport: transport}
+func roundTrip(ctx context.Context, req *http.Request, transport http.RoundTripper, proxy string) (*D.Msg, error) {
+	timeout := resolver.DefaultDNSTimeout
+	if proxy != "" {
+		timeout = proxyTimeout
+	}
+	ctx1, cancel := context2.WithTimeoutCause(ctx, timeout, context2.ManualCanceled)
+	defer cancel()
+	req = req.WithContext(ctx1)
+
+	client1 := &http.Client{Transport: transport, Timeout: timeout}
 	resp, err := client1.Do(req)
 	if err != nil {
 		return nil, err

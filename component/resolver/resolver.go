@@ -256,17 +256,21 @@ func resolveProxyServerHostByType(ctx context.Context, host string, _type uint16
 		ips []netip.Addr
 		err error
 	)
-
+	if ctx.Value(proxyKey) != nil {
+		ctx = context.WithValue(ctx, proxyKey, nil)
+	}
 	ctx = context.WithValue(ctx, proxyServerHostKey, struct{}{})
 	ips, err = lookupIPByResolverAndType(ctx, host, DefaultResolver, _type, needProxyHostIPv6)
 	if err != nil {
 		return netip.Addr{}, err
 	}
-
 	return ips[rand.IntN(len(ips))], nil
 }
 
 func lookupIPByProxyAndType(ctx context.Context, host, proxy string, t uint16, both bool) ([]netip.Addr, error) {
+	if ctx.Value(proxyServerHostKey) != nil {
+		ctx = context.WithValue(ctx, proxyServerHostKey, nil)
+	}
 	ctx = context.WithValue(ctx, proxyKey, proxy)
 	return lookupIPByResolverAndType(ctx, host, DefaultResolver, t, both)
 }

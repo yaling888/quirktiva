@@ -70,8 +70,8 @@ type Resolver struct {
 
 // LookupIP request with TypeA and TypeAAAA, priority return TypeA
 func (r *Resolver) LookupIP(ctx context.Context, host string) (ip []netip.Addr, err error) {
-	ctx1, cancel := context.WithCancel(ctx)
-	defer cancel()
+	ctx1, cancel := context.WithCancelCause(ctx)
+	defer cancel(context2.ManualCanceled)
 
 	ch := make(chan []netip.Addr, 1)
 	go func() {
@@ -303,17 +303,10 @@ func (r *Resolver) matchPolicy(domain string) ([]dnsClient, bool) {
 }
 
 func (r *Resolver) exchangePolicyCombine(ctx context.Context, clients []dnsClient, m *D.Msg, domain string) *result {
-	timeout := resolver.DefaultDNSTimeout
-	if resolver.IsRemote(ctx) {
-		timeout = proxyTimeout
-	}
-
 	res := new(result)
 	policyClients, match := r.matchPolicy(domain)
 	if !match {
-		ctx1, cancel := context2.WithTimeout(ctx, timeout)
-		defer cancel()
-		res.Msg, res.Error = batchExchange(ctx1, clients, m)
+		res.Msg, res.Error = batchExchange(ctx, clients, m)
 		return res
 	}
 
@@ -322,15 +315,11 @@ func (r *Resolver) exchangePolicyCombine(ctx context.Context, clients []dnsClien
 	})
 
 	if !isLan {
-		ctx1, cancel := context2.WithTimeout(ctx, timeout)
-		defer cancel()
-		res.Msg, res.Error = batchExchange(ctx1, policyClients, m)
+		res.Msg, res.Error = batchExchange(ctx, policyClients, m)
 		res.Policy = true
 		return res
 	} else if m.Question[0].Qtype == D.TypeHTTPS {
-		ctx1, cancel := context2.WithTimeout(ctx, timeout)
-		defer cancel()
-		res.Msg, res.Error = batchExchange(ctx1, clients, m)
+		res.Msg, res.Error = batchExchange(ctx, clients, m)
 		return res
 	}
 
@@ -342,11 +331,11 @@ func (r *Resolver) exchangePolicyCombine(ctx context.Context, clients []dnsClien
 
 	wg.Add(2)
 
-	ctx1, cancel1 := context2.WithTimeout(ctx, resolver.DefaultDNSTimeout)
-	defer cancel1()
+	ctx1, cancel1 := context.WithCancelCause(ctx)
+	defer cancel1(context2.ManualCanceled)
 
-	ctx2, cancel2 := context2.WithTimeout(ctx, timeout)
-	defer cancel2()
+	ctx2, cancel2 := context.WithCancelCause(ctx)
+	defer cancel2(context2.ManualCanceled)
 
 	go func() {
 		msg, err := batchExchange(ctx1, policyClients, m)
@@ -354,7 +343,7 @@ func (r *Resolver) exchangePolicyCombine(ctx context.Context, clients []dnsClien
 		done1.Store(true)
 		wg.Done()
 		if err == nil {
-			cancel2() // no need to wait for others
+			cancel2(context2.ManualCanceled) // no need to wait for others
 		}
 	}()
 
@@ -370,7 +359,7 @@ func (r *Resolver) exchangePolicyCombine(ctx context.Context, clients []dnsClien
 					return
 				}
 			}
-			cancel1()
+			cancel1(context2.ManualCanceled)
 		}
 	}()
 

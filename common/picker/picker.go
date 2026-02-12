@@ -42,6 +42,16 @@ func WithTimeout[T any](ctx context.Context, timeout time.Duration) (*Picker[T],
 	return newPicker[T](ctx, cancel), ctx
 }
 
+// WithCancelCause returns a new Picker and an associated Context derived from ctx.
+// and cancel when first element return.
+func WithCancelCause[T any](ctx context.Context, cause error) (*Picker[T], context.Context) {
+	var cancel context.CancelCauseFunc
+	ctx, cancel = context.WithCancelCause(ctx)
+	return newPicker[T](ctx, func() {
+		cancel(cause)
+	}), ctx
+}
+
 // Wait blocks until all function calls from the Go method have returned,
 // then returns the first nil error result (if any) from them.
 func (p *Picker[T]) Wait() T {

@@ -13,6 +13,7 @@ import (
 
 	D "github.com/miekg/dns"
 
+	"github.com/yaling888/quirktiva/common/context2"
 	"github.com/yaling888/quirktiva/component/dialer"
 	"github.com/yaling888/quirktiva/component/resolver"
 )
@@ -81,12 +82,16 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*rMsg, error) {
 		options = append(options, dialer.WithInterface(c.iface))
 	}
 
+	var cancel context.CancelFunc
 	if proxy != "" {
 		msg.Source += "(" + proxy + ")"
+		ctx, cancel = context2.WithTimeoutCause(ctx, proxyTimeout, context2.ManualCanceled)
 		conn, err = dialContextByProxyOrInterface(ctx, network, c.addrPort, proxy, options...)
 	} else {
+		ctx, cancel = context2.WithTimeoutCause(ctx, resolver.DefaultDNSTimeout, context2.ManualCanceled)
 		conn, err = dialer.DialContextAddrPort(ctx, network, c.addrPort, options...)
 	}
+	defer cancel()
 
 	if err != nil {
 		return msg, err
@@ -112,10 +117,10 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*rMsg, error) {
 		err error
 	}
 
-	ch := make(chan result, 1)
+	ch := make(chan result)
 
 	go func() {
-		msg1, _, err1 := c.ExchangeWithConn(m, co)
+		msg1, _, err1 := c.ExchangeWithConnContext(ctx, m, co)
 		ch <- result{msg1, err1}
 	}()
 
@@ -139,13 +144,6 @@ func newClient(nw, addr, proxy, iface string, dhcp bool, r *Resolver) *client {
 		lan = a.IsLoopback() || a.IsPrivate()
 	}
 
-	var timeout time.Duration
-	if proxy != "" {
-		timeout = proxyTimeout
-	} else {
-		timeout = resolver.DefaultDNSTimeout
-	}
-
 	clientNet := nw
 	if dhcp {
 		clientNet = "dhcp"
@@ -164,7 +162,7 @@ func newClient(nw, addr, proxy, iface string, dhcp bool, r *Resolver) *client {
 				ServerName: host,
 			},
 			UDPSize: 4096,
-			Timeout: timeout,
+			Timeout: 20 * time.Second, // to make context deadline effective
 		},
 		addrPort: ap,
 		host:     host,
