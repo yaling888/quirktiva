@@ -16,6 +16,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/yaling888/quirktiva/common/context2"
 	"github.com/yaling888/quirktiva/common/queue"
 	"github.com/yaling888/quirktiva/component/dialer"
 	"github.com/yaling888/quirktiva/component/resolver"
@@ -53,7 +54,7 @@ func (p *Proxy) Dial(metadata *C.Metadata) (C.Conn, error) {
 // DialContext implements C.ProxyAdapter
 func (p *Proxy) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.Conn, error) {
 	conn, err := p.ProxyAdapter.DialContext(ctx, metadata, opts...)
-	if !errors.Is(err, context.Canceled) {
+	if !errors.Is(err, context.Canceled) && !errors.Is(err, context2.ManualCanceled) {
 		p.alive.Store(err == nil)
 	}
 	return conn, err
@@ -69,7 +70,7 @@ func (p *Proxy) DialUDP(metadata *C.Metadata) (C.PacketConn, error) {
 // ListenPacketContext implements C.ProxyAdapter
 func (p *Proxy) ListenPacketContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.PacketConn, error) {
 	pc, err := p.ProxyAdapter.ListenPacketContext(ctx, metadata, opts...)
-	if !errors.Is(err, context.Canceled) {
+	if !errors.Is(err, context.Canceled) && !errors.Is(err, context2.ManualCanceled) {
 		p.alive.Store(err == nil)
 	}
 	return pc, err

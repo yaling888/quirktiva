@@ -74,8 +74,14 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*rMsg, error) {
 		msg     = &rMsg{Source: c.source, Lan: c.lan}
 	)
 
-	if p, ok := resolver.GetProxy(ctx); ok && !c.lan {
-		proxy = p
+	if p, ok := resolver.GetProxy(ctx); ok {
+		ctx = resolver.WithoutProxy(ctx) // clean up context value before dial conn, prevent loop call
+		if !c.lan {
+			proxy = p
+		}
+	}
+	if resolver.IsProxyServer(ctx) {
+		ctx = resolver.WithoutProxyServer(ctx) // clean up context value before dial conn, prevent loop call
 	}
 
 	if c.iface != "" {

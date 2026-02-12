@@ -82,13 +82,19 @@ func (dc *dohClient) ExchangeContext(ctx context.Context, m *D.Msg) (msg *rMsg, 
 
 	proxy := dc.proxy
 	if p, ok := resolver.GetProxy(ctx); ok {
+		ctx = resolver.WithoutProxy(ctx) // clean up context value before dial conn, prevent loop call
 		proxy = p
+	}
+	if resolver.IsProxyServer(ctx) {
+		ctx = resolver.WithoutProxyServer(ctx) // clean up context value before dial conn, prevent loop call
 	}
 
 	msg = &rMsg{Source: dc.urlLog}
 	if proxy != "" {
 		msg.Source += "(" + proxy + ")"
 		ctx = context.WithValue(ctx, proxyKey, proxy)
+	} else if ctx.Value(proxyKey) != nil {
+		ctx = context.WithValue(ctx, proxyKey, nil) // clean up context value before dial conn, prevent loop call
 	}
 
 	// https://datatracker.ietf.org/doc/html/rfc8484#section-4.1

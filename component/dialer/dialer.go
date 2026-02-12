@@ -2,7 +2,6 @@ package dialer
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -79,13 +78,6 @@ func DialContext(ctx context.Context, network, address string, options ...Option
 			}
 		}
 		if err != nil {
-			if _, ok := errors.AsType[net.Error](err); !ok {
-				return nil, &net.DNSError{
-					Name:       host,
-					Err:        err.Error(),
-					IsNotFound: errors.Is(err, resolver.ErrIPNotFound),
-				}
-			}
 			return nil, err
 		}
 
@@ -253,14 +245,6 @@ func dualStackDialContext(ctx context.Context, network, address string, opt *opt
 			}
 		}
 		if err != nil {
-			if _, ok := errors.AsType[net.Error](err); !ok {
-				result.err = &net.DNSError{
-					Name:       host,
-					Err:        err.Error(),
-					IsNotFound: errors.Is(err, resolver.ErrIPNotFound),
-				}
-				return
-			}
 			result.err = err
 			return
 		}

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
-	"github.com/samber/lo"
 
 	"github.com/yaling888/quirktiva/component/trie"
 )
@@ -193,6 +192,11 @@ func IsProxyServer(ctx context.Context) bool {
 	return ctx.Value(proxyServerHostKey) != nil
 }
 
+// WithoutProxyServer returns a new context without proxyServer
+func WithoutProxyServer(ctx context.Context) context.Context {
+	return context.WithValue(ctx, proxyServerHostKey, nil)
+}
+
 // IsRemote reports whether the DefaultResolver should be exchanged by remote DNS client
 func IsRemote(ctx context.Context) bool {
 	return ctx.Value(proxyKey) != nil
@@ -207,6 +211,11 @@ func GetProxy(ctx context.Context) (string, bool) {
 // WithProxy returns a new context with proxy name
 func WithProxy(ctx context.Context, proxy string) context.Context {
 	return context.WithValue(ctx, proxyKey, proxy)
+}
+
+// WithoutProxy returns a new context without proxy name
+func WithoutProxy(ctx context.Context) context.Context {
+	return context.WithValue(ctx, proxyKey, nil)
 }
 
 func SetECHConfigList(cfg *tls.Config) bool {
@@ -252,15 +261,8 @@ func resolveIPByType(ctx context.Context, host string, _type uint16) (netip.Addr
 }
 
 func resolveProxyServerHostByType(ctx context.Context, host string, _type uint16) (netip.Addr, error) {
-	var (
-		ips []netip.Addr
-		err error
-	)
-	if ctx.Value(proxyKey) != nil {
-		ctx = context.WithValue(ctx, proxyKey, nil)
-	}
 	ctx = context.WithValue(ctx, proxyServerHostKey, struct{}{})
-	ips, err = lookupIPByResolverAndType(ctx, host, DefaultResolver, _type, needProxyHostIPv6)
+	ips, err := lookupIPByResolverAndType(ctx, host, DefaultResolver, _type, needProxyHostIPv6)
 	if err != nil {
 		return netip.Addr{}, err
 	}
@@ -268,14 +270,17 @@ func resolveProxyServerHostByType(ctx context.Context, host string, _type uint16
 }
 
 func lookupIPByProxyAndType(ctx context.Context, host, proxy string, t uint16, both bool) ([]netip.Addr, error) {
-	if ctx.Value(proxyServerHostKey) != nil {
-		ctx = context.WithValue(ctx, proxyServerHostKey, nil)
-	}
 	ctx = context.WithValue(ctx, proxyKey, proxy)
 	return lookupIPByResolverAndType(ctx, host, DefaultResolver, t, both)
 }
 
-func lookupIPByResolverAndType(ctx context.Context, host string, r Resolver, t uint16, both bool) ([]netip.Addr, error) {
+func lookupIPByResolverAndType(ctx context.Context, host string, r Resolver, t uint16, both bool) (ips []netip.Addr, err error) {
+	defer func() {
+		if err != nil {
+			err = newDNSError(err, host)
+		}
+	}()
+
 	if t == typeAAAA && DisableIPv6 && !both {
 		return nil, ErrIPv6Disabled
 	}
@@ -325,18 +330,38 @@ func lookupIPByResolverAndType(ctx context.Context, host string, r Resolver, t u
 		network = "ip6"
 	}
 
-	ips, err := net.DefaultResolver.LookupIP(ctx, network, host)
+	ips, err = net.DefaultResolver.LookupNetIP(ctx, network, host)
 	if err != nil {
 		return nil, err
 	} else if len(ips) == 0 {
 		return nil, ErrIPNotFound
 	}
 
-	return lo.Map(ips, func(item net.IP, _ int) netip.Addr {
-		ip, _ := netip.AddrFromSlice(item)
-		if t != typeAAAA {
-			ip = ip.Unmap()
-		}
-		return ip
-	}), nil
+	return ips, nil
+}
+
+func newDNSError(err error, name string) *net.DNSError {
+	if er, ok := err.(*net.DNSError); ok {
+		return er
+	}
+
+	var (
+		isTimeout   bool
+		isTemporary bool
+	)
+
+	if er, ok := errors.AsType[net.Error](err); ok {
+		isTimeout = er.Timeout()
+		isTemporary = er.Temporary() //nolint:staticcheck
+	}
+
+	isNotFound := errors.Is(err, ErrIPNotFound)
+	return &net.DNSError{
+		UnwrapErr:   err,
+		Err:         err.Error(),
+		Name:        name,
+		IsTimeout:   isTimeout,
+		IsTemporary: isTemporary,
+		IsNotFound:  isNotFound,
+	}
 }
