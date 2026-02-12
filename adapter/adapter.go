@@ -134,7 +134,7 @@ func (p *Proxy) URLTest(ctx context.Context, url string) (delay, avgDelay uint16
 		}
 	}()
 
-	u, addr, err := urlToMetadata(url)
+	addr, err := urlToMetadata(url)
 	if err != nil {
 		return
 	}
@@ -164,7 +164,7 @@ func (p *Proxy) URLTest(ctx context.Context, url string) (delay, avgDelay uint16
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 
-	cc, err := transport.NewClientConn(ctx, u.Scheme, u.Host)
+	cc, err := transport.NewClientConn(ctx, req.URL.Scheme, addr.RemoteAddress())
 	if err != nil {
 		return
 	}
@@ -210,7 +210,7 @@ func (p *Proxy) v6Test(url string) {
 		p.v6Mux.Unlock()
 	}()
 
-	u, addr, err := urlToMetadata(url)
+	addr, err := urlToMetadata(url)
 	if err != nil {
 		return
 	}
@@ -251,7 +251,7 @@ func (p *Proxy) v6Test(url string) {
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 
-	cc, err := transport.NewClientConn(ctx, u.Scheme, u.Host)
+	cc, err := transport.NewClientConn(ctx, req.URL.Scheme, addr.RemoteAddress())
 	if err != nil {
 		return
 	}
@@ -274,8 +274,8 @@ func NewProxy(adapter C.ProxyAdapter) *Proxy {
 	}
 }
 
-func urlToMetadata(rawURL string) (u *url.URL, addr C.Metadata, err error) {
-	u, err = url.Parse(rawURL)
+func urlToMetadata(rawURL string) (addr C.Metadata, err error) {
+	u, err := url.Parse(rawURL)
 	if err != nil {
 		return
 	}
