@@ -127,7 +127,10 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*rMsg, error) {
 
 	go func() {
 		msg1, _, err1 := c.ExchangeWithConnContext(ctx, m, co)
-		ch <- result{msg1, err1}
+		select {
+		case ch <- result{msg1, err1}:
+		case <-ctx.Done():
+		}
 	}()
 
 	select {

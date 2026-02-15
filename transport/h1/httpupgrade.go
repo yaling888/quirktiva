@@ -61,6 +61,12 @@ func (hu *HTTPUpgrade) handshake(ctx context.Context, url string, requestHeader 
 		return err
 	}
 
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	reader := textproto.NewConn(hu.Conn)
 	// First line: HTTP/1.1 101 Switching Protocols
 	line, err := reader.ReadLine()
@@ -70,6 +76,12 @@ func (hu *HTTPUpgrade) handshake(ctx context.Context, url string, requestHeader 
 
 	if !strings.Contains(line, "101 Switching Protocols") {
 		return &net.ParseError{Type: "protocol", Text: "not a httpupgrade connection"}
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
 	}
 
 	header, err := reader.ReadMIMEHeader()
@@ -98,7 +110,10 @@ func StreamHTTPUpgrade(conn net.Conn, url string, requestHeader http.Header) (ne
 	ch := make(chan error)
 	go func() {
 		if err := huConn.handshake(ctx, url, requestHeader); err != nil {
-			ch <- err
+			select {
+			case ch <- err:
+			case <-ctx.Done():
+			}
 		}
 		close(ch)
 	}()
