@@ -28,6 +28,8 @@ var (
 			return new(bb)
 		},
 	}
+
+	subMux sync.Mutex
 )
 
 func init() {
@@ -54,6 +56,8 @@ func init() {
 }
 
 func SubscribeText() observable.Subscription[Event] {
+	subMux.Lock()
+	defer subMux.Unlock()
 	sub, _ := textSource.Subscribe()
 	enabledText = true
 	logger.DefaultLogger.SetLevel(logger.DebugLevel)
@@ -61,6 +65,8 @@ func SubscribeText() observable.Subscription[Event] {
 }
 
 func UnSubscribeText(sub observable.Subscription[Event]) {
+	subMux.Lock()
+	defer subMux.Unlock()
 	textSource.UnSubscribe(sub)
 	if !textSource.HasSubscriber() {
 		enabledText = false
@@ -71,6 +77,8 @@ func UnSubscribeText(sub observable.Subscription[Event]) {
 }
 
 func SubscribeJson() observable.Subscription[Event] {
+	subMux.Lock()
+	defer subMux.Unlock()
 	sub, _ := jsonSource.Subscribe()
 	enabledJson = true
 	logger.DefaultLogger.SetLevel(logger.DebugLevel)
@@ -78,6 +86,8 @@ func SubscribeJson() observable.Subscription[Event] {
 }
 
 func UnSubscribeJson(sub observable.Subscription[Event]) {
+	subMux.Lock()
+	defer subMux.Unlock()
 	jsonSource.UnSubscribe(sub)
 	if !jsonSource.HasSubscriber() {
 		enabledJson = false
