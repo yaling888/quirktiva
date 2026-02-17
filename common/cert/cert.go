@@ -58,7 +58,7 @@ func (c *Config) NewTLSConfigForHost(hostname string) *tls.Config {
 
 			return c.GetOrCreateCert(host)
 		},
-		NextProtos: []string{"http/1.1"},
+		NextProtos: []string{"h2", "http/1.1"},
 	}
 
 	return tlsConfig

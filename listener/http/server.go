@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"net"
 
 	"github.com/yaling888/quirktiva/common/cache"
@@ -37,10 +38,10 @@ func (l *Listener) SetAuthenticator(users []auth.AuthUser) {
 }
 
 func New(addr string, in chan<- C.ConnContext) (C.Listener, error) {
-	return NewWithAuthenticate(addr, in, true)
+	return NewWithAuthenticate(context.Background(), addr, in, true)
 }
 
-func NewWithAuthenticate(addr string, in chan<- C.ConnContext, authenticate bool) (C.Listener, error) {
+func NewWithAuthenticate(ctx context.Context, addr string, in chan<- C.ConnContext, authenticate bool) (C.Listener, error) {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
@@ -64,7 +65,7 @@ func NewWithAuthenticate(addr string, in chan<- C.ConnContext, authenticate bool
 				}
 				continue
 			}
-			go HandleConn(conn, in, c, hl.auth)
+			go HandleConn(ctx, conn, in, c, hl.auth)
 		}
 	}()
 

@@ -10,7 +10,7 @@ import (
 )
 
 // NewHTTP receive normal http request and return HTTPContext
-func NewHTTP(target socks5.Addr, source net.Addr, originTarget net.Addr, conn net.Conn) *context.ConnContext {
+func NewHTTP(target socks5.Addr, source net.Addr, originTarget net.Addr, conn net.Conn, isMitm bool) *context.ConnContext {
 	metadata := parseSocksAddr(target)
 	metadata.NetWork = C.TCP
 	metadata.Type = C.HTTP
@@ -20,6 +20,9 @@ func NewHTTP(target socks5.Addr, source net.Addr, originTarget net.Addr, conn ne
 	}
 	if ip, port, err := parseAddr(originTarget); err == nil {
 		metadata.OriginDst = netip.AddrPortFrom(ip, uint16(port))
+	}
+	if isMitm {
+		metadata.Type = C.MITM_ALL
 	}
 	return context.NewConnContext(conn, metadata)
 }

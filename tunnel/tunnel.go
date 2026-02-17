@@ -3,11 +3,16 @@ package tunnel
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"errors"
 	"fmt"
 	"math/rand/v2"
+	"net"
 	"net/netip"
+	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,9 +20,10 @@ import (
 	"github.com/samber/lo"
 	"github.com/samber/lo/mutable"
 	"go.uber.org/atomic"
+	"golang.org/x/net/http/httpguts"
 
-	A "github.com/yaling888/quirktiva/adapter"
 	"github.com/yaling888/quirktiva/adapter/inbound"
+	N "github.com/yaling888/quirktiva/common/net"
 	"github.com/yaling888/quirktiva/common/sniffer"
 	"github.com/yaling888/quirktiva/component/nat"
 	P "github.com/yaling888/quirktiva/component/process"
@@ -50,8 +56,10 @@ var (
 	// default timeout for UDP session
 	udpTimeout = 60 * time.Second
 
-	// mitmProxy mitm proxy
-	mitmProxy C.Proxy
+	// mitm
+	mitmMux          sync.Mutex
+	mitmConnIn       chan<- C.ConnContext
+	mitmGetTLSConfig func(host string) *tls.Config
 
 	// scriptMainMatcher script main function eval
 	scriptMainMatcher C.Matcher
@@ -170,13 +178,20 @@ func SetSniffing(s bool) {
 	sniffing = s
 }
 
-// SetMitmOutbound set the MITM outbound
-func SetMitmOutbound(outbound C.ProxyAdapter) {
-	if outbound != nil {
-		mitmProxy = A.NewProxy(outbound)
+// SetMitmOptions set the MITM options
+func SetMitmOptions(in chan<- C.ConnContext, tlsCfg func(host string) *tls.Config) {
+	mitmMux.Lock()
+	if in != nil {
+		mitmConnIn = in
 	} else {
-		mitmProxy = nil
+		mitmConnIn = nil
 	}
+	if tlsCfg != nil {
+		mitmGetTLSConfig = tlsCfg
+	} else {
+		mitmGetTLSConfig = nil
+	}
+	mitmMux.Unlock()
 }
 
 // Rewrites return all rewrites
@@ -254,12 +269,6 @@ func preHandleMetadata(metadata *C.Metadata) error {
 }
 
 func resolveMetadata(_ C.PlainContext, metadata *C.Metadata) (proxy C.Proxy, rule C.Rule, err error) {
-	if metadata.NetWork == C.TCP && mitmProxy != nil && metadata.Type != C.MITM &&
-		((rewriteHosts != nil && rewriteHosts.Search(metadata.String()) != nil) || metadata.DstPort == 80) {
-		proxy = mitmProxy
-		return
-	}
-
 	if metadata.SpecialProxy != "" {
 		var exist bool
 		proxy, exist = FindProxyByName(metadata.SpecialProxy)
@@ -525,10 +534,21 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 		}
 
 		pCtx := icontext.NewPacketConnContext(metadata)
-		proxy, rule, err := resolveMetadata(pCtx, metadata)
-		if err != nil {
-			log.Warn().Err(err).Msg("[Metadata] parse failed")
-			return
+
+		var (
+			proxy C.Proxy
+			rule  C.Rule
+		)
+		if !shouldHandleMITM(metadata, C.Direct) {
+			p, r, err := resolveMetadata(pCtx, metadata)
+			if err != nil {
+				log.Warn().Err(err).Msg("[Metadata] parse failed")
+				return
+			}
+			proxy = p
+			rule = r
+		} else {
+			proxy = proxies["REJECT"]
 		}
 
 		rawProxy, chains := FetchRawProxyAdapter(proxy, metadata)
@@ -613,7 +633,9 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 
 func handleTCPConn(connCtx C.ConnContext) {
 	defer func() {
-		_ = connCtx.Conn().Close()
+		if !connCtx.Hijacked() {
+			_ = connCtx.Conn().Close()
+		}
 	}()
 
 	metadata := connCtx.Metadata()
@@ -660,31 +682,38 @@ func handleTCPConn(connCtx C.ConnContext) {
 		return
 	}
 
-	var (
-		rawProxy C.Proxy
-		chains   []string
+	rawProxy, chains := FetchRawProxyAdapter(proxy, metadata)
 
-		isMitmOutbound = proxy == mitmProxy
-	)
-
-	if !isMitmOutbound {
-		rawProxy, chains = FetchRawProxyAdapter(proxy, metadata)
-		isRemote, err2 := resolveDNS(metadata, proxy, rawProxy)
-		if err2 != nil {
-			if isRemote {
-				log.Warn().Err(err2).
-					Str("proxy", rawProxy.Name()).
-					Str("host", metadata.Host).
-					Msg("[TCP] remote resolve DNS failed")
-			} else {
-				log.Warn().Err(err2).
-					Str("host", metadata.Host).
-					Msg("[TCP] resolve DNS failed")
-			}
+	var connState *tls.ConnectionState
+	if shouldHandleMITM(metadata, rawProxy.Type()) {
+		var ok bool
+		connState, ok, err = handleTCPMIMT(connCtx)
+		if err != nil {
+			log.Warn().Err(err).Msg("[TCP] failed to process mitm")
 			return
 		}
-	} else {
-		rawProxy = proxy
+		if ok {
+			log.Debug().
+				EmbedObject(metadata).
+				Str("proxy", rawProxy.Name()).
+				Msg("[TCP] hijack mitm connection")
+			return
+		}
+	}
+
+	isRemote, err2 := resolveDNS(metadata, proxy, rawProxy)
+	if err2 != nil {
+		if isRemote {
+			log.Warn().Err(err2).
+				Str("proxy", rawProxy.Name()).
+				Str("host", metadata.Host).
+				Msg("[TCP] remote resolve DNS failed")
+		} else {
+			log.Warn().Err(err2).
+				Str("host", metadata.Host).
+				Msg("[TCP] resolve DNS failed")
+		}
+		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTCPTimeout)
@@ -715,7 +744,7 @@ func handleTCPConn(connCtx C.ConnContext) {
 		remoteConn.SetChains(chains)
 	}
 
-	if rawProxy.Name() != "REJECT" && !isMitmOutbound {
+	if rawProxy.Type() != C.Reject {
 		remoteConn = statistic.NewTCPTracker(remoteConn, statistic.DefaultManager, metadata, rule)
 	}
 
@@ -724,7 +753,6 @@ func handleTCPConn(connCtx C.ConnContext) {
 	}(remoteConn)
 
 	switch {
-	case isMitmOutbound:
 	case metadata.SpecialProxy != "":
 		if e := log.Info(); e != nil {
 			e.
@@ -752,7 +780,25 @@ func handleTCPConn(connCtx C.ConnContext) {
 		}
 	}
 
-	handleSocket(connCtx, remoteConn)
+	if connState == nil {
+		handleSocket(connCtx, remoteConn)
+		return
+	}
+
+	outConn, err := streamServerTLSConn(connState, remoteConn)
+	if err != nil {
+		log.Warn().
+			Err(err).
+			EmbedObject(metadata).
+			Any("proxy", remoteConn).
+			Msg("[TCP] failed to tls handshake server for missing mitm")
+	}
+	log.Info().
+		EmbedObject(metadata).
+		Any("mode", mode).
+		Any("proxy", remoteConn).
+		Msg("[TCP] stream server tls connection for missing mitm")
+	handleSocket(connCtx, outConn)
 }
 
 func shouldResolveIP(rule C.Rule, metadata *C.Metadata) bool {
@@ -938,4 +984,107 @@ func matchScript(metadata *C.Metadata) (C.Proxy, error) {
 	}
 
 	return adapter, nil
+}
+
+func shouldHandleMITM(metadata *C.Metadata, adpType C.AdapterType) bool {
+	if mitmConnIn == nil || metadata.Type == C.MITM || adpType == C.Reject {
+		return false
+	}
+	if metadata.Type == C.MITM_ALL {
+		metadata.Type = C.MITM
+		return true
+	}
+	if metadata.DstPort == 80 || (rewriteHosts != nil && rewriteHosts.Search(metadata.String()) != nil) {
+		return true
+	}
+	return false
+}
+
+func streamServerTLSConn(state *tls.ConnectionState, conn C.Conn) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTLSTimeout)
+	defer cancel()
+	cfg := &tls.Config{
+		ServerName: state.ServerName,
+		NextProtos: []string{state.NegotiatedProtocol},
+		MinVersion: state.Version,
+	}
+	serverTLSConn := tls.Client(conn, cfg)
+	if err := serverTLSConn.HandshakeContext(ctx); err != nil {
+		return nil, err
+	}
+	return serverTLSConn, nil
+}
+
+func handleTCPMIMT(connCtx C.ConnContext) (state *tls.ConnectionState, ok bool, err error) {
+	c := connCtx.Conn()
+	rw := N.NewBufferedConn(c)
+	connCtx.InjectConn(rw)
+
+	_ = c.SetReadDeadline(time.Now().Add(time.Second))
+	b, err := rw.Peek(1)
+	_ = c.SetReadDeadline(time.Time{})
+	if err != nil {
+		if os.IsTimeout(err) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+
+	// client TLS handshake.
+	if b[0] == 0x16 {
+		mitmMux.Lock()
+		if mitmGetTLSConfig == nil {
+			mitmMux.Unlock()
+			return nil, false, errors.New("mitm server is closed")
+		}
+		tlsConfig := mitmGetTLSConfig(connCtx.Metadata().String())
+		mitmMux.Unlock()
+
+		tlsConfig.NextProtos = []string{"h2", "unencrypted_http2", "http/1.1", "http/1.0"}
+		clientTLSConn := tls.Server(rw, tlsConfig)
+
+		ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTLSTimeout)
+		defer cancel()
+		if err = clientTLSConn.HandshakeContext(ctx); err != nil {
+			return nil, false, err
+		}
+
+		connCtx.InjectConn(clientTLSConn)
+
+		stas := clientTLSConn.ConnectionState()
+		switch stas.NegotiatedProtocol {
+		case "h2", "unencrypted_http2", "http/1.1", "http/1.0":
+		default:
+			return &stas, false, nil
+		}
+	} else {
+		if rw.Buffered() < 7 {
+			return nil, false, nil
+		}
+		buf, _ := rw.Peek(7)
+		if !isHTTPTraffic(buf) {
+			return nil, false, nil
+		}
+	}
+
+	mitmMux.Lock()
+	defer mitmMux.Unlock()
+	if mitmConnIn != nil {
+		connCtx.SetHijacked(true)
+		connCtx.Metadata().Type = C.MITM
+		mitmConnIn <- connCtx
+		return nil, true, nil
+	}
+	return nil, false, nil
+}
+
+func isHTTPTraffic(buf []byte) bool {
+	method, _, _ := strings.Cut(string(buf), " ")
+	return validMethod(method)
+}
+
+func validMethod(method string) bool {
+	return len(method) > 0 && strings.IndexFunc(method, func(r rune) bool {
+		return !httpguts.IsTokenRune(r)
+	}) == -1
 }

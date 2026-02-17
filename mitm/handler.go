@@ -3,12 +3,18 @@ package mitm
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/textproto"
 	"strconv"
 	"strings"
+
+	"github.com/phuslu/log"
+	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/transform"
 
 	C "github.com/yaling888/quirktiva/constant"
 	"github.com/yaling888/quirktiva/tunnel"
@@ -18,115 +24,166 @@ var _ C.RewriteHandler = (*RewriteHandler)(nil)
 
 type RewriteHandler struct{}
 
-func (*RewriteHandler) HandleRequest(session *C.MitmSession) (*http.Request, *http.Response) {
-	var (
-		request  = session.Request
-		response *http.Response
-	)
-
-	rule, sub, found := matchRewriteRule(request.URL.String(), true)
+func (*RewriteHandler) HandleRequest(rw http.ResponseWriter, req *http.Request) bool {
+	url := req.URL.String()
+	rule, sub, found := matchRewriteRule(url, true)
 	if !found {
-		return nil, nil
+		return false
 	}
 
 	switch rule.RuleType() {
 	case C.MitmReject:
-		response = session.NewResponse(http.StatusNotFound, nil)
-		response.Header.Set("Content-Type", "text/html; charset=UTF-8")
+		http.NotFoundHandler().ServeHTTP(rw, req)
+		log.Debug().
+			Any("type", C.MitmReject).
+			Any("url", url).
+			Msg("[MITM] rewrite request")
 	case C.MitmReject200:
 		var payload string
 		if len(rule.RulePayload()) > 0 {
 			payload = rule.RulePayload()[0]
 		}
-		response = session.NewResponse(http.StatusOK, nil)
 		if payload != "" {
-			if strings.Contains(payload, "{") {
-				response.Header.Set("Content-Type", "application/json; charset=UTF-8")
+			if s := payload[:1]; s == "{" || s == "[" {
+				rw.Header().Set("Content-Type", "application/json; charset=UTF-8")
 			} else {
-				response.Header.Set("Content-Type", "text/plain; charset=UTF-8")
+				rw.Header().Set("Content-Type", "text/html; charset=UTF-8")
 			}
-			response.Body = io.NopCloser(strings.NewReader(payload))
-			response.ContentLength = int64(len(payload))
+			rw.WriteHeader(http.StatusOK)
+			_, _ = fmt.Fprint(rw, payload)
 		} else {
-			response.Header.Set("Content-Type", "text/html; charset=UTF-8")
+			rw.WriteHeader(http.StatusOK)
 		}
+		log.Debug().
+			Any("type", C.MitmReject200).
+			Any("url", url).
+			Msg("[MITM] rewrite request")
 	case C.MitmReject204:
-		response = session.NewResponse(http.StatusNoContent, nil)
-		response.Header.Set("Content-Type", "text/html; charset=UTF-8")
+		rw.WriteHeader(http.StatusNoContent)
+		log.Debug().
+			Any("type", C.MitmReject204).
+			Any("url", url).
+			Msg("[MITM] rewrite request")
 	case C.MitmRejectImg:
-		response = session.NewResponse(http.StatusOK, OnePixelPNG.Body())
-		response.Header.Set("Content-Type", "image/png")
-		response.ContentLength = OnePixelPNG.ContentLength()
+		rw.Header().Set("Content-Type", "image/png")
+		rw.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprint(rw, OnePixelPNG)
+		log.Debug().
+			Any("type", C.MitmRejectImg).
+			Any("url", url).
+			Msg("[MITM] rewrite request")
 	case C.MitmRejectDict:
-		response = session.NewResponse(http.StatusOK, EmptyDict.Body())
-		response.Header.Set("Content-Type", "application/json; charset=UTF-8")
-		response.ContentLength = EmptyDict.ContentLength()
+		rw.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		rw.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprint(rw, EmptyDict)
+		log.Debug().
+			Any("type", C.MitmRejectDict).
+			Any("url", url).
+			Msg("[MITM] rewrite request")
 	case C.MitmRejectArray:
-		response = session.NewResponse(http.StatusOK, EmptyArray.Body())
-		response.Header.Set("Content-Type", "application/json; charset=UTF-8")
-		response.ContentLength = EmptyArray.ContentLength()
+		rw.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		rw.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprint(rw, EmptyArray)
+		log.Debug().
+			Any("type", C.MitmRejectArray).
+			Any("url", url).
+			Msg("[MITM] rewrite request")
 	case C.Mitm302:
-		response = session.NewResponse(http.StatusFound, nil)
-		response.Header.Set("Location", rule.ReplaceURLPayload(sub))
+		to := rule.ReplaceURLPayload(sub)
+		http.RedirectHandler(to, http.StatusFound).ServeHTTP(rw, req)
+		log.Debug().
+			Any("type", C.Mitm302).
+			Any("from", url).
+			Any("to", to).
+			Msg("[MITM] rewrite request")
 	case C.Mitm307:
-		response = session.NewResponse(http.StatusTemporaryRedirect, nil)
-		response.Header.Set("Location", rule.ReplaceURLPayload(sub))
+		to := rule.ReplaceURLPayload(sub)
+		http.RedirectHandler(to, http.StatusTemporaryRedirect).ServeHTTP(rw, req)
+		log.Debug().
+			Any("type", C.Mitm307).
+			Any("from", url).
+			Any("to", to).
+			Msg("[MITM] rewrite request")
 	case C.MitmRequestHeader:
-		if len(request.Header) == 0 {
-			return nil, nil
+		if len(req.Header) == 0 {
+			return false
 		}
 
 		rawHeader := &bytes.Buffer{}
-		oldHeader := request.Header
+		oldHeader := req.Header
 		if err := oldHeader.Write(rawHeader); err != nil {
-			return nil, nil
+			errorRequestHandler(rw, req, err)
+			return true
 		}
 
 		newRawHeader, ok := rule.ReplaceSubPayload(rawHeader.String())
 		if !ok {
-			return nil, nil
+			return false
 		}
 
 		tb := textproto.NewReader(bufio.NewReader(strings.NewReader(newRawHeader)))
 		newHeader, err := tb.ReadMIMEHeader()
 		if err != nil && !errors.Is(err, io.EOF) {
-			return nil, nil
+			errorRequestHandler(rw, req, err)
+			return true
 		}
-		request.Header = http.Header(newHeader)
+		req.Header = http.Header(newHeader)
+		log.Debug().
+			Any("type", C.MitmRequestHeader).
+			Any("url", url).
+			Msg("[MITM] rewrite request")
+		return false
 	case C.MitmRequestBody:
-		if !CanRewriteBody(request.ContentLength, "", request.Header.Get("Content-Type")) {
-			return nil, nil
+		if req.Method == http.MethodHead || req.Method == http.MethodTrace ||
+			req.Method == http.MethodOptions || req.Method == http.MethodConnect {
+			return false
+		}
+		contentType := strings.ToLower(req.Header.Get("Content-Type"))
+		contentEncoding := strings.ToLower(req.Header.Get("Content-Encoding"))
+		isGzip := contentEncoding == "gzip"
+		if (req.ContentLength <= 0 && !isGzip) || !canRewriteBody(contentType) {
+			return false
 		}
 
-		buf := make([]byte, request.ContentLength)
-		_, err := io.ReadFull(request.Body, buf)
-		if err != nil {
-			return nil, nil
+		body := req.Body
+		if isGzip {
+			if gr, err := gzip.NewReader(body); err == nil {
+				defer gr.Close()
+				body = gr
+				req.Header.Del("Content-Encoding")
+			} else {
+				errorRequestHandler(rw, req, err)
+				return true
+			}
 		}
+
+		buf, err := io.ReadAll(body)
+		if err != nil {
+			errorRequestHandler(rw, req, err)
+			return true
+		}
+		_ = req.Body.Close()
 
 		newBody, _ := rule.ReplaceSubPayload(string(buf))
-		request.Body = io.NopCloser(strings.NewReader(newBody))
-		request.ContentLength = int64(len(newBody))
+		req.Body = io.NopCloser(strings.NewReader(newBody))
+		req.ContentLength = int64(len(newBody))
+		req.Header.Set("Content-Length", strconv.FormatInt(req.ContentLength, 10))
+		log.Debug().
+			Any("type", C.MitmRequestBody).
+			Any("url", url).
+			Msg("[MITM] rewrite request")
+		return false
 	default:
-		found = false
+		return false
 	}
 
-	if found {
-		if response != nil {
-			response.Close = true
-		}
-		return request, response
-	}
-	return nil, nil
+	return true
 }
 
-func (*RewriteHandler) HandleResponse(session *C.MitmSession) *http.Response {
-	var (
-		request  = session.Request
-		response = session.Response
-	)
-
-	rule, _, found := matchRewriteRule(request.URL.String(), false)
+func (*RewriteHandler) HandleResponse(res *http.Response) error {
+	req := res.Request
+	url := req.URL.String()
+	rule, _, found := matchRewriteRule(url, false)
 	found = found && rule.RuleRegx() != nil
 	if !found {
 		return nil
@@ -134,14 +191,14 @@ func (*RewriteHandler) HandleResponse(session *C.MitmSession) *http.Response {
 
 	switch rule.RuleType() {
 	case C.MitmResponseHeader:
-		if len(response.Header) == 0 {
+		if len(res.Header) == 0 {
 			return nil
 		}
 
 		rawHeader := &bytes.Buffer{}
-		oldHeader := response.Header
+		oldHeader := res.Header
 		if err := oldHeader.Write(rawHeader); err != nil {
-			return nil
+			return err
 		}
 
 		newRawHeader, ok := rule.ReplaceSubPayload(rawHeader.String())
@@ -152,35 +209,50 @@ func (*RewriteHandler) HandleResponse(session *C.MitmSession) *http.Response {
 		tb := textproto.NewReader(bufio.NewReader(strings.NewReader(newRawHeader)))
 		newHeader, err := tb.ReadMIMEHeader()
 		if err != nil && !errors.Is(err, io.EOF) {
-			return nil
+			return err
 		}
 
-		response.Header = http.Header(newHeader)
-		response.Header.Set("Content-Length", strconv.FormatInt(response.ContentLength, 10))
+		newHeader.Set("Content-Length", strconv.FormatInt(res.ContentLength, 10))
+		res.Header = http.Header(newHeader)
+		log.Debug().
+			Any("type", C.MitmResponseHeader).
+			Any("url", url).
+			Msg("[MITM] rewrite response")
 	case C.MitmResponseBody:
-		contentType := response.Header.Get("Content-Type")
-		if !CanRewriteBody(response.ContentLength, response.Header.Get("Content-Encoding"), contentType) {
+		if req.Method == http.MethodHead || req.Method == http.MethodOptions || req.Method == http.MethodConnect {
 			return nil
 		}
 
-		b, err := C.ReadDecompressedBody(response)
-		_ = response.Body.Close()
-		if err != nil {
+		contentType := strings.ToLower(res.Header.Get("Content-Type"))
+		contentEncoding := strings.ToLower(res.Header.Get("Content-Encoding"))
+		isGzip := contentEncoding == "gzip"
+		if (res.ContentLength <= 0 && !isGzip) || !canRewriteBody(contentType) {
 			return nil
 		}
 
-		body := ""
-		isUTF8 := strings.HasSuffix(strings.ToUpper(contentType), "UTF-8")
-		if isUTF8 {
-			body = string(b)
-		} else {
-			body, err = C.DecodeLatin1(bytes.NewReader(b))
-			if err != nil {
-				return nil
+		body := res.Body
+		if isGzip {
+			if gr, err := gzip.NewReader(body); err == nil {
+				defer gr.Close()
+				body = gr
+			} else {
+				return err
 			}
 		}
 
-		newBody, _ := rule.ReplaceSubPayload(body)
+		_, a, ok := strings.Cut(contentType, "charset=")
+		isUTF8 := !ok || a == "utf-8"
+		if !isUTF8 {
+			body = io.NopCloser(transform.NewReader(body, charmap.ISO8859_1.NewDecoder()))
+		}
+
+		b, err := io.ReadAll(body)
+		if err != nil {
+			return err
+		}
+		_ = res.Body.Close()
+
+		newBody, _ := rule.ReplaceSubPayload(string(b))
 
 		var modifiedBody []byte
 		if isUTF8 {
@@ -188,30 +260,37 @@ func (*RewriteHandler) HandleResponse(session *C.MitmSession) *http.Response {
 		} else {
 			modifiedBody, err = C.EncodeLatin1(newBody)
 			if err != nil {
-				return nil
+				return err
 			}
 		}
 
-		response.Body = io.NopCloser(bytes.NewReader(modifiedBody))
-		response.ContentLength = int64(len(modifiedBody))
-		response.Header.Del("Content-Encoding")
-		response.Header.Set("Content-Length", strconv.FormatInt(response.ContentLength, 10))
+		if isGzip {
+			w := &bytes.Buffer{}
+			gw := gzip.NewWriter(w)
+			_, err = gw.Write(modifiedBody)
+			if err != nil {
+				return err
+			}
+			_ = gw.Close()
+			res.Body = io.NopCloser(w)
+			if res.ContentLength > 0 {
+				res.ContentLength = int64(w.Len())
+				res.Header.Set("Content-Length", strconv.FormatInt(res.ContentLength, 10))
+			}
+		} else {
+			res.Body = io.NopCloser(bytes.NewReader(modifiedBody))
+			res.ContentLength = int64(len(modifiedBody))
+			res.Header.Del("Content-Encoding")
+			res.Header.Set("Content-Length", strconv.FormatInt(res.ContentLength, 10))
+		}
+		log.Debug().
+			Any("type", C.MitmResponseBody).
+			Any("url", url).
+			Msg("[MITM] rewrite response")
 	default:
-		found = false
-	}
-
-	if found {
-		return response
 	}
 	return nil
 }
-
-func (h *RewriteHandler) HandleApiRequest(*C.MitmSession) bool {
-	return false
-}
-
-// HandleError session maybe nil
-func (h *RewriteHandler) HandleError(*C.MitmSession, error) {}
 
 func matchRewriteRule(url string, isRequest bool) (rr C.Rewrite, sub []string, found bool) {
 	rewrites := tunnel.Rewrites()
@@ -237,4 +316,9 @@ func matchRewriteRule(url string, isRequest bool) (rr C.Rewrite, sub []string, f
 	}
 
 	return
+}
+
+func errorRequestHandler(rw http.ResponseWriter, req *http.Request, err error) {
+	log.Error().Err(err).Str("url", req.URL.String()).Msg("[MITM] handle request")
+	rw.WriteHeader(http.StatusBadGateway)
 }

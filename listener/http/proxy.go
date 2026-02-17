@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -16,8 +17,15 @@ import (
 	authStore "github.com/yaling888/quirktiva/listener/auth"
 )
 
-func HandleConn(c net.Conn, in chan<- C.ConnContext, cache *cache.LruCache[string, bool], auth auth.Authenticator) {
-	client := newClient(c.RemoteAddr(), c.LocalAddr(), in)
+var MitmContextKey = &contextKey{"mitm"}
+
+type contextKey struct {
+	name string
+}
+
+func HandleConn(ctx context.Context, c net.Conn, in chan<- C.ConnContext, cache *cache.LruCache[string, bool], auth auth.Authenticator) {
+	isMitm := ctx.Value(MitmContextKey) != nil
+	client := newClient(c.RemoteAddr(), c.LocalAddr(), in, isMitm)
 	defer client.CloseIdleConnections()
 
 	conn := N.NewBufferedConn(c)
@@ -50,7 +58,7 @@ func HandleConn(c net.Conn, in chan<- C.ConnContext, cache *cache.LruCache[strin
 					break // close connection
 				}
 
-				in <- inbound.NewHTTPS(request, conn)
+				in <- inbound.NewHTTPS(request, conn, isMitm)
 
 				return // hijack connection
 			}
@@ -63,7 +71,7 @@ func HandleConn(c net.Conn, in chan<- C.ConnContext, cache *cache.LruCache[strin
 			request.RequestURI = ""
 
 			if isUpgradeRequest(request) {
-				if resp = HandleUpgrade(conn, nil, request, in); resp == nil {
+				if resp = HandleUpgrade(conn, nil, request, in, isMitm); resp == nil {
 					return // hijack connection
 				}
 			}

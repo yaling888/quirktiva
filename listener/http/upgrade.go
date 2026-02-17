@@ -24,7 +24,7 @@ func isUpgradeRequest(req *http.Request) bool {
 	return false
 }
 
-func HandleUpgrade(localConn net.Conn, serverConn *N.BufferedConn, request *http.Request, in chan<- C.ConnContext) (resp *http.Response) {
+func HandleUpgrade(localConn net.Conn, serverConn *N.BufferedConn, request *http.Request, in chan<- C.ConnContext, isMitm bool) (resp *http.Response) {
 	removeProxyHeaders(request.Header)
 	RemoveExtraHTTPHostPort(request)
 
@@ -45,7 +45,7 @@ func HandleUpgrade(localConn net.Conn, serverConn *N.BufferedConn, request *http
 
 		left, right := net.Pipe()
 
-		in <- inbound.NewHTTP(dstAddr, localConn.RemoteAddr(), localConn.LocalAddr(), right)
+		in <- inbound.NewHTTP(dstAddr, localConn.RemoteAddr(), localConn.LocalAddr(), right, isMitm)
 
 		serverConn = N.NewBufferedConn(left)
 

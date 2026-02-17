@@ -7,16 +7,18 @@ import (
 )
 
 var allowContentType = []string{
+	"*/*",
 	"text/",
 	"application/xhtml",
 	"application/xml",
+	"application/xhtml+xml",
 	"application/atom+xml",
 	"application/json",
 	"application/x-www-form-urlencoded",
 }
 
-func CanRewriteBody(contentLength int64, contentEncoding, contentType string) bool {
-	if contentLength <= 0 && contentEncoding == "" {
+func canRewriteBody(contentType string) bool {
+	if contentType == "" {
 		return false
 	}
 

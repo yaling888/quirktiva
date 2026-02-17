@@ -11,6 +11,7 @@ type ConnContext struct {
 	id       uuid.UUID
 	metadata *C.Metadata
 	conn     net.Conn
+	hijacked bool
 }
 
 func NewConnContext(conn net.Conn, metadata *C.Metadata) *ConnContext {
@@ -40,4 +41,14 @@ func (c *ConnContext) Conn() net.Conn {
 // InjectConn implement C.ConnContext InjectConn
 func (c *ConnContext) InjectConn(conn net.Conn) {
 	c.conn = conn
+}
+
+// Hijacked implement C.ConnContext Hijacked
+func (c *ConnContext) Hijacked() bool {
+	return c.hijacked
+}
+
+// SetHijacked implement C.ConnContext SetHijacked
+func (c *ConnContext) SetHijacked(v bool) {
+	c.hijacked = v
 }

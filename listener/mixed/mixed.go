@@ -1,6 +1,7 @@
 package mixed
 
 import (
+	"context"
 	"net"
 
 	"github.com/yaling888/quirktiva/common/cache"
@@ -84,6 +85,6 @@ func handleConn(conn net.Conn, in chan<- C.ConnContext, cache *cache.LruCache[st
 	case socks5.Version:
 		socks.HandleSocks5(bufConn, in, auth)
 	default:
-		http.HandleConn(bufConn, in, cache, auth)
+		http.HandleConn(context.Background(), bufConn, in, cache, auth)
 	}
 }

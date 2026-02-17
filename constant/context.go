@@ -15,6 +15,8 @@ type ConnContext interface {
 	Metadata() *Metadata
 	Conn() net.Conn
 	InjectConn(conn net.Conn)
+	Hijacked() bool
+	SetHijacked(v bool)
 }
 
 type PacketConnContext interface {

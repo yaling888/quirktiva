@@ -31,6 +31,7 @@ const (
 	TUNNEL
 	XDP
 	TAP
+	MITM_ALL
 )
 
 type NetWork int

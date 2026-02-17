@@ -10,7 +10,7 @@ import (
 )
 
 // NewHTTPS receive CONNECT request and return ConnContext
-func NewHTTPS(request *http.Request, conn net.Conn) *context.ConnContext {
+func NewHTTPS(request *http.Request, conn net.Conn, isMitm bool) *context.ConnContext {
 	metadata := parseHTTPAddr(request)
 	metadata.Type = C.HTTPCONNECT
 	if ip, port, err := parseAddr(conn.RemoteAddr()); err == nil {
@@ -19,6 +19,9 @@ func NewHTTPS(request *http.Request, conn net.Conn) *context.ConnContext {
 	}
 	if ip, port, err := parseAddr(conn.LocalAddr()); err == nil {
 		metadata.OriginDst = netip.AddrPortFrom(ip, uint16(port))
+	}
+	if isMitm {
+		metadata.Type = C.MITM_ALL
 	}
 	return context.NewConnContext(conn, metadata)
 }

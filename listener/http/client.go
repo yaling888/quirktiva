@@ -12,7 +12,7 @@ import (
 	"github.com/yaling888/quirktiva/transport/socks5"
 )
 
-func newClient(source net.Addr, originTarget net.Addr, in chan<- C.ConnContext) *http.Client {
+func newClient(source net.Addr, originTarget net.Addr, in chan<- C.ConnContext, isMitm bool) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			// from http.DefaultTransport
@@ -32,7 +32,7 @@ func newClient(source net.Addr, originTarget net.Addr, in chan<- C.ConnContext) 
 
 				left, right := net.Pipe()
 
-				in <- inbound.NewHTTP(dstAddr, source, originTarget, right)
+				in <- inbound.NewHTTP(dstAddr, source, originTarget, right, isMitm)
 
 				return left, nil
 			},
