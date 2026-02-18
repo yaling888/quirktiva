@@ -7,7 +7,6 @@ import (
 )
 
 var allowContentType = []string{
-	"*/*",
 	"text/",
 	"application/xhtml",
 	"application/xml",
@@ -17,13 +16,13 @@ var allowContentType = []string{
 	"application/x-www-form-urlencoded",
 }
 
-func canRewriteBody(contentType string) bool {
-	if contentType == "" {
+func canRewriteBody(mediaType string) bool {
+	if mediaType == "" {
 		return false
 	}
 
 	for _, v := range allowContentType {
-		if strings.HasPrefix(contentType, v) {
+		if strings.HasPrefix(mediaType, v) {
 			return true
 		}
 	}

@@ -16,7 +16,7 @@ type ConnContext interface {
 	Conn() net.Conn
 	InjectConn(conn net.Conn)
 	Hijacked() bool
-	SetHijacked(v bool)
+	Hijack()
 }
 
 type PacketConnContext interface {

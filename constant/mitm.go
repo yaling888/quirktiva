@@ -4,8 +4,6 @@ import (
 	"crypto/tls"
 	"net/http"
 
-	"golang.org/x/text/encoding/charmap"
-
 	"github.com/yaling888/quirktiva/common/cert"
 )
 
@@ -23,8 +21,4 @@ type MitmOption struct {
 	CertConfig *cert.Config
 
 	Handler RewriteHandler
-}
-
-func EncodeLatin1(str string) ([]byte, error) {
-	return charmap.ISO8859_1.NewEncoder().Bytes([]byte(str))
 }

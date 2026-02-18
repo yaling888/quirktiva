@@ -5,11 +5,13 @@ import (
 	"crypto/tls"
 	"encoding/pem"
 	"fmt"
+	"html"
 	stdLog "log"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -118,11 +120,18 @@ func NewReverseProxy(tcpIn chan<- constant.ConnContext, option *constant.MitmOpt
 		ErrorLog:       mitmErrLog,
 		Transport:      newRoundTripper(tcpIn),
 		ModifyResponse: option.Handler.HandleResponse,
-		Rewrite: func(r *httputil.ProxyRequest) {
-			if strings.Contains(r.In.Header.Get("Accept-Encoding"), "gzip") {
-				r.Out.Header.Set("Accept-Encoding", "gzip")
-			} else {
-				r.Out.Header.Del("Accept-Encoding")
+		Rewrite: func(r *httputil.ProxyRequest) { // do not use r.SetXForwarded()
+			// use the client original request Accept-Encoding, save the network bandwidth.
+			if acceptEncoding := strings.ToLower(r.In.Header.Get("Accept-Encoding")); acceptEncoding != "" {
+				enc := slices.DeleteFunc(strings.Split(acceptEncoding, ","), func(s string) bool {
+					s, _ = strings.CutPrefix(s, " ")
+					return s != "gzip" && s != "deflate" && s != "br" && s != "zstd"
+				})
+				if len(enc) != 0 {
+					r.Out.Header.Set("Accept-Encoding", strings.Join(enc, ","))
+				} else {
+					r.Out.Header.Del("Accept-Encoding")
+				}
 			}
 		},
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, err error) {
@@ -161,12 +170,10 @@ func NewReverseProxy(tcpIn chan<- constant.ConnContext, option *constant.MitmOpt
 			default:
 			}
 		},
-		HTTP2: &http.HTTP2Config{
-			PermitProhibitedCipherSuites: true,
-		},
-		ErrorLog:    mitmErrLog,
-		Handler:     h,
-		IdleTimeout: 90 * time.Second,
+		DisableGeneralOptionsHandler: true, // passes "OPTIONS *" requests to the remote server
+		IdleTimeout:                  90 * time.Second,
+		ErrorLog:                     mitmErrLog,
+		Handler:                      h,
 	}
 
 	l := newMitmListener()
@@ -215,7 +222,7 @@ func (r *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 	}
 
-	hostPort := req.URL.Host
+	hostPort := req.URL.Host // can use a fake hostPort. the dial function use the metadata to pipe the connection
 	if !hasPort(hostPort) {
 		port := schemePort(req.URL.Scheme)
 		hostPort = net.JoinHostPort(hostPort, port)
@@ -241,7 +248,7 @@ func (r *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func newRoundTripper(tcpIn chan<- constant.ConnContext) http.RoundTripper {
-	dialFn := func(ctx context.Context, network string, addr string, isTLS bool) (net.Conn, error) {
+	dialFn := func(ctx context.Context, _ string, _ string, isTLS bool) (net.Conn, error) {
 		if cCtx, ok := ctx.Value(connCtxContextKey).(*connCtx); ok {
 			metadata := new(constant.Metadata)
 			*metadata = *cCtx.metadata
@@ -275,7 +282,7 @@ func newRoundTripper(tcpIn chan<- constant.ConnContext) http.RoundTripper {
 			return dialFn(ctx, network, addr, true)
 		},
 		ForceAttemptHTTP2:   true,
-		DisableCompression:  true,
+		DisableCompression:  true, // disable response body automatically uncompressed
 		DisableKeepAlives:   false,
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 100,
@@ -365,7 +372,7 @@ func handleApiRequest(rw http.ResponseWriter, req *http.Request, certCfg *cert.C
 
 	rw.Header().Set("Content-Type", "text/html; charset=UTF-8")
 	rw.WriteHeader(http.StatusNotFound)
-	_, _ = fmt.Fprintf(rw, b, req.URL.Path)
+	_, _ = fmt.Fprintf(rw, b, html.EscapeString(req.URL.Path))
 	return true
 }
 

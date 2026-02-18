@@ -76,6 +76,8 @@ mitm:
     - '^https?://www\.example\.com/9 url request-body "pos_2":\[.*\],"pos_3" request-body "pos_2":[{"xx": "xx"}],"pos_3"'
     - '^https?://www\.example\.com/10 url response-header (\r\n)Tracecode:.+(\r\n) response-header $1Tracecode: 88888888888$2'
     - '^https?://www\.example\.com/11 url response-body "errmsg":"ok" response-body "errmsg":"not-ok"'
+    - '^https?://www\.example\.com/xxxxxbei/v1/player\?prettyPrint url json-response-body Delete("playerResponse.adSlots;playerResponse.playerAds")'
+
 ```
 
 ### DNS configuration

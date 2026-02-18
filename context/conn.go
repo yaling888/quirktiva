@@ -48,7 +48,7 @@ func (c *ConnContext) Hijacked() bool {
 	return c.hijacked
 }
 
-// SetHijacked implement C.ConnContext SetHijacked
-func (c *ConnContext) SetHijacked(v bool) {
-	c.hijacked = v
+// Hijack implement C.ConnContext Hijack
+func (c *ConnContext) Hijack() {
+	c.hijacked = true
 }

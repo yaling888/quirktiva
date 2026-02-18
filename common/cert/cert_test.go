@@ -24,7 +24,7 @@ func TestCert(t *testing.T) {
 	c.SetValidity(20 * time.Hour)
 
 	conf := c.NewTLSConfigForHost("example.org")
-	assert.Equal(t, []string{"http/1.1"}, conf.NextProtos)
+	assert.Equal(t, []string{"h2", "http/1.1"}, conf.NextProtos)
 
 	// Test generating a certificate
 	clientHello := &tls.ClientHelloInfo{

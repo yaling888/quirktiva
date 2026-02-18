@@ -1306,9 +1306,10 @@ func parseMitm(rawMitm RawMitm) (*Mitm, error) {
 			return nil, fmt.Errorf("parse rewrite rule failure: %w", err)
 		}
 
-		if rule.RuleType() == C.MitmResponseHeader || rule.RuleType() == C.MitmResponseBody {
+		switch rule.RuleType() {
+		case C.MitmResponseHeader, C.MitmResponseHeaderJSON, C.MitmResponseBody, C.MitmResponseBodyJSON:
 			res = append(res, rule)
-		} else {
+		default:
 			req = append(req, rule)
 		}
 	}

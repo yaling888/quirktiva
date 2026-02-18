@@ -1070,7 +1070,7 @@ func handleTCPMIMT(connCtx C.ConnContext) (state *tls.ConnectionState, ok bool, 
 	mitmMux.Lock()
 	defer mitmMux.Unlock()
 	if mitmConnIn != nil {
-		connCtx.SetHijacked(true)
+		connCtx.Hijack()
 		connCtx.Metadata().Type = C.MITM
 		mitmConnIn <- connCtx
 		return nil, true, nil

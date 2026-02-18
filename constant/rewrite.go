@@ -2,21 +2,26 @@ package constant
 
 import (
 	regexp "github.com/dlclark/regexp2"
+	"github.com/expr-lang/expr/vm"
 )
 
 var RewriteTypeMapping = map[string]RewriteType{
-	MitmReject.String():         MitmReject,
-	MitmReject200.String():      MitmReject200,
-	MitmReject204.String():      MitmReject204,
-	MitmRejectImg.String():      MitmRejectImg,
-	MitmRejectDict.String():     MitmRejectDict,
-	MitmRejectArray.String():    MitmRejectArray,
-	Mitm302.String():            Mitm302,
-	Mitm307.String():            Mitm307,
-	MitmRequestHeader.String():  MitmRequestHeader,
-	MitmRequestBody.String():    MitmRequestBody,
-	MitmResponseHeader.String(): MitmResponseHeader,
-	MitmResponseBody.String():   MitmResponseBody,
+	MitmReject.String():             MitmReject,
+	MitmReject200.String():          MitmReject200,
+	MitmReject204.String():          MitmReject204,
+	MitmRejectImg.String():          MitmRejectImg,
+	MitmRejectDict.String():         MitmRejectDict,
+	MitmRejectArray.String():        MitmRejectArray,
+	Mitm302.String():                Mitm302,
+	Mitm307.String():                Mitm307,
+	MitmRequestHeader.String():      MitmRequestHeader,
+	MitmRequestHeaderJSON.String():  MitmRequestHeaderJSON,
+	MitmRequestBody.String():        MitmRequestBody,
+	MitmRequestBodyJSON.String():    MitmRequestBodyJSON,
+	MitmResponseHeader.String():     MitmResponseHeader,
+	MitmResponseHeaderJSON.String(): MitmResponseHeaderJSON,
+	MitmResponseBody.String():       MitmResponseBody,
+	MitmResponseBodyJSON.String():   MitmResponseBodyJSON,
 }
 
 const (
@@ -31,10 +36,14 @@ const (
 	Mitm307
 
 	MitmRequestHeader
+	MitmRequestHeaderJSON
 	MitmRequestBody
+	MitmRequestBodyJSON
 
 	MitmResponseHeader
+	MitmResponseHeaderJSON
 	MitmResponseBody
+	MitmResponseBodyJSON
 )
 
 type RewriteType int
@@ -59,12 +68,20 @@ func (rt RewriteType) String() string {
 		return "307"
 	case MitmRequestHeader:
 		return "request-header"
+	case MitmRequestHeaderJSON:
+		return "json-request-header"
 	case MitmRequestBody:
 		return "request-body"
+	case MitmRequestBodyJSON:
+		return "json-request-body"
 	case MitmResponseHeader:
 		return "response-header"
+	case MitmResponseHeaderJSON:
+		return "json-response-header"
 	case MitmResponseBody:
 		return "response-body"
+	case MitmResponseBodyJSON:
+		return "json-response-body"
 	default:
 		return "Unknown"
 	}
@@ -75,6 +92,7 @@ type Rewrite interface {
 	RuleType() RewriteType
 	RuleRegx() []*regexp.Regexp
 	RulePayload() []string
+	RuleExpr() *vm.Program
 	ReplaceURLPayload([]string) string
 	ReplaceSubPayload(string) (string, bool)
 }

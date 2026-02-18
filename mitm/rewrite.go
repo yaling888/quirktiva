@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	regexp "github.com/dlclark/regexp2"
+	"github.com/expr-lang/expr/vm"
 
 	C "github.com/yaling888/quirktiva/constant"
 )
@@ -17,6 +18,7 @@ type RewriteRule struct {
 	ruleType    C.RewriteType
 	ruleRegx    []*regexp.Regexp
 	rulePayload []string
+	ruleExpr    *vm.Program
 }
 
 func (r *RewriteRule) URLRegx() *regexp.Regexp {
@@ -33,6 +35,10 @@ func (r *RewriteRule) RuleRegx() []*regexp.Regexp {
 
 func (r *RewriteRule) RulePayload() []string {
 	return r.rulePayload
+}
+
+func (r *RewriteRule) RuleExpr() *vm.Program {
+	return r.ruleExpr
 }
 
 func (r *RewriteRule) ReplaceURLPayload(matchSub []string) string {
@@ -86,12 +92,14 @@ func (r *RewriteRule) ReplaceSubPayload(oldData string) (string, bool) {
 	return oldData, ok
 }
 
-func NewRewriteRule(urlRegx *regexp.Regexp, ruleType C.RewriteType, ruleRegx []*regexp.Regexp, rulePayload []string) *RewriteRule {
+func NewRewriteRule(urlRegx *regexp.Regexp, ruleType C.RewriteType,
+	ruleRegx []*regexp.Regexp, rulePayload []string, ruleExpr *vm.Program) *RewriteRule {
 	return &RewriteRule{
 		urlRegx:     urlRegx,
 		ruleType:    ruleType,
 		ruleRegx:    ruleRegx,
 		rulePayload: rulePayload,
+		ruleExpr:    ruleExpr,
 	}
 }
 

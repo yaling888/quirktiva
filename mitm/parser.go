@@ -1,9 +1,12 @@
 package mitm
 
 import (
+	"fmt"
 	"strings"
 
 	regexp "github.com/dlclark/regexp2"
+	"github.com/expr-lang/expr"
+	"github.com/expr-lang/expr/vm"
 
 	C "github.com/yaling888/quirktiva/constant"
 )
@@ -68,7 +71,20 @@ func ParseRewrite(line string) (C.Rewrite, error) {
 		return nil, errInvalid
 	}
 
-	return NewRewriteRule(urlRegx, *ruleType, ruleRegx, rulePayload), nil
+	var ruleExpr *vm.Program
+	switch *ruleType {
+	case C.MitmRequestHeaderJSON, C.MitmRequestBodyJSON, C.MitmResponseHeaderJSON, C.MitmResponseBodyJSON:
+		if len(rulePayload) == 0 {
+			return nil, errInvalid
+		}
+		if ruleExpr, err = expr.Compile(rulePayload[0], expr.Env(Env{}), expr.AsBool()); err != nil {
+			return nil, fmt.Errorf("failed to compile rewrite rule. type: %s, url: %s, error: %w", ruleType, url, err)
+		}
+		rulePayload = nil
+	default:
+	}
+
+	return NewRewriteRule(urlRegx, *ruleType, ruleRegx, rulePayload, ruleExpr), nil
 }
 
 func trimArr(arr []string) (r []string) {
