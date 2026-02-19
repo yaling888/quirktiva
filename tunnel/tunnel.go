@@ -693,6 +693,8 @@ func handleTCPConn(connCtx C.ConnContext) {
 			return
 		}
 		if ok {
+			connCtx.Hijack()
+
 			log.Debug().
 				EmbedObject(metadata).
 				Str("proxy", rawProxy.Name()).
@@ -792,7 +794,10 @@ func handleTCPConn(connCtx C.ConnContext) {
 			EmbedObject(metadata).
 			Any("proxy", remoteConn).
 			Msg("[TCP] failed to tls handshake server for missing mitm")
+		return
 	}
+	defer outConn.Close()
+
 	log.Info().
 		EmbedObject(metadata).
 		Any("mode", mode).
@@ -1070,7 +1075,6 @@ func handleTCPMIMT(connCtx C.ConnContext) (state *tls.ConnectionState, ok bool, 
 	mitmMux.Lock()
 	defer mitmMux.Unlock()
 	if mitmConnIn != nil {
-		connCtx.Hijack()
 		connCtx.Metadata().Type = C.MITM
 		mitmConnIn <- connCtx
 		return nil, true, nil

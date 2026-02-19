@@ -214,7 +214,7 @@ func TestEnv_Delete(t *testing.T) {
 			_ = writeJSONBody(actual, data, nil, false)
 
 			if actual.Len() == 0 || expected.String() != actual.String() {
-				t.Fatal("Assign:", "expected", tt.wantObject, "actual", data)
+				t.Fatal("Delete:", "expected", tt.wantObject, "actual", data)
 			}
 		})
 	}
