@@ -41,15 +41,13 @@ func TestObservable_MultiSubscribe(t *testing.T) {
 	count := atomic.NewInt32(0)
 
 	var wg sync.WaitGroup
-	wg.Add(2)
 	waitCh := func(ch <-chan int) {
 		for range ch {
 			count.Inc()
 		}
-		wg.Done()
 	}
-	go waitCh(ch1)
-	go waitCh(ch2)
+	wg.Go(func() { waitCh(ch1) })
+	wg.Go(func() { waitCh(ch2) })
 	wg.Wait()
 	assert.Equal(t, int32(10), count.Load())
 }
@@ -93,15 +91,13 @@ func TestObservable_SubscribeGoroutineLeak(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(total)
 	waitCh := func(ch <-chan int) {
 		for range ch {
 		}
-		wg.Done()
 	}
 
 	for _, ch := range list {
-		go waitCh(ch)
+		wg.Go(func() { waitCh(ch) })
 	}
 	wg.Wait()
 
@@ -126,15 +122,15 @@ func Benchmark_Observable_1000(b *testing.B) {
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(num)
 
 	b.ResetTimer()
 	for _, sub := range subs {
-		go func(s Subscription[int]) {
-			for range s {
-			}
-			wg.Done()
-		}(sub)
+		wg.Go(func() {
+			func(s Subscription[int]) {
+				for range s {
+				}
+			}(sub)
+		})
 	}
 
 	for i := 0; i < b.N; i++ {

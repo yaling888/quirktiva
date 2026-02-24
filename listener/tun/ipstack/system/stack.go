@@ -146,8 +146,6 @@ func New(
 
 			tcpIn <- inbound.NewSocketBy(conn, lAddrPort, rAddrPort, C.TUN)
 		}
-
-		ipStack.wg.Done()
 	}
 
 	udp := func() {
@@ -205,14 +203,11 @@ func New(
 				pkt.Drop()
 			}
 		}
-
-		ipStack.wg.Done()
 	}
 
 	ipStack.once.Do(func() {
-		ipStack.wg.Add(2)
-		go tcp()
-		go udp()
+		ipStack.wg.Go(tcp)
+		ipStack.wg.Go(udp)
 	})
 
 	return ipStack, nil

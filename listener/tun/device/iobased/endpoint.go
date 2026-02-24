@@ -77,15 +77,12 @@ func (e *Endpoint) Attach(dispatcher stack.NetworkDispatcher) {
 	e.Endpoint.Attach(dispatcher)
 	e.once.Do(func() {
 		ctx, cancel := context.WithCancel(context.Background())
-		e.wg.Add(2)
-		go func() {
+		e.wg.Go(func() {
 			e.outboundLoop(ctx)
-			e.wg.Done()
-		}()
-		go func() {
+		})
+		e.wg.Go(func() {
 			e.dispatchLoop(cancel)
-			e.wg.Done()
-		}()
+		})
 	})
 }
 

@@ -331,28 +331,24 @@ func (r *Resolver) exchangePolicyCombine(ctx context.Context, clients []dnsClien
 		wg         = sync.WaitGroup{}
 	)
 
-	wg.Add(2)
-
 	ctx1, cancel1 := context.WithCancelCause(ctx)
 	defer cancel1(context2.ManualCanceled)
 
 	ctx2, cancel2 := context.WithCancelCause(ctx)
 	defer cancel2(context2.ManualCanceled)
 
-	go func() {
+	wg.Go(func() {
 		msg, err := batchExchange(ctx1, policyClients, m)
 		res1 = &result{Msg: msg, Error: err, Policy: true}
 		done1.Store(true)
-		wg.Done()
 		if err == nil {
 			cancel2(context2.ManualCanceled) // no need to wait for others
 		}
-	}()
+	})
 
-	go func() {
+	wg.Go(func() {
 		msg, err := batchExchange(ctx2, clients, m)
 		res2 = &result{Msg: msg, Error: err}
-		wg.Done()
 		if err == nil && !done1.Load() {
 			// if others done before lan policy, then wait maximum 50ms for lan policy
 			for i := 0; i < 10; i++ {
@@ -363,7 +359,7 @@ func (r *Resolver) exchangePolicyCombine(ctx context.Context, clients []dnsClien
 			}
 			cancel1(context2.ManualCanceled)
 		}
-	}()
+	})
 
 	wg.Wait()
 
