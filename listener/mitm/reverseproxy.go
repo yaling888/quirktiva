@@ -135,8 +135,12 @@ func NewReverseProxy(tcpIn chan<- constant.ConnContext, option *constant.MitmOpt
 			}
 		},
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, err error) {
-			log.Debug().Err(err).Msg("[MITM] http: reverse proxy")
-			rw.WriteHeader(http.StatusBadGateway)
+			log.Warn().Err(err).Msg("[MITM] http: reverse proxy")
+			if cCtx, ok := req.Context().Value(connCtxContextKey).(*connCtx); ok {
+				cCtx.cancelCause(err)
+			} else {
+				rw.WriteHeader(http.StatusBadGateway)
+			}
 		},
 	}
 
