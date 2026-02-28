@@ -181,16 +181,8 @@ func SetSniffing(s bool) {
 // SetMitmOptions set the MITM options
 func SetMitmOptions(in chan<- C.ConnContext, tlsCfg func(host string) *tls.Config) {
 	mitmMux.Lock()
-	if in != nil {
-		mitmConnIn = in
-	} else {
-		mitmConnIn = nil
-	}
-	if tlsCfg != nil {
-		mitmGetTLSConfig = tlsCfg
-	} else {
-		mitmGetTLSConfig = nil
-	}
+	mitmConnIn = in
+	mitmGetTLSConfig = tlsCfg
 	mitmMux.Unlock()
 }
 
@@ -687,7 +679,7 @@ func handleTCPConn(connCtx C.ConnContext) {
 	var connState *tls.ConnectionState
 	if shouldHandleMITM(metadata, rawProxy.Type()) {
 		var ok bool
-		connState, ok, err = handleTCPMIMT(connCtx)
+		connState, ok, err = handleTCPMITM(connCtx)
 		if err != nil {
 			log.Warn().Err(err).Msg("[TCP] failed to process mitm")
 			return
@@ -1020,7 +1012,7 @@ func streamServerTLSConn(state *tls.ConnectionState, conn C.Conn) (net.Conn, err
 	return serverTLSConn, nil
 }
 
-func handleTCPMIMT(connCtx C.ConnContext) (state *tls.ConnectionState, ok bool, err error) {
+func handleTCPMITM(connCtx C.ConnContext) (state *tls.ConnectionState, ok bool, err error) {
 	c := connCtx.Conn()
 	rw := N.NewBufferedConn(c)
 	connCtx.InjectConn(rw)
@@ -1057,8 +1049,8 @@ func handleTCPMIMT(connCtx C.ConnContext) (state *tls.ConnectionState, ok bool, 
 		connCtx.InjectConn(clientTLSConn)
 
 		stas := clientTLSConn.ConnectionState()
-		switch stas.NegotiatedProtocol {
-		case "h2", "unencrypted_http2", "http/1.1", "http/1.0":
+		switch strings.ToLower(stas.NegotiatedProtocol) {
+		case "h2", "unencrypted_http2", "http/1.1", "http/1.0", "dns":
 		default:
 			return &stas, false, nil
 		}
