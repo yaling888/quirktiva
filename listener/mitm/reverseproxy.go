@@ -217,11 +217,15 @@ func (r *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	// one incoming connection allow to create only one outgoing connection
 	cCtx.mux.Lock()
-	defer cCtx.mux.Unlock()
 
 	if c, loaded := outConnMap.Load(connKey); loaded {
 		cc := c.(*http.ClientConn)
 		if cc.Available() > 0 {
+			if cc.Available() > 1 { // this is a HTTP/2 client conn
+				cCtx.mux.Unlock()
+			} else {
+				defer cCtx.mux.Unlock()
+			}
 			return cc.RoundTrip(req)
 		}
 	}
@@ -234,6 +238,7 @@ func (r *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	cc, err := r.transport.NewClientConn(ctx, req.URL.Scheme, hostPort) // bug inside, must have a port
 	if err != nil {
+		cCtx.mux.Unlock()
 		return nil, err
 	}
 	if c, loaded := outConnMap.Swap(connKey, cc); loaded && c != cc {
@@ -248,6 +253,11 @@ func (r *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 			}
 		}
 	})
+	if cc.Available() > 1 { // this is a HTTP/2 client conn
+		cCtx.mux.Unlock()
+	} else {
+		defer cCtx.mux.Unlock()
+	}
 	return cc.RoundTrip(req)
 }
 
