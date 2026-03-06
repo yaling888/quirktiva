@@ -3,6 +3,7 @@ package rules
 import (
 	"errors"
 	"net/netip"
+	"slices"
 	"strings"
 
 	C "github.com/yaling888/quirktiva/constant"
@@ -44,12 +45,7 @@ func (b *Base) ShouldFindProcess() bool {
 }
 
 func HasNoResolve(params []string) bool {
-	for _, p := range params {
-		if p == noResolve {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(params, noResolve)
 }
 
 func findNetwork(params []string) C.NetWork {
@@ -85,8 +81,8 @@ func findSourceIPs(params []string) []*netip.Prefix {
 func findProcessName(params []string) []string {
 	var processNames []string
 	for _, p := range params {
-		if strings.HasPrefix(p, "P:") {
-			processNames = append(processNames, strings.TrimPrefix(p, "P:"))
+		if after, ok := strings.CutPrefix(p, "P:"); ok {
+			processNames = append(processNames, after)
 		}
 	}
 

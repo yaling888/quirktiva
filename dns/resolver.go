@@ -351,7 +351,7 @@ func (r *Resolver) exchangePolicyCombine(ctx context.Context, clients []dnsClien
 		res2 = &result{Msg: msg, Error: err}
 		if err == nil && !done1.Load() {
 			// if others done before lan policy, then wait maximum 50ms for lan policy
-			for i := 0; i < 10; i++ {
+			for range 10 {
 				time.Sleep(5 * time.Millisecond)
 				if done1.Load() { // check for every 5ms
 					return

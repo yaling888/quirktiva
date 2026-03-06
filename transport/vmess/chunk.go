@@ -81,10 +81,7 @@ func (cw *chunkWriter) Write(b []byte) (n int, err error) {
 	defer pool.PutNetBuf(bufP)
 
 	for length := len(b); length > 0; {
-		readLen := chunkSize
-		if length < chunkSize {
-			readLen = length
-		}
+		readLen := min(length, chunkSize)
 		payloadBuf := (*bufP)[lenSize : lenSize+chunkSize]
 		copy(payloadBuf, b[n:n+readLen])
 

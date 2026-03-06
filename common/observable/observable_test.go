@@ -85,7 +85,7 @@ func TestObservable_SubscribeGoroutineLeak(t *testing.T) {
 	total := 100
 
 	var list []Subscription[int]
-	for i := 0; i < total; i++ {
+	for range total {
 		ch, _ := src.Subscribe()
 		list = append(list, ch)
 	}
@@ -116,7 +116,7 @@ func Benchmark_Observable_1000(b *testing.B) {
 	num := 1000
 
 	subs := []Subscription[int]{}
-	for i := 0; i < num; i++ {
+	for range num {
 		sub, _ := o.Subscribe()
 		subs = append(subs, sub)
 	}

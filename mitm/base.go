@@ -1,6 +1,8 @@
 package mitm
 
 import (
+	"slices"
+
 	C "github.com/yaling888/quirktiva/constant"
 )
 
@@ -23,21 +25,11 @@ type RewriteRules struct {
 }
 
 func (rr *RewriteRules) SearchInRequest(do func(C.Rewrite) bool) bool {
-	for _, v := range rr.request {
-		if do(v) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(rr.request, do)
 }
 
 func (rr *RewriteRules) SearchInResponse(do func(C.Rewrite) bool) bool {
-	for _, v := range rr.response {
-		if do(v) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(rr.response, do)
 }
 
 func NewRewriteRules(req []C.Rewrite, res []C.Rewrite) *RewriteRules {

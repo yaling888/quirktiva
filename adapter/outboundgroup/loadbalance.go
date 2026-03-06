@@ -110,7 +110,7 @@ func strategyRoundRobin() strategyFn {
 	idx := 0
 	return func(proxies []C.Proxy, metadata *C.Metadata) C.Proxy {
 		length := len(proxies)
-		for i := 0; i < length; i++ {
+		for range length {
 			idx = (idx + 1) % length
 			proxy := proxies[idx]
 			if proxy.Alive() {

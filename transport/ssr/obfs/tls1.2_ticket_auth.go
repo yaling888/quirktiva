@@ -91,10 +91,7 @@ func (c *tls12TicketConn) Write(b []byte) (int, error) {
 		buf := pool.GetBuffer()
 		defer pool.PutBuffer(buf)
 		for len(b) > 2048 {
-			size := rand.IntN(4096) + 100
-			if len(b) < size {
-				size = len(b)
-			}
+			size := min(len(b), rand.IntN(4096)+100)
 			packData(buf, b[:size])
 			b = b[size:]
 		}

@@ -33,10 +33,7 @@ func (w *aeadWriter) Write(b []byte) (n int, err error) {
 	}()
 
 	for length := len(b); length > 0; {
-		readLen := chunkSize - w.Overhead()
-		if length < readLen {
-			readLen = length
-		}
+		readLen := min(length, chunkSize-w.Overhead())
 		payloadBuf := (*bufP)[lenSize : lenSize+chunkSize-w.Overhead()]
 		copy(payloadBuf, b[n:n+readLen])
 

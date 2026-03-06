@@ -51,7 +51,7 @@ func (d *digest32) bmix(p []byte) (tail []byte) {
 	h1 := d.h1
 
 	nblocks := len(p) / 4
-	for i := 0; i < nblocks; i++ {
+	for i := range nblocks {
 		k1 := *(*uint32)(unsafe.Pointer(&p[i*4]))
 
 		k1 *= c1_32
@@ -102,7 +102,7 @@ func Sum32WithSeed(data []byte, seed uint32) uint32 {
 	h1 := seed
 
 	nblocks := len(data) / 4
-	for i := 0; i < nblocks; i++ {
+	for i := range nblocks {
 		k1 := *(*uint32)(unsafe.Pointer(&data[i*4]))
 
 		k1 *= c1_32

@@ -20,7 +20,7 @@ func Test_nat_table(t *testing.T) {
 		available: list.New[*binding](),
 	}
 
-	for idx := uint16(0); idx < pl; idx++ {
+	for idx := range pl {
 		tb.ports[idx] = tb.available.PushFront(&binding{
 			tuple:  tuple{},
 			offset: idx,

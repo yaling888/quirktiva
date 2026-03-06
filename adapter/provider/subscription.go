@@ -26,7 +26,7 @@ func (s *Subscription) parse(userinfo string) {
 		return
 	}
 
-	for i := 0; i < len(parts); i++ {
+	for i := range parts {
 		parts[i] = textproto.TrimString(parts[i])
 		key, value, ok := strings.Cut(parts[i], "=")
 		if !ok {

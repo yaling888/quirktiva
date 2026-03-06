@@ -786,7 +786,7 @@ func exprRun(program *vm.Program, data any) (bool, error) {
 		return output.(bool), nil
 	case []any:
 		var rs bool
-		for i := 0; i < len(v); i++ {
+		for i := range v {
 			if m, ok := v[i].(map[string]any); ok {
 				output, err := expr.Run(program, Env{Data: m})
 				if err != nil {

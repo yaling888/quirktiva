@@ -55,7 +55,7 @@ func (e Env) delete(key string) bool {
 
 func (e Env) Delete(keys string) bool {
 	var v bool
-	for _, k := range strings.Split(keys, ";") {
+	for k := range strings.SplitSeq(keys, ";") {
 		v1 := e.delete(k)
 		v = v || v1
 	}

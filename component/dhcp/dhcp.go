@@ -87,7 +87,7 @@ func receiveOffer(conn net.PacketConn, id dhcpv4.TransactionID, result chan<- []
 		}
 
 		dnsAddr := make([]netip.Addr, l)
-		for i := 0; i < l; i++ {
+		for i := range l {
 			dnsAddr[i] = nnip.IpToAddr(dns[i])
 		}
 

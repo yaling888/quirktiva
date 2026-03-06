@@ -36,7 +36,7 @@ func TestPool_MaxSize(t *testing.T) {
 
 	var items []int
 
-	for i := 0; i < size; i++ {
+	for range size {
 		item, _ := pool.Get()
 		items = append(items, item)
 	}

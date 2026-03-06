@@ -45,10 +45,7 @@ type Mux struct {
 
 func (m *Mux) Read(b []byte) (int, error) {
 	if m.remain != 0 {
-		length := m.remain
-		if len(b) < m.remain {
-			length = len(b)
-		}
+		length := min(len(b), m.remain)
 
 		n, err := m.Conn.Read(b[:length])
 		if err != nil {

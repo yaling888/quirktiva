@@ -15,7 +15,7 @@ func Test_SumAVX2(t *testing.T) {
 	bytes := make([]byte, chunkSize)
 
 	for size := 0; size <= chunkSize; size++ {
-		for count := 0; count < chunkCount; count++ {
+		for range chunkCount {
 			_, err := rand.Reader.Read(bytes[:size])
 			if err != nil {
 				t.Skipf("Rand read failed: %v", err)

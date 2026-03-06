@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"strconv"
@@ -165,9 +166,7 @@ func (v *Vless) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 		}
 
 		if len(v.option.HTTPOpts.Headers) != 0 {
-			for key, value := range v.option.HTTPOpts.Headers {
-				httpOpts.Headers[key] = value
-			}
+			maps.Copy(httpOpts.Headers, v.option.HTTPOpts.Headers)
 		}
 
 		if !v.option.TLS && (v.option.RandomHost || len(v.option.HTTPOpts.Headers["Host"]) == 0) {

@@ -12,6 +12,7 @@ import (
 	"encoding/pem"
 	"net"
 	"os"
+	"slices"
 	"strings"
 	"time"
 )
@@ -306,12 +307,7 @@ func generateCert(cn string, isCA bool, parentCA *x509.Certificate, parentKey an
 }
 
 func hasDnsNames(dnsNames []string, hostname string) bool {
-	for _, name := range dnsNames {
-		if name == hostname {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(dnsNames, hostname)
 }
 
 func clearClock(t time.Time) time.Time {

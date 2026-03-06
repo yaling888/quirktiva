@@ -77,7 +77,7 @@ func newTable() *table {
 		available: list.New[*binding](),
 	}
 
-	for idx := uint16(0); idx < portLength; idx++ {
+	for idx := range portLength {
 		result.ports[idx] = result.available.PushFront(&binding{
 			tuple:  tuple{},
 			offset: idx,

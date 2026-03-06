@@ -43,7 +43,7 @@ func TestBatchWithConcurrencyNum(t *testing.T) {
 	)
 
 	now := time.Now()
-	for i := 0; i < 7; i++ {
+	for i := range 7 {
 		b.Go(strconv.Itoa(i), func() (string, error) {
 			time.Sleep(time.Millisecond * 100)
 			return strconv.Itoa(i), nil

@@ -14,7 +14,7 @@ import (
 
 func isUpgradeRequest(req *http.Request) bool {
 	for _, header := range req.Header["Connection"] {
-		for _, elm := range strings.Split(header, ",") {
+		for elm := range strings.SplitSeq(header, ",") {
 			if strings.EqualFold(strings.TrimSpace(elm), "Upgrade") {
 				return true
 			}

@@ -56,7 +56,7 @@ func (r *XorShift128Plus) InitFromBinAndLength(bin []byte, length int) {
 	binary.LittleEndian.PutUint16(full, uint16(length))
 	r.s[0] = binary.LittleEndian.Uint64(full[:8])
 	r.s[1] = binary.LittleEndian.Uint64(full[8:16])
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		r.Next()
 	}
 }

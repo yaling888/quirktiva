@@ -404,7 +404,7 @@ func addRoute(sock int, addr, mask, link route.Addr, flag int) error {
 }
 
 func retryInterfaceByIndex(index int) (iface *net.Interface, err error) {
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		iface, err = net.InterfaceByIndex(index)
 		if err != nil && errors.Is(err, unix.ENOMEM) {
 			time.Sleep(time.Duration(i) * time.Second / 3)

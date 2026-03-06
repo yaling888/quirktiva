@@ -2,6 +2,7 @@ package trie
 
 import (
 	"errors"
+	"slices"
 	"strings"
 
 	"github.com/samber/lo"
@@ -37,10 +38,8 @@ func ValidAndSplitDomain(domain string) ([]string, bool) {
 		return parts, true
 	}
 
-	for _, part := range parts[1:] {
-		if part == "" {
-			return nil, false
-		}
+	if slices.Contains(parts[1:], "") {
+		return nil, false
 	}
 
 	return parts, true

@@ -77,10 +77,7 @@ func (g *Conn) Read(b []byte) (n int, err error) {
 	}
 
 	if g.remain > 0 {
-		size := g.remain
-		if len(b) < size {
-			size = len(b)
-		}
+		size := min(len(b), g.remain)
 
 		n, err = io.ReadFull(g.br, b[:size])
 		g.remain -= n
@@ -100,10 +97,7 @@ func (g *Conn) Read(b []byte) (n int, err error) {
 		return 0, ErrInvalidLength
 	}
 
-	size := int(protobufPayloadLen)
-	if len(b) < size {
-		size = len(b)
-	}
+	size := min(len(b), int(protobufPayloadLen))
 
 	n, err = io.ReadFull(g.br, b[:size])
 	if err != nil {

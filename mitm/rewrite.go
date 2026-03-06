@@ -92,8 +92,7 @@ func (r *RewriteRule) ReplaceSubPayload(oldData string) (string, bool) {
 	return oldData, ok
 }
 
-func NewRewriteRule(urlRegx *regexp.Regexp, ruleType C.RewriteType,
-	ruleRegx []*regexp.Regexp, rulePayload []string, ruleExpr *vm.Program) *RewriteRule {
+func NewRewriteRule(urlRegx *regexp.Regexp, ruleType C.RewriteType, ruleRegx []*regexp.Regexp, rulePayload []string, ruleExpr *vm.Program) *RewriteRule {
 	return &RewriteRule{
 		urlRegx:     urlRegx,
 		ruleType:    ruleType,

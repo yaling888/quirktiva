@@ -1215,7 +1215,8 @@ def main(ctx, metadata):
 		mainCode = cleanScriptKeywords(mainCode)
 	}
 
-	content := mainCode + "\n"
+	var content strings.Builder
+	content.WriteString(mainCode + "\n")
 
 	matcher, err := S.NewMatcher("main", "", mainCode)
 	if err != nil {
@@ -1247,10 +1248,10 @@ def main(ctx, metadata):
 		}
 
 		matchers[k] = m
-		content += v + "\n"
+		content.WriteString(v + "\n")
 	}
 
-	rpdArr := findRuleProvidersName(content)
+	rpdArr := findRuleProvidersName(content.String())
 	for _, v := range rpdArr {
 		rule := fmt.Sprintf("GEOSITE,%s,%s", v, C.ScriptRuleGeoSiteTarget)
 		rawRules = append(rawRules, RawRule(rawRule{Line: rule}))
