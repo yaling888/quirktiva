@@ -16,6 +16,7 @@ formatters:
   enable:
     - gci
     - gofmt
+    - gofumpt
     - goimports
   settings:
     gci:
