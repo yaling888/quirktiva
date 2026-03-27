@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/client"
 )
 
 func startContainer(cfg *container.Config, hostCfg *container.HostConfig, name string) (string, error) {
-	c, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	c, err := client.New(client.FromEnv)
 	if err != nil {
 		return "", err
 	}
@@ -18,12 +18,17 @@ func startContainer(cfg *container.Config, hostCfg *container.HostConfig, name s
 		hostCfg.NetworkMode = "host"
 	}
 
-	containerM, err := c.ContainerCreate(context.Background(), cfg, hostCfg, nil, nil, name)
+	createOptions := client.ContainerCreateOptions{
+		Config:     cfg,
+		HostConfig: hostCfg,
+		Name:       name,
+	}
+	containerM, err := c.ContainerCreate(context.Background(), createOptions)
 	if err != nil {
 		return "", err
 	}
 
-	if err = c.ContainerStart(context.Background(), containerM.ID, container.StartOptions{}); err != nil {
+	if _, err = c.ContainerStart(context.Background(), containerM.ID, client.ContainerStartOptions{}); err != nil {
 		return "", err
 	}
 
@@ -31,12 +36,13 @@ func startContainer(cfg *container.Config, hostCfg *container.HostConfig, name s
 }
 
 func cleanContainer(id string) error {
-	c, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	c, err := client.New(client.FromEnv)
 	if err != nil {
 		return err
 	}
 	defer c.Close()
 
-	removeOpts := container.RemoveOptions{Force: true}
-	return c.ContainerRemove(context.Background(), id, removeOpts)
+	removeOpts := client.ContainerRemoveOptions{Force: true}
+	_, err = c.ContainerRemove(context.Background(), id, removeOpts)
+	return err
 }

@@ -16,9 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
-	"github.com/docker/go-connections/nat"
+	"github.com/moby/moby/api/types/network"
+	"github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -44,16 +43,16 @@ var (
 	waitTime = time.Second
 	localIP  = netip.MustParseAddr("127.0.0.1")
 
-	defaultExposedPorts = nat.PortSet{
-		"10002/tcp": struct{}{},
-		"10002/udp": struct{}{},
+	defaultExposedPorts = network.PortSet{
+		network.MustParsePort("10002/tcp"): struct{}{},
+		network.MustParsePort("10002/udp"): struct{}{},
 	}
-	defaultPortBindings = nat.PortMap{
-		"10002/tcp": []nat.PortBinding{
-			{HostPort: "10002", HostIP: "0.0.0.0"},
+	defaultPortBindings = network.PortMap{
+		network.MustParsePort("10002/tcp"): []network.PortBinding{
+			{HostPort: "10002", HostIP: netip.IPv4Unspecified()},
 		},
-		"10002/udp": []nat.PortBinding{
-			{HostPort: "10002", HostIP: "0.0.0.0"},
+		network.MustParsePort("10002/udp"): []network.PortBinding{
+			{HostPort: "10002", HostIP: netip.IPv4Unspecified()},
 		},
 	}
 	isDarwin = runtime.GOOS == "darwin"
@@ -75,19 +74,19 @@ func init() {
 		localIP = netip.MustParseAddr(routeIp.String())
 	}
 
-	c, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	c, err := client.New(client.FromEnv)
 	if err != nil {
 		panic(err)
 	}
 	defer c.Close()
 
-	list, err := c.ImageList(context.Background(), image.ListOptions{All: true})
+	list, err := c.ImageList(context.Background(), client.ImageListOptions{All: true})
 	if err != nil {
 		panic(err)
 	}
 
 	imageExist := func(image string) bool {
-		for _, item := range list {
+		for _, item := range list.Items {
 			for _, tag := range item.RepoTags {
 				if image == tag {
 					return true
@@ -115,7 +114,7 @@ func init() {
 		}
 
 		println("pulling image:", imageM)
-		imageStream, err := c.ImagePull(context.Background(), imageM, image.PullOptions{})
+		imageStream, err := c.ImagePull(context.Background(), imageM, client.ImagePullOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -160,11 +159,7 @@ func newPingPongPair() (chan []byte, chan []byte, func(t *testing.T) error) {
 		pongOpen := false
 		var recv []byte
 
-		for {
-			if pingOpen && pongOpen {
-				break
-			}
-
+		for !pingOpen || !pongOpen {
 			select {
 			case recv, pingOpen = <-pingCh:
 				assert.True(t, pingOpen)
@@ -193,11 +188,7 @@ func newLargeDataPair() (chan hashPair, chan hashPair, func(t *testing.T) error)
 		var serverPair hashPair
 		var clientPair hashPair
 
-		for {
-			if pingOpen && pongOpen {
-				break
-			}
-
+		for !pingOpen || !pongOpen {
 			select {
 			case serverPair, pingOpen = <-pingCh:
 				assert.True(t, pingOpen)

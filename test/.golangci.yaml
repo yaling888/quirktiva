@@ -1,14 +1,31 @@
-linters:
-  disable-all: true
-  enable:
-    - gofumpt
-    - govet
-    - gci
-    - staticcheck
+version: "2"
 
-linters-settings:
-  gci:
-    sections:
-      - standard
-      - prefix(github.com/yaling888/quirktiva)
-      - default
+linters:
+  default: none
+  enable:
+    - copyloopvar
+    - govet
+    - ineffassign
+    - misspell
+    - staticcheck
+    - unconvert
+    - unused
+    - usestdlibvars
+
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+  settings:
+    gci:
+      sections:
+        - standard
+        - prefix(github.com/yaling888/quirktiva)
+        - default
+
+run:
+  concurrency: 4
+  # go: '1.22'
+  timeout: 5m
