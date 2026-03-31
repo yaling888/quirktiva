@@ -141,7 +141,11 @@ func (h *Hysteria2) makeDialer() func(addr net.Addr) (net.PacketConn, error) {
 	}
 	return func(addr net.Addr) (pc net.PacketConn, err error) {
 		if hAddr, ok := addr.(*udphop.UDPHopAddr); ok {
-			pc, err = udphop.NewUDPHopPacketConn(hAddr, h.option.HopInterval, func() (net.PacketConn, error) {
+			hopIntervalCfg := udphop.HopIntervalConfig{
+				Min: h.option.HopInterval,
+				Max: h.option.HopInterval,
+			}
+			pc, err = udphop.NewUDPHopPacketConn(hAddr, hopIntervalCfg, func() (net.PacketConn, error) {
 				ctx, cancel := context.WithTimeout(context.Background(), C.DefaultUDPTimeout)
 				defer cancel()
 				network := "udp"

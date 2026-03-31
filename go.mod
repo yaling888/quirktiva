@@ -4,8 +4,8 @@ go 1.26.1
 
 require (
 	github.com/andybalholm/brotli v1.2.0
-	github.com/apernet/hysteria/core/v2 v2.7.1
-	github.com/apernet/hysteria/extras/v2 v2.7.1
+	github.com/apernet/hysteria/core/v2 v2.8.1
+	github.com/apernet/hysteria/extras/v2 v2.8.1
 	github.com/cilium/ebpf v0.21.0
 	github.com/dlclark/regexp2 v1.11.5
 	github.com/expr-lang/expr v1.17.8
@@ -41,7 +41,7 @@ require (
 
 require (
 	github.com/ajg/form v1.5.1 // indirect
-	github.com/apernet/quic-go v0.59.1-0.20260217092621-db4786c77a22 // indirect
+	github.com/apernet/quic-go v0.59.1-0.20260330051153-c402ee641eb6 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/josharian/native v1.1.0 // indirect
@@ -58,4 +58,4 @@ require (
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 )
 
-replace github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.59.100
+replace github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.59.159
