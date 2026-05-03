@@ -1,11 +1,11 @@
 module github.com/yaling888/quirktiva
 
-go 1.26.2
+go 1.26.3
 
 require (
 	github.com/andybalholm/brotli v1.2.1
-	github.com/apernet/hysteria/core/v2 v2.8.1
-	github.com/apernet/hysteria/extras/v2 v2.8.1
+	github.com/apernet/hysteria/core/v2 v2.8.2
+	github.com/apernet/hysteria/extras/v2 v2.8.2
 	github.com/cilium/ebpf v0.21.0
 	github.com/dlclark/regexp2 v1.11.5
 	github.com/expr-lang/expr v1.17.8
@@ -14,7 +14,7 @@ require (
 	github.com/go-chi/render v1.0.3
 	github.com/gorilla/websocket v1.5.3
 	github.com/insomniacslk/dhcp v0.0.0-20260407060928-11b94ed970f2
-	github.com/klauspost/compress v1.18.5
+	github.com/klauspost/compress v1.18.6
 	github.com/miekg/dns v1.1.72
 	github.com/oschwald/geoip2-golang/v2 v2.1.0
 	github.com/phuslu/log v1.0.124
@@ -26,22 +26,22 @@ require (
 	go.starlark.net v0.0.0-20260326113308-fadfc96def35
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.6.0
-	golang.org/x/crypto v0.49.0
-	golang.org/x/net v0.52.1-0.20260406204716-056ac742146a
+	golang.org/x/crypto v0.50.1-0.20260501174432-fd0b90d21f9a
+	golang.org/x/net v0.53.1-0.20260507163039-208f306b2f0f
 	golang.org/x/sync v0.20.0
-	golang.org/x/sys v0.43.0
-	golang.org/x/text v0.35.0
+	golang.org/x/sys v0.43.1-0.20260423153702-fb1facd76f95
+	golang.org/x/text v0.36.0
 	golang.org/x/time v0.15.0
 	golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20260408064518-65a410b0d584
+	gvisor.dev/gvisor v0.0.0-20260506221003-3f0d59b9fb9f
 )
 
 require (
 	github.com/ajg/form v1.5.1 // indirect
-	github.com/apernet/quic-go v0.59.1-0.20260330051153-c402ee641eb6 // indirect
+	github.com/apernet/quic-go v0.59.1-0.20260425001925-6c6cc9bcb716 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/josharian/native v1.1.0 // indirect
@@ -58,4 +58,4 @@ require (
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 )
 
-replace github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.59.159
+replace github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.59.259
