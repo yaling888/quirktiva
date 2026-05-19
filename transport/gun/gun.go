@@ -15,14 +15,13 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
-	"golang.org/x/net/http2"
 
 	"github.com/yaling888/quirktiva/common/pool"
-	C "github.com/yaling888/quirktiva/constant"
 )
 
 var (
-	ErrInvalidLength = errors.New("invalid length")
+	errInvalidLength = errors.New("invalid length")
+	errUnsupported   = errors.New("invalid ALPN")
 
 	defaultHeader = http.Header{
 		"content-type": []string{"application/grpc"},
@@ -38,7 +37,7 @@ var _ net.Conn = (*Conn)(nil)
 
 type Conn struct {
 	net.Conn
-	clientConn *http2.ClientConn
+	clientConn *http.ClientConn
 	response   *http.Response
 	request    *http.Request
 	writer     *io.PipeWriter
@@ -52,6 +51,7 @@ type Conn struct {
 type Config struct {
 	ServiceName string
 	Host        string
+	DialFn      DialFn
 }
 
 func (g *Conn) initRequest() {
@@ -94,7 +94,7 @@ func (g *Conn) Read(b []byte) (n int, err error) {
 
 	protobufPayloadLen, err := binary.ReadUvarint(g.br)
 	if err != nil {
-		return 0, ErrInvalidLength
+		return 0, errInvalidLength
 	}
 
 	size := min(len(b), int(protobufPayloadLen))
@@ -158,54 +158,61 @@ func (g *Conn) Close() error {
 
 	_ = g.writer.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	if err := g.clientConn.Shutdown(ctx); err != nil {
+	if err := g.clientConn.Close(); err != nil {
 		return err
 	}
 
 	return g.Conn.Close()
 }
 
-func NewHTTP2Client(dialFn DialFn) *http2.Transport {
-	dialFunc := func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
-		plainConn, err := dialFn(network, addr)
+func NewHTTP2Client() *http.Transport {
+	return &http.Transport{
+		DialContext: func(ctx context.Context, network string, addr string) (net.Conn, error) {
+			return nil, errUnsupported
+		},
+		ForceAttemptHTTP2:     true,
+		DisableCompression:    true,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   8 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+}
+
+func StreamGunWithTransport(transport *http.Transport, tlsConfig *tls.Config, cfg *Config) (net.Conn, error) {
+	var plainConn net.Conn
+	dialFn := cfg.DialFn
+	dialTLSFn := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		var err error
+		plainConn, err = dialFn(network, addr)
 		if err != nil {
 			return nil, err
 		}
 
-		cfg.NextProtos = defaultALPN
+		tlsCfg := tlsConfig.Clone()
+		tlsCfg.NextProtos = defaultALPN
 
-		cn := tls.Client(plainConn, cfg)
+		cn := tls.Client(plainConn, tlsCfg)
 		if err = cn.HandshakeContext(ctx); err != nil {
 			_ = plainConn.Close()
 			return nil, err
 		}
 		state := cn.ConnectionState()
-		if p := state.NegotiatedProtocol; p != http2.NextProtoTLS {
+		if p := state.NegotiatedProtocol; p != "h2" {
 			_ = cn.Close()
-			return nil, fmt.Errorf("http2: unexpected ALPN protocol %s, want %s", p, http2.NextProtoTLS)
+			return nil, fmt.Errorf("http2: unexpected ALPN protocol %s, want h2", p)
 		}
 		return cn, nil
 	}
 
-	return &http2.Transport{
-		DialTLSContext:     dialFunc,
-		AllowHTTP:          false,
-		DisableCompression: true,
-		PingTimeout:        0,
-	}
-}
+	tr := transport.Clone()
+	tr.DialTLSContext = dialTLSFn
 
-func StreamGunWithTransport(transport *http2.Transport, tlsConfig *tls.Config, cfg *Config) (net.Conn, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTLSTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), tr.TLSHandshakeTimeout)
 	defer cancel()
-	tlsConn, err := transport.DialTLSContext(ctx, "", "", tlsConfig)
-	if err != nil {
-		return nil, err
-	}
 
-	clientConn, err := transport.NewClientConn(tlsConn)
+	clientConn, err := tr.NewClientConn(ctx, "https", net.JoinHostPort(tlsConfig.ServerName, "443"))
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +240,7 @@ func StreamGunWithTransport(transport *http2.Transport, tlsConfig *tls.Config, c
 	}
 
 	conn := &Conn{
-		Conn:       tlsConn,
+		Conn:       plainConn,
 		clientConn: clientConn,
 		request:    request,
 		writer:     writer,
@@ -248,7 +255,11 @@ func StreamGunWithConn(conn net.Conn, tlsConfig *tls.Config, cfg *Config) (net.C
 	dialFn := func(_, _ string) (net.Conn, error) {
 		return conn, nil
 	}
-
-	transport := NewHTTP2Client(dialFn)
-	return StreamGunWithTransport(transport, tlsConfig, cfg)
+	cfg1 := &Config{
+		ServiceName: cfg.ServiceName,
+		Host:        cfg.Host,
+		DialFn:      dialFn,
+	}
+	transport := NewHTTP2Client()
+	return StreamGunWithTransport(transport, tlsConfig, cfg1)
 }

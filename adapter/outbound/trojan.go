@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"golang.org/x/net/http2"
-
 	"github.com/yaling888/quirktiva/common/convert"
 	"github.com/yaling888/quirktiva/component/dialer"
 	"github.com/yaling888/quirktiva/component/resolver"
@@ -32,7 +30,7 @@ type Trojan struct {
 	// for gun mux
 	gunTLSConfig *tls.Config
 	gunConfig    *gun.Config
-	transport    *http2.Transport
+	transport    *http.Transport
 
 	quicAEAD  *crypto.AEAD
 	echConfig string
@@ -390,12 +388,13 @@ func NewTrojan(option TrojanOption) (*Trojan, error) {
 
 		t.setECHConfig(tlsConfig)
 
-		t.transport = gun.NewHTTP2Client(dialFn)
+		t.transport = gun.NewHTTP2Client()
 
 		t.gunTLSConfig = tlsConfig
 		t.gunConfig = &gun.Config{
 			ServiceName: option.GrpcOpts.GrpcServiceName,
 			Host:        tOption.ServerName,
+			DialFn:      dialFn,
 		}
 	case "quic":
 		quicAEAD, err := crypto.NewAEAD(t.option.QUICOpts.Security, t.option.QUICOpts.Key, "v2ray-quic-salt")

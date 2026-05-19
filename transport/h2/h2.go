@@ -2,6 +2,7 @@ package h2
 
 import (
 	"context"
+	"errors"
 	"io"
 	"math/rand/v2"
 	"net"
@@ -9,9 +10,9 @@ import (
 	"net/url"
 	"sync"
 	"time"
-
-	"golang.org/x/net/http2"
 )
+
+var errUnsupported = errors.New("invalid ALPN")
 
 type Config struct {
 	Hosts   []string
@@ -23,7 +24,7 @@ var _ net.Conn = (*h2Conn)(nil)
 
 type h2Conn struct {
 	net.Conn
-	*http2.ClientConn
+	cc      *http.ClientConn
 	pWriter *io.PipeWriter
 	resp    *http.Response
 	cfg     *Config
@@ -71,7 +72,7 @@ func (hc *h2Conn) establishConn() error {
 	}
 
 	// it will be close at :  `func (hc *h2Conn) Close() error`
-	resp, err := hc.RoundTrip(req)
+	resp, err := hc.cc.RoundTrip(req)
 	if err != nil {
 		hc.eErr = err
 		return err
@@ -129,32 +130,41 @@ func (hc *h2Conn) Close() error {
 			return err
 		}
 	}
-	var ctx context.Context
-	if hc.resp != nil {
-		ctx = hc.resp.Request.Context()
-	} else {
-		ctx1, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		ctx = ctx1
-	}
-	if err := hc.Shutdown(ctx); err != nil {
+	if err := hc.cc.Close(); err != nil {
 		return err
 	}
 	return hc.Conn.Close()
 }
 
 func StreamH2Conn(conn net.Conn, cfg *Config) (net.Conn, error) {
-	transport := &http2.Transport{}
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network string, addr string) (net.Conn, error) {
+			return nil, errUnsupported
+		},
+		DialTLSContext: func(ctx context.Context, network string, addr string) (net.Conn, error) {
+			return conn, nil
+		},
+		ForceAttemptHTTP2:     true,
+		DisableCompression:    true,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   8 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
 
-	cConn, err := transport.NewClientConn(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), transport.TLSHandshakeTimeout)
+	defer cancel()
+
+	cc, err := transport.NewClientConn(ctx, "https", "fake-host:443")
 	if err != nil {
 		return nil, err
 	}
 
 	return &h2Conn{
-		Conn:       conn,
-		ClientConn: cConn,
-		cfg:        cfg,
-		done:       make(chan struct{}),
+		Conn: conn,
+		cc:   cc,
+		cfg:  cfg,
+		done: make(chan struct{}),
 	}, nil
 }

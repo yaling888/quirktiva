@@ -12,8 +12,6 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/net/http2"
-
 	"github.com/yaling888/quirktiva/common/convert"
 	"github.com/yaling888/quirktiva/component/dialer"
 	"github.com/yaling888/quirktiva/component/resolver"
@@ -39,7 +37,7 @@ type Vmess struct {
 	// for gun mux
 	gunTLSConfig *tls.Config
 	gunConfig    *gun.Config
-	transport    *http2.Transport
+	transport    *http.Transport
 
 	quicAEAD  *crypto.AEAD
 	echConfig string
@@ -529,6 +527,7 @@ func NewVmess(option VmessOption) (*Vmess, error) {
 		gunConfig := &gun.Config{
 			ServiceName: v.option.GrpcOpts.GrpcServiceName,
 			Host:        v.option.ServerName,
+			DialFn:      dialFn,
 		}
 		tlsConfig := &tls.Config{
 			InsecureSkipVerify: v.option.SkipCertVerify,
@@ -545,7 +544,7 @@ func NewVmess(option VmessOption) (*Vmess, error) {
 
 		v.gunTLSConfig = tlsConfig
 		v.gunConfig = gunConfig
-		v.transport = gun.NewHTTP2Client(dialFn)
+		v.transport = gun.NewHTTP2Client()
 	case "quic":
 		quicAEAD, err := crypto.NewAEAD(v.option.QUICOpts.Security, v.option.QUICOpts.Key, "v2ray-quic-salt")
 		if err != nil {
