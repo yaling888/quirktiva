@@ -34,7 +34,7 @@ const (
 	ImageTrojan          = "trojangfw/trojan:latest"
 	ImageTrojanGo        = "p4gefau1t/trojan-go:latest"
 	ImageSnell           = "ghcr.io/icpz/snell-server:latest"
-	ImageXray            = "teddysun/xray:latest"
+	ImageXray            = "teddysun/xray:26.3.27"
 	ImageWireguardGo     = "masipcat/wireguard-go:latest"
 	ImageHysteria2       = "tobyxdd/hysteria:v2"
 )
