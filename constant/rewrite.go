@@ -1,7 +1,7 @@
 package constant
 
 import (
-	regexp "github.com/dlclark/regexp2"
+	"github.com/dlclark/regexp2/v2"
 	"github.com/expr-lang/expr/vm"
 )
 
@@ -88,9 +88,9 @@ func (rt RewriteType) String() string {
 }
 
 type Rewrite interface {
-	URLRegx() *regexp.Regexp
+	URLRegx() *regexp2.Regexp
 	RuleType() RewriteType
-	RuleRegx() []*regexp.Regexp
+	RuleRegx() []*regexp2.Regexp
 	RulePayload() []string
 	RuleExpr() *vm.Program
 	ReplaceURLPayload([]string) string

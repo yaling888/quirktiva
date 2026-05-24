@@ -3,7 +3,7 @@ package mitm
 import (
 	"testing"
 
-	regexp "github.com/dlclark/regexp2"
+	"github.com/dlclark/regexp2/v2"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/yaling888/quirktiva/constant"
@@ -38,12 +38,12 @@ func TestRewrite(t *testing.T) {
 
 	assert.Nil(t, err1)
 	assert.Equal(t, c1.RuleType(), constant.Mitm307)
-	assert.Equal(t, c1.URLRegx(), regexp.MustCompile(`^https?://example\.com/(resource2)/`, 0))
+	assert.Equal(t, c1.URLRegx().String(), regexp2.MustCompile(`^https?://example\.com/(resource2)/`).String())
 	assert.Equal(t, c1.RulePayload()[0], "https://example.com/new-$1/")
 
 	assert.Nil(t, err2)
 	assert.Equal(t, c2.RuleType(), constant.MitmRequestHeader)
-	assert.Equal(t, c2.RuleRegx()[0], regexp.MustCompile(`(\r\n)User-Agent:.+(\r\n)`, 0))
+	assert.Equal(t, c2.RuleRegx()[0].String(), regexp2.MustCompile(`(\r\n)User-Agent:.+(\r\n)`).String())
 	assert.Equal(t, c2.RulePayload()[0], "$1User-Agent: Clash/1.0$2")
 
 	assert.Nil(t, err4)

@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	regexp "github.com/dlclark/regexp2"
+	"github.com/dlclark/regexp2/v2"
 	"github.com/phuslu/log"
 	"github.com/samber/lo"
 	"gopkg.in/yaml.v3"
@@ -246,9 +246,9 @@ func newOrUpdateFetcher(
 	option adapter.ProxyOption,
 	pd *ProxySetProvider,
 ) (*ProxySetProvider, error) {
-	var filterReg *regexp.Regexp
+	var filterReg *regexp2.Regexp
 	if filter != "" {
-		f, err := regexp.Compile(filter, 0)
+		f, err := regexp2.Compile(filter)
 		if err != nil {
 			return nil, fmt.Errorf("invalid filter regex: %w", err)
 		}
@@ -287,7 +287,7 @@ type CompatibleProvider struct {
 	proxies     []C.Proxy
 	providers   []types.ProxyProvider
 	healthCheck *HealthCheck
-	filterRegx  *regexp.Regexp
+	filterRegx  *regexp2.Regexp
 	tmCheck     *time.Timer
 
 	hasProxy    bool
@@ -427,7 +427,7 @@ func (cp *CompatibleProvider) healthCheckWait() {
 	})
 }
 
-func NewCompatibleProvider(name string, hc *HealthCheck, filterRegx *regexp.Regexp) (*CompatibleProvider, error) {
+func NewCompatibleProvider(name string, hc *HealthCheck, filterRegx *regexp2.Regexp) (*CompatibleProvider, error) {
 	if hc.auto() {
 		go hc.process()
 	}
@@ -451,7 +451,7 @@ func proxiesOnUpdate(pd *ProxySetProvider) func([]C.Proxy) {
 	}
 }
 
-func proxiesParseAndFilter(filterReg *regexp.Regexp, option adapter.ProxyOption) parser[[]C.Proxy] {
+func proxiesParseAndFilter(filterReg *regexp2.Regexp, option adapter.ProxyOption) parser[[]C.Proxy] {
 	return func(buf []byte) ([]C.Proxy, error) {
 		schema := &ProxySchema{}
 

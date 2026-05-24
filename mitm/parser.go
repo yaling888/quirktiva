@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	regexp "github.com/dlclark/regexp2"
+	"github.com/dlclark/regexp2/v2"
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
 
@@ -21,11 +21,11 @@ func ParseRewrite(line string) (C.Rewrite, error) {
 
 	var (
 		ruleType    *C.RewriteType
-		ruleRegx    []*regexp.Regexp
+		ruleRegx    []*regexp2.Regexp
 		rulePayload []string
 	)
 
-	urlRegx, err := regexp.Compile(strings.Trim(url, " "), 0)
+	urlRegx, err := regexp2.Compile(strings.Trim(url, " "))
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func ParseRewrite(line string) (C.Rewrite, error) {
 			break
 		} else {
 			for _, str := range trimArr(strings.Split(rs[0], payloadSeparator)) {
-				regx, err := regexp.Compile(str, 0)
+				regx, err := regexp2.Compile(str)
 				if err != nil {
 					return nil, err
 				}

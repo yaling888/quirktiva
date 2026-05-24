@@ -3,7 +3,7 @@ package mitm
 import (
 	"strings"
 
-	regexp "github.com/dlclark/regexp2"
+	"github.com/dlclark/regexp2/v2"
 )
 
 var allowContentType = []string{
@@ -30,7 +30,7 @@ func canRewriteBody(mediaType string) bool {
 	return false
 }
 
-func findStringSubmatch(re *regexp.Regexp, s string) []string {
+func findStringSubmatch(re *regexp2.Regexp, s string) []string {
 	var sub []string
 	m, _ := re.FindStringMatch(s)
 	for m != nil {

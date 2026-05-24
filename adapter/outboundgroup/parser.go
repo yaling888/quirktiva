@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	regexp "github.com/dlclark/regexp2"
+	"github.com/dlclark/regexp2/v2"
 
 	"github.com/yaling888/quirktiva/adapter/outbound"
 	"github.com/yaling888/quirktiva/adapter/provider"
@@ -65,9 +65,9 @@ func ParseProxyGroup(
 		return nil, fmt.Errorf("%s: %w", groupName, errDuplicateProvider)
 	}
 
-	var filterRegx *regexp.Regexp
+	var filterRegx *regexp2.Regexp
 	if groupOption.Filter != "" {
-		regx, err := regexp.Compile(groupOption.Filter, 0)
+		regx, err := regexp2.Compile(groupOption.Filter)
 		if err != nil {
 			return nil, fmt.Errorf("%s: invalid filter regex: %w", groupName, err)
 		}

@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	regexp "github.com/dlclark/regexp2"
+	"github.com/dlclark/regexp2/v2"
 	"github.com/expr-lang/expr/vm"
 
 	C "github.com/yaling888/quirktiva/constant"
@@ -14,14 +14,14 @@ import (
 var errInvalid = errors.New("invalid rewrite rule")
 
 type RewriteRule struct {
-	urlRegx     *regexp.Regexp
+	urlRegx     *regexp2.Regexp
 	ruleType    C.RewriteType
-	ruleRegx    []*regexp.Regexp
+	ruleRegx    []*regexp2.Regexp
 	rulePayload []string
 	ruleExpr    *vm.Program
 }
 
-func (r *RewriteRule) URLRegx() *regexp.Regexp {
+func (r *RewriteRule) URLRegx() *regexp2.Regexp {
 	return r.urlRegx
 }
 
@@ -29,7 +29,7 @@ func (r *RewriteRule) RuleType() C.RewriteType {
 	return r.ruleType
 }
 
-func (r *RewriteRule) RuleRegx() []*regexp.Regexp {
+func (r *RewriteRule) RuleRegx() []*regexp2.Regexp {
 	return r.ruleRegx
 }
 
@@ -92,7 +92,7 @@ func (r *RewriteRule) ReplaceSubPayload(oldData string) (string, bool) {
 	return oldData, ok
 }
 
-func NewRewriteRule(urlRegx *regexp.Regexp, ruleType C.RewriteType, ruleRegx []*regexp.Regexp, rulePayload []string, ruleExpr *vm.Program) *RewriteRule {
+func NewRewriteRule(urlRegx *regexp2.Regexp, ruleType C.RewriteType, ruleRegx []*regexp2.Regexp, rulePayload []string, ruleExpr *vm.Program) *RewriteRule {
 	return &RewriteRule{
 		urlRegx:     urlRegx,
 		ruleType:    ruleType,
