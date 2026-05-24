@@ -4,8 +4,8 @@ go 1.26.3
 
 require (
 	github.com/andybalholm/brotli v1.2.1
-	github.com/apernet/hysteria/core/v2 v2.8.2
-	github.com/apernet/hysteria/extras/v2 v2.8.2
+	github.com/apernet/hysteria/core/v2 v2.9.2
+	github.com/apernet/hysteria/extras/v2 v2.9.2
 	github.com/cilium/ebpf v0.21.0
 	github.com/dlclark/regexp2/v2 v2.1.0
 	github.com/expr-lang/expr v1.17.8
@@ -58,4 +58,4 @@ require (
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 )
 
-replace github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.59.259
+replace github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.59.359

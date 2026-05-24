@@ -179,7 +179,7 @@ func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
 
 	var (
 		pinSHA256 = util.EmptyOr(option.PinSHA256, option.Fingerprint)
-		ob        obfs.Obfuscator
+		ob        func(pc net.PacketConn) (net.PacketConn, error)
 		err       error
 	)
 	switch strings.ToLower(option.Obfs) {
@@ -189,9 +189,15 @@ func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
 		}
 	case "salamander":
 		obfsParameter := util.EmptyOr(option.ObfsParam, option.ObfsPassword)
-		ob, err = obfs.NewSalamanderObfuscator([]byte(obfsParameter))
-		if err != nil {
-			return nil, fmt.Errorf("invalid obfs-param: %w", err)
+		ob = func(pc net.PacketConn) (net.PacketConn, error) {
+			return obfs.WrapPacketConnSalamander(pc, []byte(obfsParameter))
+		}
+	case "gecko":
+		obfsParameter := util.EmptyOr(option.ObfsParam, option.ObfsPassword)
+		ob = func(pc net.PacketConn) (net.PacketConn, error) {
+			return obfs.WrapPacketConnGecko(pc, obfs.GeckoOptions{
+				Password: []byte(obfsParameter),
+			})
 		}
 	default:
 		return nil, fmt.Errorf("unsupported obfs type: %s", option.Obfs)
@@ -232,8 +238,8 @@ func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
 	config := &client.Config{
 		Auth: h.option.Password,
 		ConnFactory: &adaptiveConnFactory{
-			Dial:       dial,
-			Obfuscator: ob,
+			dial:        dial,
+			obfsWrapper: ob,
 		},
 		TLSConfig: client.TLSConfig{
 			ServerName:         serverName,
@@ -305,19 +311,19 @@ func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
 }
 
 type adaptiveConnFactory struct {
-	Dial       func(addr net.Addr) (net.PacketConn, error)
-	Obfuscator obfs.Obfuscator // nil if no obfuscation
+	dial        func(addr net.Addr) (net.PacketConn, error)
+	obfsWrapper func(pc net.PacketConn) (net.PacketConn, error) // nil if no obfuscation
 }
 
 func (f *adaptiveConnFactory) New(addr net.Addr) (net.PacketConn, error) {
-	if f.Obfuscator == nil {
-		return f.Dial(addr)
+	if f.obfsWrapper == nil {
+		return f.dial(addr)
 	}
-	c, err := f.Dial(addr)
+	c, err := f.dial(addr)
 	if err != nil {
 		return nil, err
 	}
-	return obfs.WrapPacketConn(c, f.Obfuscator), nil
+	return f.obfsWrapper(c)
 }
 
 var _ net.PacketConn = (*hysteria2PacketConn)(nil)

@@ -15,8 +15,8 @@ require (
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
-	github.com/apernet/hysteria/core/v2 v2.8.2 // indirect
-	github.com/apernet/hysteria/extras/v2 v2.8.2 // indirect
+	github.com/apernet/hysteria/core/v2 v2.9.2 // indirect
+	github.com/apernet/hysteria/extras/v2 v2.9.2 // indirect
 	github.com/apernet/quic-go v0.59.1-0.20260425001925-6c6cc9bcb716 // indirect
 	github.com/cilium/ebpf v0.21.0 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
@@ -76,6 +76,6 @@ require (
 )
 
 replace (
-	github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.59.259
+	github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.59.359
 	github.com/yaling888/quirktiva => ../
 )
