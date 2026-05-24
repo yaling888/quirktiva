@@ -11,10 +11,10 @@ import (
 )
 
 // Option is part of Functional Options Pattern
-type Option[K comparable, V any] func(*LruCache[K, V])
+type Option[K comparable, V any] = func(*LruCache[K, V])
 
 // EvictCallback is used to get a callback when a cache entry is evicted
-type EvictCallback[K comparable, V any] func(key K, value V)
+type EvictCallback[K comparable, V any] = func(key K, value V)
 
 // WithEvict set to evict callback
 func WithEvict[K comparable, V any](cb EvictCallback[K, V]) Option[K, V] {

@@ -65,7 +65,7 @@ const (
 	tcpDefaultReceiveBufferSize = pool.NetBufferSize
 )
 
-type Option func(*stack.Stack) error
+type Option = func(*stack.Stack) error
 
 // WithDefault sets all default values for stack.
 func WithDefault() Option {

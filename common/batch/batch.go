@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-type Option[T any] func(b *Batch[T])
+type Option[T any] = func(b *Batch[T])
 
 type Result[T any] struct {
 	Value T

@@ -6,7 +6,7 @@ import (
 	C "github.com/yaling888/quirktiva/constant"
 )
 
-type IPCIDROption func(*IPCIDR)
+type IPCIDROption = func(*IPCIDR)
 
 func WithIPCIDRSourceIP(b bool) IPCIDROption {
 	return func(i *IPCIDR) {

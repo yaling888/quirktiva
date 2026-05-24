@@ -12,7 +12,7 @@ import (
 	"github.com/yaling888/quirktiva/constant/provider"
 )
 
-type urlTestOption func(*URLTest)
+type urlTestOption = func(*URLTest)
 
 func urlTestWithTolerance(tolerance uint16) urlTestOption {
 	return func(u *URLTest) {

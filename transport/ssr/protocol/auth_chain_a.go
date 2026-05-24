@@ -22,7 +22,7 @@ func init() {
 	register("auth_chain_a", newAuthChainA, 4)
 }
 
-type randDataLengthMethod func(int, []byte, *tools.XorShift128Plus) int
+type randDataLengthMethod = func(int, []byte, *tools.XorShift128Plus) int
 
 type authChainA struct {
 	*Base

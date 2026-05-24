@@ -28,7 +28,7 @@ type Protocol interface {
 	EncodePacket(buf *bytes.Buffer, b []byte) error
 }
 
-type protocolCreator func(b *Base) Protocol
+type protocolCreator = func(b *Base) Protocol
 
 var protocolList = make(map[string]struct {
 	overhead int

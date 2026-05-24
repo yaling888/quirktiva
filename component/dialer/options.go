@@ -16,7 +16,7 @@ type option struct {
 	direct        bool
 }
 
-type Option func(opt *option)
+type Option = func(opt *option)
 
 func WithInterface(name string) Option {
 	return func(opt *option) {

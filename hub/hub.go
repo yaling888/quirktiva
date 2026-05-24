@@ -6,7 +6,7 @@ import (
 	"github.com/yaling888/quirktiva/hub/route"
 )
 
-type Option func(*config.Config)
+type Option = func(*config.Config)
 
 func WithExternalUI(externalUI string) Option {
 	return func(cfg *config.Config) {

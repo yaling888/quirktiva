@@ -20,7 +20,7 @@ type Obfs interface {
 	StreamConn(net.Conn) net.Conn
 }
 
-type obfsCreator func(b *Base) Obfs
+type obfsCreator = func(b *Base) Obfs
 
 var obfsList = make(map[string]struct {
 	overhead int

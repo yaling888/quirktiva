@@ -20,7 +20,7 @@ var (
 	dirMode  os.FileMode = 0o755
 )
 
-type parser[V any] func([]byte) (V, error)
+type parser[V any] = func([]byte) (V, error)
 
 type fetcher[V any] struct {
 	name      string

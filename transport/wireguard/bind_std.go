@@ -45,9 +45,9 @@ func splitCoalescedMessages(_ []ipv6.Message, _ int, _ getGSOFunc) (n int, err e
 
 const udpSegmentMaxDatagrams = 64 // This is a hard limit imposed by the kernel.
 
-type setGSOFunc func(control *[]byte, gsoSize uint16)
+type setGSOFunc = func(control *[]byte, gsoSize uint16)
 
-type getGSOFunc func(control []byte) (int, error)
+type getGSOFunc = func(control []byte) (int, error)
 
 var _ wg.Bind = (*StdNetBind)(nil)
 

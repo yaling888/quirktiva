@@ -16,7 +16,7 @@ type Handler interface {
 }
 
 // TCPHandleFunc handles incoming TCP connection.
-type TCPHandleFunc func(c net.Conn)
+type TCPHandleFunc = func(c net.Conn)
 
 // UDPHandleFunc handles incoming UDP connection.
-type UDPHandleFunc func(stack *stack.Stack, id stack.TransportEndpointID, pkt *stack.PacketBuffer)
+type UDPHandleFunc = func(stack *stack.Stack, id stack.TransportEndpointID, pkt *stack.PacketBuffer)

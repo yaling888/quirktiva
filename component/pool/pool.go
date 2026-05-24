@@ -6,14 +6,14 @@ import (
 	"time"
 )
 
-type Factory[T any] func(context.Context) (T, error)
+type Factory[T any] = func(context.Context) (T, error)
 
 type entry[T any] struct {
 	elm  T
 	time time.Time
 }
 
-type Option[T any] func(*pool[T])
+type Option[T any] = func(*pool[T])
 
 // WithEvict set the evict callback
 func WithEvict[T any](cb func(T)) Option[T] {
