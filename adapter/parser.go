@@ -230,6 +230,25 @@ func ParseProxy(mapping map[string]any, option ProxyOption) (C.Proxy, error) {
 			hysteria2Option.RemoteDnsResolve = false
 		}
 		proxy, err = outbound.NewHysteria2(*hysteria2Option)
+	case "anytls":
+		anyTLSOption := outbound.AnyTLSOption{RemoteDnsResolve: true}
+		err = decoder.Decode(mapping, &anyTLSOption)
+		if err != nil {
+			break
+		}
+		if option.ForceCertVerify {
+			anyTLSOption.SkipCertVerify = false
+		}
+		if option.ForceUDP {
+			anyTLSOption.UDP = true
+		}
+		if option.DisableUDP {
+			anyTLSOption.UDP = false
+		}
+		if option.DisableDNS {
+			anyTLSOption.RemoteDnsResolve = false
+		}
+		proxy, err = outbound.NewAnyTLS(anyTLSOption)
 	default:
 		return nil, fmt.Errorf("unsupport proxy type: %s", proxyType)
 	}

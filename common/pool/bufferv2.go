@@ -306,7 +306,7 @@ func growSlice(b []byte, n int) []byte {
 	// This avoids unnecessary zero-ing of the first len(b) bytes of the
 	// allocated slice, but this pattern causes b to escape onto the heap.
 	//
-	// Instead use the append-make pattern with a nil slice to ensure that
+	// Instead, use the append-make pattern with a nil slice to ensure that
 	// we allocate buffers rounded up to the closest size class.
 	//
 	// ensure enough space for n elements
@@ -480,6 +480,10 @@ func (bw *BufferWriter) Write(p []byte) (n int, err error) {
 	n = len(p)
 	bw.PutSlice(p)
 	return
+}
+
+func (bw *BufferWriter) WriteZeroN(n int) {
+	clear(bw.next(n))
 }
 
 func (bw *BufferWriter) Bytes() []byte {

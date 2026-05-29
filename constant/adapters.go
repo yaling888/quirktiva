@@ -25,6 +25,7 @@ const (
 	Trojan
 	WireGuard
 	Hysteria2
+	AnyTLS
 
 	Relay
 	Selector
@@ -160,6 +161,8 @@ func (at AdapterType) String() string {
 		return "WireGuard"
 	case Hysteria2:
 		return "Hysteria2"
+	case AnyTLS:
+		return "AnyTLS"
 
 	case Relay:
 		return "Relay"

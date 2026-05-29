@@ -1,0 +1,472 @@
+package session
+
+import (
+	"crypto/md5"
+	"encoding/binary"
+	"fmt"
+	"io"
+	"net"
+	"slices"
+	"strconv"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/phuslu/log"
+
+	"github.com/yaling888/quirktiva/common/pool"
+	"github.com/yaling888/quirktiva/constant"
+	"github.com/yaling888/quirktiva/transport/anytls/padding"
+	"github.com/yaling888/quirktiva/transport/anytls/util"
+)
+
+type Session struct {
+	conn     net.Conn
+	connLock sync.Mutex
+
+	streams    map[uint32]*Stream
+	streamId   atomic.Uint32
+	streamLock sync.RWMutex
+
+	dieOnce sync.Once
+	die     chan struct{}
+	dieHook func()
+
+	synDone     func()
+	synDoneLock sync.Mutex
+
+	// pool
+	seq       uint64
+	idleSince time.Time
+	padding   *atomic.Pointer[padding.PaddingFactory]
+
+	peerVersion byte
+
+	// client
+	isClient    bool
+	sendPadding bool
+	buffering   bool
+	buffer      []byte
+	pktCounter  atomic.Uint32
+
+	// server
+	onNewStream func(stream *Stream)
+}
+
+func NewClientSession(conn net.Conn, _padding *atomic.Pointer[padding.PaddingFactory]) *Session {
+	s := &Session{
+		conn:        conn,
+		isClient:    true,
+		sendPadding: true,
+		padding:     _padding,
+	}
+	s.die = make(chan struct{})
+	s.streams = make(map[uint32]*Stream)
+	return s
+}
+
+func (s *Session) Run() {
+	settings := util.StringMap{
+		"v":           "2",
+		"client":      "quirktiva/" + constant.Version,
+		"padding-md5": s.padding.Load().Md5,
+	}
+	f := newFrame(cmdSettings, 0)
+	f.data = settings.ToBytes()
+	s.buffering = true
+	_, _ = s.writeControlFrame(f)
+
+	go s.recvLoop()
+}
+
+// IsClosed does a safe check to see if we have shutdown
+func (s *Session) IsClosed() bool {
+	select {
+	case <-s.die:
+		return true
+	default:
+		return false
+	}
+}
+
+// Close is used to close the session and all streams.
+func (s *Session) Close() error {
+	var once bool
+	s.dieOnce.Do(func() {
+		close(s.die)
+		once = true
+	})
+	if once {
+		if s.dieHook != nil {
+			s.dieHook()
+			s.dieHook = nil
+		}
+		s.streamLock.Lock()
+		for _, stream := range s.streams {
+			stream.closeLocally()
+		}
+		s.streams = make(map[uint32]*Stream)
+		s.streamLock.Unlock()
+		return s.conn.Close()
+	} else {
+		return io.ErrClosedPipe
+	}
+}
+
+// OpenStream is used to create a new stream for CLIENT
+func (s *Session) OpenStream() (*Stream, error) {
+	if s.IsClosed() {
+		return nil, io.ErrClosedPipe
+	}
+
+	sid := s.streamId.Add(1)
+	stream := newStream(sid, s)
+
+	if sid >= 2 && s.peerVersion >= 2 {
+		s.synDoneLock.Lock()
+		if s.synDone != nil {
+			s.synDone()
+		}
+		s.synDone = util.NewDeadlineWatcher(time.Second*3, func() {
+			_ = s.Close()
+		})
+		s.synDoneLock.Unlock()
+	}
+
+	if _, err := s.writeControlFrame(newFrame(cmdSYN, sid)); err != nil {
+		return nil, err
+	}
+
+	s.buffering = false // proxy Write it's SocksAddr to flush the buffer
+
+	s.streamLock.Lock()
+	defer s.streamLock.Unlock()
+	select {
+	case <-s.die:
+		return nil, io.ErrClosedPipe
+	default:
+		s.streams[sid] = stream
+		return stream, nil
+	}
+}
+
+func (s *Session) recvLoop() error {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error().Msgf("[BUG] %v", r)
+		}
+	}()
+	defer s.Close()
+
+	var receivedSettingsFromClient bool
+	var hdr rawHeader
+
+	for {
+		if s.IsClosed() {
+			return io.ErrClosedPipe
+		}
+		// read header first
+		if _, err := io.ReadFull(s.conn, hdr[:]); err == nil {
+			sid := hdr.StreamID()
+			switch hdr.Cmd() {
+			case cmdPSH:
+				if hdr.Length() > 0 {
+					buffer := pool.GetBufferWriter()
+					if err := buffer.ReadFull(s.conn, int(hdr.Length())); err == nil {
+						s.streamLock.RLock()
+						stream, ok := s.streams[sid]
+						s.streamLock.RUnlock()
+						if ok {
+							_, _ = stream.pipeW.Write(buffer.Bytes())
+						}
+						pool.PutBufferWriter(buffer)
+					} else {
+						pool.PutBufferWriter(buffer)
+						return err
+					}
+				}
+			case cmdSYN: // should be server only
+				if !s.isClient && !receivedSettingsFromClient {
+					f := newFrame(cmdAlert, 0)
+					f.data = []byte("client did not send its settings")
+					_, _ = s.writeControlFrame(f)
+					return nil
+				}
+				s.streamLock.Lock()
+				if _, ok := s.streams[sid]; !ok {
+					stream := newStream(sid, s)
+					s.streams[sid] = stream
+					go func() {
+						if s.onNewStream != nil {
+							s.onNewStream(stream)
+						} else {
+							_ = stream.Close()
+						}
+					}()
+				}
+				s.streamLock.Unlock()
+			case cmdSYNACK: // should be client only
+				s.synDoneLock.Lock()
+				if s.synDone != nil {
+					s.synDone()
+					s.synDone = nil
+				}
+				s.synDoneLock.Unlock()
+				if hdr.Length() > 0 {
+					buffer := pool.GetBufferWriter()
+					if err := buffer.ReadFull(s.conn, int(hdr.Length())); err != nil {
+						pool.PutBufferWriter(buffer)
+						return err
+					}
+					// report error
+					s.streamLock.RLock()
+					stream, ok := s.streams[sid]
+					s.streamLock.RUnlock()
+					if ok {
+						_ = stream.closeWithError(fmt.Errorf("remote: %s", buffer.String()))
+					}
+					pool.PutBufferWriter(buffer)
+				}
+			case cmdFIN:
+				s.streamLock.Lock()
+				stream, ok := s.streams[sid]
+				delete(s.streams, sid)
+				s.streamLock.Unlock()
+				if ok {
+					stream.closeLocally()
+				}
+			case cmdWaste:
+				if hdr.Length() > 0 {
+					buffer := pool.GetBufferWriter()
+					if err := buffer.ReadFull(s.conn, int(hdr.Length())); err != nil {
+						pool.PutBufferWriter(buffer)
+						return err
+					}
+					pool.PutBufferWriter(buffer)
+				}
+			case cmdSettings:
+				if hdr.Length() > 0 {
+					buffer := pool.GetBufferWriter()
+					if err := buffer.ReadFull(s.conn, int(hdr.Length())); err != nil {
+						pool.PutBufferWriter(buffer)
+						return err
+					}
+					if !s.isClient {
+						receivedSettingsFromClient = true
+						m := util.StringMapFromBytes(buffer.Bytes())
+						paddingF := s.padding.Load()
+						if m["padding-md5"] != paddingF.Md5 {
+							f := newFrame(cmdUpdatePaddingScheme, 0)
+							f.data = paddingF.RawScheme
+							_, err = s.writeControlFrame(f)
+							if err != nil {
+								pool.PutBufferWriter(buffer)
+								return err
+							}
+						}
+						// check client's version
+						if v, err := strconv.Atoi(m["v"]); err == nil && v >= 2 {
+							s.peerVersion = byte(v)
+							// send cmdServerSettings
+							f := newFrame(cmdServerSettings, 0)
+							f.data = util.StringMap{
+								"v": "2",
+							}.ToBytes()
+							_, err = s.writeControlFrame(f)
+							if err != nil {
+								pool.PutBufferWriter(buffer)
+								return err
+							}
+						}
+					}
+					pool.PutBufferWriter(buffer)
+				}
+			case cmdAlert:
+				if hdr.Length() > 0 {
+					buffer := pool.GetBufferWriter()
+					if err := buffer.ReadFull(s.conn, int(hdr.Length())); err != nil {
+						pool.PutBufferWriter(buffer)
+						return err
+					}
+					if s.isClient {
+						log.Error().Msgf("[Alert from server] %s", buffer.String())
+					}
+					pool.PutBufferWriter(buffer)
+					return nil
+				}
+			case cmdUpdatePaddingScheme:
+				if hdr.Length() > 0 {
+					// `rawScheme` Do not use buffer to prevent subsequent misuse
+					rawScheme := make([]byte, int(hdr.Length()))
+					if _, err := io.ReadFull(s.conn, rawScheme); err != nil {
+						return err
+					}
+					if s.isClient {
+						if padding.UpdatePaddingScheme(rawScheme, s.padding) {
+							log.Debug().Msgf("[Update padding succeed] %x", md5.Sum(rawScheme))
+						} else {
+							log.Warn().Msgf("[Update padding failed] %x", md5.Sum(rawScheme))
+						}
+					}
+				}
+			case cmdHeartRequest:
+				if _, err := s.writeControlFrame(newFrame(cmdHeartResponse, sid)); err != nil {
+					return err
+				}
+			case cmdHeartResponse:
+				// Active keepalive checking is not implemented yet
+				break
+			case cmdServerSettings:
+				if hdr.Length() > 0 {
+					buffer := pool.GetBufferWriter()
+					if err := buffer.ReadFull(s.conn, int(hdr.Length())); err != nil {
+						pool.PutBufferWriter(buffer)
+						return err
+					}
+					if s.isClient {
+						// check server's version
+						m := util.StringMapFromBytes(buffer.Bytes())
+						if v, err := strconv.Atoi(m["v"]); err == nil {
+							s.peerVersion = byte(v)
+						}
+					}
+					pool.PutBufferWriter(buffer)
+				}
+			default:
+				// I don't know what command it is (can't have data)
+			}
+		} else {
+			return err
+		}
+	}
+}
+
+func (s *Session) streamClosed(sid uint32) error {
+	if s.IsClosed() {
+		return io.ErrClosedPipe
+	}
+	_, err := s.writeControlFrame(newFrame(cmdFIN, sid))
+	s.streamLock.Lock()
+	delete(s.streams, sid)
+	s.streamLock.Unlock()
+	return err
+}
+
+func (s *Session) writeDataFrame(sid uint32, data []byte) (int, error) {
+	dataLen := len(data)
+
+	for remain := min(dataLen, 32768); remain > 0; remain = min(len(data), 32768) {
+		buffer := pool.GetBufferWriter()
+		buffer.PutUint8(cmdPSH)
+		buffer.PutUint32be(sid)
+		buffer.PutUint16be(uint16(remain))
+		buffer.PutSlice(data[:remain])
+		_, err := s.writeConn(buffer.Bytes())
+		pool.PutBufferWriter(buffer)
+		if err != nil {
+			return 0, err
+		}
+		data = data[remain:]
+	}
+
+	return dataLen, nil
+}
+
+func (s *Session) writeControlFrame(frame frame) (int, error) {
+	dataLen := len(frame.data)
+
+	buffer := pool.GetBufferWriter()
+	buffer.PutUint8(frame.cmd)
+	buffer.PutUint32be(frame.sid)
+	buffer.PutUint16be(uint16(dataLen))
+	buffer.PutSlice(frame.data)
+
+	_ = s.conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
+
+	_, err := s.writeConn(buffer.Bytes())
+	pool.PutBufferWriter(buffer)
+	if err != nil {
+		_ = s.Close()
+		return 0, err
+	}
+
+	_ = s.conn.SetWriteDeadline(time.Time{})
+
+	return dataLen, nil
+}
+
+func (s *Session) writeConn(b []byte) (n int, err error) {
+	s.connLock.Lock()
+	defer s.connLock.Unlock()
+
+	if s.buffering {
+		s.buffer = slices.Concat(s.buffer, b)
+		return len(b), nil
+	} else if len(s.buffer) > 0 {
+		b = slices.Concat(s.buffer, b)
+		s.buffer = nil
+	}
+
+	// calculate & send padding
+	if s.sendPadding {
+		pkt := s.pktCounter.Add(1)
+		paddingF := s.padding.Load()
+		if pkt < paddingF.Stop {
+			pktSizes := paddingF.GenerateRecordPayloadSizes(pkt)
+			for _, l := range pktSizes {
+				remainPayloadLen := len(b)
+				if l == padding.CheckMark {
+					if remainPayloadLen == 0 {
+						break
+					} else {
+						continue
+					}
+				}
+				if remainPayloadLen > l { // this packet is all payload
+					_, err = s.conn.Write(b[:l])
+					if err != nil {
+						return 0, err
+					}
+					n += l
+					b = b[l:]
+				} else if remainPayloadLen > 0 { // this packet contains padding and the last part of payload
+					paddingLen := l - remainPayloadLen - headerOverHeadSize
+					if paddingLen > 0 {
+						padding := make([]byte, headerOverHeadSize+paddingLen)
+						padding[0] = cmdWaste
+						binary.BigEndian.PutUint32(padding[1:5], 0)
+						binary.BigEndian.PutUint16(padding[5:7], uint16(paddingLen))
+						b = slices.Concat(b, padding)
+					}
+					_, err = s.conn.Write(b)
+					if err != nil {
+						return 0, err
+					}
+					n += remainPayloadLen
+					b = nil
+				} else { // this packet is all padding
+					padding := make([]byte, headerOverHeadSize+l)
+					padding[0] = cmdWaste
+					binary.BigEndian.PutUint32(padding[1:5], 0)
+					binary.BigEndian.PutUint16(padding[5:7], uint16(l))
+					_, err = s.conn.Write(padding)
+					if err != nil {
+						return 0, err
+					}
+					b = nil
+				}
+			}
+			// maybe still remain payload to write
+			if len(b) == 0 {
+				return
+			} else {
+				n2, err := s.conn.Write(b)
+				return n + n2, err
+			}
+		} else {
+			s.sendPadding = false
+		}
+	}
+
+	return s.conn.Write(b)
+}

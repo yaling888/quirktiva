@@ -1,0 +1,32 @@
+{
+  "log": {
+    "level": "debug",
+    "timestamp": true
+  },
+  "inbounds": [
+    {
+      "type": "anytls",
+      "tag": "anytls-in",
+      "listen": "0.0.0.0",
+      "listen_port": 10002,
+      "users": [
+        {
+          "name": "example",
+          "password": "b831381d-6324-4d53-ad4f-8cda48b30811"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "example.org",
+        "certificate_path": "/etc/sing-box/fullchain.pem",
+        "key_path": "/etc/sing-box/privkey.pem"
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ]
+}

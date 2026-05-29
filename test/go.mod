@@ -45,6 +45,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
+	github.com/sagernet/sing v0.8.10 // indirect
 	github.com/samber/lo v1.53.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/u-root/uio v0.0.0-20230220225925-ffce2a382923 // indirect
@@ -60,7 +61,7 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/goleak v1.3.0 // indirect
 	golang.org/x/crypto v0.51.0 // indirect
-	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842 // indirect
+	golang.org/x/exp v0.0.0-20240904232852-e7e105dedf7e // indirect
 	golang.org/x/mod v0.35.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect

@@ -37,6 +37,7 @@ const (
 	ImageXray            = "teddysun/xray:26.3.27"
 	ImageWireguardGo     = "masipcat/wireguard-go:latest"
 	ImageHysteria2       = "tobyxdd/hysteria:v2"
+	ImageSingBox         = "ghcr.io/sagernet/sing-box:latest"
 )
 
 var (
@@ -106,6 +107,7 @@ func init() {
 		ImageXray,
 		ImageWireguardGo,
 		ImageHysteria2,
+		ImageSingBox,
 	}
 
 	for _, imageM := range images {
@@ -264,18 +266,21 @@ func testPingPongWithConn(t *testing.T, dialFn func() (net.Conn, error)) error {
 
 	pingCh, pongCh, test := newPingPongPair()
 	go func() {
-		c, err := l.Accept()
+		cc, err := l.Accept()
 		if err != nil {
+			t.Error("testPingPongWithConn", err)
 			return
 		}
 
 		buf := make([]byte, 4)
-		if _, err := io.ReadFull(c, buf); err != nil {
+		if _, err := io.ReadFull(cc, buf); err != nil {
+			t.Error("testPingPongWithConn", err)
 			return
 		}
 
 		pingCh <- buf
-		if _, err := c.Write([]byte("pong")); err != nil {
+		if _, err := cc.Write([]byte("pong")); err != nil {
+			t.Error("testPingPongWithConn", err)
 			return
 		}
 	}()
@@ -286,11 +291,13 @@ func testPingPongWithConn(t *testing.T, dialFn func() (net.Conn, error)) error {
 
 	go func() {
 		if _, err := c.Write([]byte("ping")); err != nil {
+			t.Error("testPingPongWithConn", err)
 			return
 		}
 
 		buf := make([]byte, 4)
 		if _, err := io.ReadFull(c, buf); err != nil {
+			t.Error("testPingPongWithConn", err)
 			return
 		}
 
@@ -316,23 +323,27 @@ func testPingPongWithPacketConn(t *testing.T, pc net.PacketConn, port int) error
 		buf := make([]byte, 1024)
 		n, rAddr, err := l.ReadFrom(buf)
 		if err != nil {
+			t.Error("testPingPongWithPacketConn", err)
 			return
 		}
 
 		pingCh <- buf[:n]
 		if _, err := l.WriteTo([]byte("pong"), rAddr); err != nil {
+			t.Error("testPingPongWithPacketConn", err)
 			return
 		}
 	}()
 
 	go func() {
 		if _, err := pc.WriteTo([]byte("ping"), rAddr); err != nil {
+			t.Error("testPingPongWithPacketConn", err)
 			return
 		}
 
 		buf := make([]byte, 1024)
 		n, _, err := pc.ReadFrom(buf)
 		if err != nil {
+			t.Error("testPingPongWithPacketConn", err)
 			return
 		}
 
@@ -377,19 +388,19 @@ func testLargeDataWithConn(t *testing.T, dialFn func() (net.Conn, error)) error 
 	}
 
 	go func() {
-		c, err := l.Accept()
+		cc, err := l.Accept()
 		if err != nil {
 			return
 		}
-		defer c.Close()
+		defer cc.Close()
 
 		hashMap := map[int][]byte{}
 		buf := make([]byte, chunkSize)
 
 		for i := 0; i < times; i++ {
-			_, err := io.ReadFull(c, buf)
+			_, err := io.ReadFull(cc, buf)
 			if err != nil {
-				t.Log(err.Error())
+				t.Error("testLargeDataWithConn", err)
 				return
 			}
 
@@ -397,9 +408,9 @@ func testLargeDataWithConn(t *testing.T, dialFn func() (net.Conn, error)) error 
 			hashMap[int(buf[0])] = hash[:]
 		}
 
-		sendHash, err := writeRandData(c)
+		sendHash, err := writeRandData(cc)
 		if err != nil {
-			t.Log(err.Error())
+			t.Error("testLargeDataWithConn", err)
 			return
 		}
 
@@ -415,7 +426,7 @@ func testLargeDataWithConn(t *testing.T, dialFn func() (net.Conn, error)) error 
 	go func() {
 		sendHash, err := writeRandData(c)
 		if err != nil {
-			t.Log(err.Error())
+			t.Error("testLargeDataWithConn", err)
 			return
 		}
 
@@ -425,7 +436,7 @@ func testLargeDataWithConn(t *testing.T, dialFn func() (net.Conn, error)) error 
 		for i := 0; i < times; i++ {
 			_, err := io.ReadFull(c, buf)
 			if err != nil {
-				t.Log(err.Error())
+				t.Error("testLargeDataWithConn", err)
 				return
 			}
 
@@ -495,6 +506,7 @@ func testLargeDataWithPacketConn(t *testing.T, pc net.PacketConn, port int) erro
 		for len(hashMap) != times {
 			_, rAddr, err = l.ReadFrom(buf)
 			if err != nil {
+				t.Error("testLargeDataWithPacketConn", err)
 				return
 			}
 
@@ -506,7 +518,7 @@ func testLargeDataWithPacketConn(t *testing.T, pc net.PacketConn, port int) erro
 
 		sendHash, err := writeRandData(l, rAddr)
 		if err != nil {
-			t.Log(err.Error())
+			t.Error("testLargeDataWithPacketConn", err)
 			return
 		}
 
@@ -519,7 +531,7 @@ func testLargeDataWithPacketConn(t *testing.T, pc net.PacketConn, port int) erro
 	go func() {
 		sendHash, err := writeRandData(pc, rAddr)
 		if err != nil {
-			t.Log(err.Error())
+			t.Error("testLargeDataWithPacketConn", err)
 			return
 		}
 
@@ -529,6 +541,7 @@ func testLargeDataWithPacketConn(t *testing.T, pc net.PacketConn, port int) erro
 		for len(hashMap) != times {
 			_, _, err := pc.ReadFrom(buf)
 			if err != nil {
+				t.Error("testLargeDataWithPacketConn", err)
 				return
 			}
 
