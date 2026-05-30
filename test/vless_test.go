@@ -166,3 +166,82 @@ func TestClash_VlessHTTPUpgrade(t *testing.T) {
 	time.Sleep(waitTime)
 	testSuit(t, proxy)
 }
+
+func TestClash_VlessRealityXray(t *testing.T) {
+	cfg := &container.Config{
+		Image:        ImageXray,
+		ExposedPorts: defaultExposedPorts,
+	}
+	hostCfg := &container.HostConfig{
+		PortBindings: defaultPortBindings,
+		Binds: []string{
+			fmt.Sprintf("%s:/etc/xray/config.json", C.Path.Resolve("vless-reality-xray.json")),
+		},
+	}
+
+	id, err := startContainer(cfg, hostCfg, "vless-reality-xray")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = cleanContainer(id)
+	})
+
+	proxy, err := outbound.NewVless(outbound.VlessOption{
+		Name:              "vless",
+		Server:            localIP.String(),
+		Port:              10002,
+		UUID:              "b831381d-6324-4d53-ad4f-8cda48b30811",
+		TLS:               true,
+		ServerName:        "www.example.com",
+		UDP:               true,
+		Flow:              "xtls-rprx-vision",
+		ClientFingerprint: "chrome",
+		RealityOpts: outbound.RealityOptions{
+			PublicKey: "gwIz1rM1dcJagf-1lZ5GrqbvoWhKL8W_WoUaRu8GEDk",
+			ShortID:   "3bf0b2aa3acc4c63",
+		},
+	})
+	require.NoError(t, err)
+
+	time.Sleep(waitTime)
+	testSuit(t, proxy)
+}
+
+func TestClash_VlessRealitySingBox(t *testing.T) {
+	cfg := &container.Config{
+		Image:        ImageSingBox,
+		ExposedPorts: defaultExposedPorts,
+		Cmd:          []string{"-D", "/var/lib/sing-box", "-C", "/etc/sing-box/", "run"},
+	}
+	hostCfg := &container.HostConfig{
+		PortBindings: defaultPortBindings,
+		Binds: []string{
+			fmt.Sprintf("%s:/etc/sing-box/config.json", C.Path.Resolve("vless-reality-singbox.json")),
+		},
+	}
+
+	id, err := startContainer(cfg, hostCfg, "vless-reality-singbox")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = cleanContainer(id)
+	})
+
+	proxy, err := outbound.NewVless(outbound.VlessOption{
+		Name:              "vless",
+		Server:            localIP.String(),
+		Port:              10002,
+		UUID:              "b831381d-6324-4d53-ad4f-8cda48b30811",
+		TLS:               true,
+		ServerName:        "www.example.com",
+		UDP:               true,
+		Flow:              "xtls-rprx-vision",
+		ClientFingerprint: "chrome",
+		RealityOpts: outbound.RealityOptions{
+			PublicKey: "gwIz1rM1dcJagf-1lZ5GrqbvoWhKL8W_WoUaRu8GEDk",
+			ShortID:   "3bf0b2aa3acc4c63",
+		},
+	})
+	require.NoError(t, err)
+
+	time.Sleep(waitTime)
+	testSuit(t, proxy)
+}

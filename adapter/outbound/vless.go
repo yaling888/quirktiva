@@ -2,20 +2,27 @@ package outbound
 
 import (
 	"context"
+	"crypto/ecdh"
 	"crypto/tls"
 	"encoding/base64"
-	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"maps"
 	"net"
 	"net/http"
+	"reflect"
 	"strconv"
-	"sync"
+	"unsafe"
+
+	utls "github.com/refraction-networking/utls"
+	"github.com/sagernet/sing-vmess/packetaddr"
+	"github.com/sagernet/sing-vmess/vless"
+	"github.com/sagernet/sing/common/logger"
+	M "github.com/sagernet/sing/common/metadata"
+	N "github.com/sagernet/sing/common/network"
 
 	"github.com/yaling888/quirktiva/common/convert"
-	"github.com/yaling888/quirktiva/common/pool"
 	"github.com/yaling888/quirktiva/component/dialer"
 	"github.com/yaling888/quirktiva/component/resolver"
 	C "github.com/yaling888/quirktiva/constant"
@@ -25,16 +32,26 @@ import (
 	"github.com/yaling888/quirktiva/transport/h2"
 	"github.com/yaling888/quirktiva/transport/header"
 	"github.com/yaling888/quirktiva/transport/quic"
-	"github.com/yaling888/quirktiva/transport/socks5"
 	tls2 "github.com/yaling888/quirktiva/transport/tls"
-	"github.com/yaling888/quirktiva/transport/vless"
 	"github.com/yaling888/quirktiva/transport/vmess"
 )
 
-const (
-	// max packet length
-	maxLength = 1024 << 4
-)
+//go:linkname tlsRegistry github.com/sagernet/sing-vmess/vless.tlsRegistry
+var tlsRegistry []func(conn net.Conn) (loaded bool, netConn net.Conn, reflectType reflect.Type, reflectPointer uintptr)
+
+func init() {
+	tlsRegistry = append(tlsRegistry, func(conn net.Conn) (loaded bool, netConn net.Conn, reflectType reflect.Type, reflectPointer uintptr) {
+		uConn, loaded := N.CastReader[*utls.UConn](conn)
+		if loaded {
+			return true, uConn.NetConn(), reflect.TypeFor[utls.Conn](), uintptr(unsafe.Pointer(uConn.Conn))
+		}
+		tlsConn, loaded := N.CastReader[*utls.Conn](conn)
+		if loaded {
+			return true, tlsConn.NetConn(), reflect.TypeFor[utls.Conn](), uintptr(unsafe.Pointer(tlsConn))
+		}
+		return
+	})
+}
 
 var _ C.ProxyAdapter = (*Vless)(nil)
 
@@ -51,6 +68,13 @@ type Vless struct {
 	quicAEAD  *crypto.AEAD
 	echConfig string
 	lookupECH bool
+
+	realityConfig *tls2.RealityConfig
+}
+
+type RealityOptions struct {
+	PublicKey string `proxy:"public-key"`
+	ShortID   string `proxy:"short-id"`
 }
 
 type VlessOption struct {
@@ -75,6 +99,13 @@ type VlessOption struct {
 	AEADOpts         crypto.AEADOption `proxy:"aead-opts,omitempty"`
 	RandomHost       bool              `proxy:"rand-host,omitempty"`
 	RemoteDnsResolve bool              `proxy:"remote-dns-resolve,omitempty"`
+
+	Flow              string         `proxy:"flow,omitempty"`
+	ClientFingerprint string         `proxy:"client-fingerprint,omitempty"`
+	PacketEncoding    string         `proxy:"packet-encoding,omitempty"`
+	PacketAddr        bool           `proxy:"packet-addr,omitempty"`
+	XUDP              bool           `proxy:"xudp,omitempty"`
+	RealityOpts       RealityOptions `proxy:"reality-opts,omitempty"`
 }
 
 // StreamConn implements C.ProxyAdapter
@@ -276,7 +307,11 @@ func (v *Vless) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 
 			v.setECHConfig(tlsConfig)
 
-			c, err = tls2.StreamTLSConn(c, tlsConfig)
+			if v.realityConfig != nil {
+				c, err = tls2.StreamRealityConn(c, tlsConfig, v.realityConfig)
+			} else {
+				c, err = tls2.StreamTLSConn(c, tlsConfig)
+			}
 		}
 	}
 
@@ -289,27 +324,51 @@ func (v *Vless) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 		return nil, err
 	}
 
-	return v.client.StreamConn(c, parseVlessAddr(metadata))
+	switch metadata.NetWork {
+	case C.TCP:
+		return v.client.DialEarlyConn(c, parseVlessAddr(metadata))
+	case C.UDP:
+		if v.option.XUDP {
+			return v.client.DialEarlyXUDPPacketConn(c, parseVlessAddr(metadata))
+		} else if v.option.PacketAddr {
+			pc, err := v.client.DialEarlyPacketConn(c, M.Socksaddr{Fqdn: packetaddr.SeqPacketMagicAddress, Port: 443})
+			if err != nil {
+				_ = c.Close()
+				return nil, err
+			}
+			if !metadata.Resolved() {
+				rAddrs, err := resolver.LookupIP(context.Background(), metadata.Host)
+				if err != nil {
+					return c, fmt.Errorf("can't resolve ip, %w", err)
+				}
+				metadata.DstIP = rAddrs[0]
+			}
+			destination := parseVlessAddr(metadata)
+			return packetaddr.NewConn(pc, destination), nil
+		} else {
+			if !metadata.Resolved() {
+				rAddrs, err := resolver.LookupIP(context.Background(), metadata.Host)
+				if err != nil {
+					return c, fmt.Errorf("can't resolve ip, %w", err)
+				}
+				metadata.DstIP = rAddrs[0]
+			}
+			return v.client.DialEarlyPacketConn(c, parseVlessAddr(metadata))
+		}
+	default:
+		_ = c.Close()
+		return nil, net.UnknownNetworkError(metadata.NetWork.String())
+	}
 }
 
 // StreamPacketConn implements C.ProxyAdapter
 func (v *Vless) StreamPacketConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
-	// vless use stream-oriented udp with a special address, so we need a net.UDPAddr
-	if !metadata.Resolved() {
-		rAddrs, err := resolver.LookupIP(context.Background(), metadata.Host)
-		if err != nil {
-			return c, fmt.Errorf("can't resolve ip, %w", err)
-		}
-		metadata.DstIP = rAddrs[0]
-	}
-
 	var err error
 	c, err = v.StreamConn(c, metadata)
 	if err != nil {
 		return c, fmt.Errorf("new vless client error: %w", err)
 	}
-
-	return WrapConn(&vlessPacketConn{Conn: c, rAddr: metadata.UDPAddr()}), nil
+	return c, nil
 }
 
 // DialContext implements C.ProxyAdapter
@@ -330,7 +389,7 @@ func (v *Vless) DialContext(ctx context.Context, metadata *C.Metadata, opts ...d
 			safeConnClose(cc, err)
 		}(c)
 
-		c, err = v.client.StreamConn(c, parseVlessAddr(metadata))
+		c, err = v.client.DialEarlyConn(c, parseVlessAddr(metadata))
 		if err != nil {
 			return nil, err
 		}
@@ -348,7 +407,10 @@ func (v *Vless) DialContext(ctx context.Context, metadata *C.Metadata, opts ...d
 	}(c)
 
 	c, err = v.StreamConn(c, metadata)
-	return NewConn(c, v), err
+	if err != nil {
+		return nil, err
+	}
+	return NewConn(c, v), nil
 }
 
 // ListenPacketContext implements C.ProxyAdapter
@@ -356,15 +418,6 @@ func (v *Vless) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 	var c net.Conn
 	// gun transport
 	if v.transport != nil && len(opts) == 0 {
-		// vless use stream-oriented udp with a special address, so we need a net.UDPAddr
-		if !metadata.Resolved() {
-			rAddrs, err := resolver.LookupIP(context.Background(), metadata.Host)
-			if err != nil {
-				return nil, fmt.Errorf("can't resolve ip, %w", err)
-			}
-			metadata.DstIP = rAddrs[0]
-		}
-
 		tlsConfig := v.gunTLSConfig
 		if v.lookupECH {
 			tlsConfig = v.gunTLSConfig.Clone()
@@ -378,12 +431,37 @@ func (v *Vless) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 			safeConnClose(cc, err)
 		}(c)
 
-		c, err = v.client.StreamConn(c, parseVlessAddr(metadata))
+		if v.option.XUDP {
+			c, err = v.client.DialEarlyXUDPPacketConn(c, parseVlessAddr(metadata))
+		} else if v.option.PacketAddr {
+			pc, er := v.client.DialEarlyPacketConn(c, M.Socksaddr{Fqdn: packetaddr.SeqPacketMagicAddress, Port: 443})
+			if er != nil {
+				return nil, er
+			}
+			if !metadata.Resolved() {
+				rAddrs, err := resolver.LookupIP(context.Background(), metadata.Host)
+				if err != nil {
+					return nil, fmt.Errorf("can't resolve ip, %w", err)
+				}
+				metadata.DstIP = rAddrs[0]
+			}
+			c, err = packetaddr.NewConn(pc, parseVlessAddr(metadata)), nil
+		} else {
+			if !metadata.Resolved() {
+				rAddrs, err := resolver.LookupIP(context.Background(), metadata.Host)
+				if err != nil {
+					return nil, fmt.Errorf("can't resolve ip, %w", err)
+				}
+				metadata.DstIP = rAddrs[0]
+			}
+			c, err = v.client.DialEarlyPacketConn(c, parseVlessAddr(metadata))
+		}
+
 		if err != nil {
 			return nil, fmt.Errorf("new vless client error: %w", err)
 		}
 
-		return NewPacketConn(&vlessPacketConn{Conn: c, rAddr: metadata.UDPAddr()}, v), nil
+		return NewPacketConn(c.(net.PacketConn), v), nil
 	}
 
 	c, err = v.dialContext(ctx, opts...)
@@ -398,7 +476,7 @@ func (v *Vless) ListenPacketContext(ctx context.Context, metadata *C.Metadata, o
 
 	c, err = v.StreamPacketConn(c, metadata)
 	if err != nil {
-		return nil, fmt.Errorf("new vless client error: %w", err)
+		return nil, err
 	}
 
 	return NewPacketConn(c.(net.PacketConn), v), nil
@@ -435,118 +513,11 @@ func (v *Vless) setECHConfig(tlsConfig *tls.Config) {
 	}
 }
 
-func parseVlessAddr(metadata *C.Metadata) *vless.DstAddr {
-	var addrType byte
-	var addr []byte
-	switch metadata.AddrType() {
-	case socks5.AtypIPv4:
-		addrType = vless.AtypIPv4
-		addr = make([]byte, net.IPv4len)
-		copy(addr[:], metadata.DstIP.AsSlice())
-	case socks5.AtypIPv6:
-		addrType = vless.AtypIPv6
-		addr = make([]byte, net.IPv6len)
-		copy(addr[:], metadata.DstIP.AsSlice())
-	case socks5.AtypDomainName:
-		addrType = vless.AtypDomainName
-		addr = make([]byte, len(metadata.Host)+1)
-		addr[0] = byte(len(metadata.Host))
-		copy(addr[1:], metadata.Host)
+func parseVlessAddr(metadata *C.Metadata) M.Socksaddr {
+	if metadata.Resolved() {
+		return M.Socksaddr{Addr: metadata.DstIP, Port: uint16(metadata.DstPort)}
 	}
-
-	return &vless.DstAddr{
-		UDP:      metadata.NetWork == C.UDP,
-		AddrType: addrType,
-		Addr:     addr,
-		Port:     uint(metadata.DstPort),
-	}
-}
-
-type vlessPacketConn struct {
-	net.Conn
-	rAddr  net.Addr
-	remain int
-	mux    sync.Mutex
-}
-
-func (vc *vlessPacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
-	realAddr := vc.rAddr.(*net.UDPAddr)
-	destAddr := addr.(*net.UDPAddr)
-	if !realAddr.IP.Equal(destAddr.IP) || realAddr.Port != destAddr.Port {
-		return 0, errors.New("udp packet dropped due to mismatched remote address")
-	}
-
-	total := len(b)
-	if total == 0 {
-		return 0, nil
-	}
-	if total <= maxLength {
-		return writePacket(vc.Conn, b)
-	}
-
-	offset := 0
-	for {
-		cursor := min(offset+maxLength, total)
-
-		n, err := writePacket(vc.Conn, b[offset:cursor])
-		if err != nil {
-			return offset + n, err
-		}
-
-		offset = cursor
-		if offset == total {
-			break
-		}
-	}
-
-	return total, nil
-}
-
-func (vc *vlessPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
-	vc.mux.Lock()
-	defer vc.mux.Unlock()
-
-	if vc.remain > 0 {
-		length := min(len(b), vc.remain)
-
-		n, err := vc.Read(b[:length])
-		if err != nil {
-			return n, vc.rAddr, err
-		}
-
-		vc.remain -= n
-
-		return n, vc.rAddr, nil
-	}
-
-	if n, err := io.ReadFull(vc.Conn, b[:2]); err != nil {
-		return n, vc.rAddr, fmt.Errorf("read length error: %w", err)
-	}
-
-	total := int(binary.BigEndian.Uint16(b[:2]))
-	if total == 0 || total > maxLength {
-		return 0, vc.rAddr, fmt.Errorf("invalid packet length: %d", total)
-	}
-
-	length := min(len(b), total)
-
-	if n, err := io.ReadFull(vc.Conn, b[:length]); err != nil {
-		return n, vc.rAddr, fmt.Errorf("read packet error: %w", err)
-	}
-
-	vc.remain = total - length
-
-	return length, vc.rAddr, nil
-}
-
-func writePacket(w io.Writer, b []byte) (n int, err error) {
-	bufP := pool.GetNetBuf()
-	defer pool.PutNetBuf(bufP)
-
-	binary.BigEndian.PutUint16(*bufP, uint16(len(b)))
-	n = copy((*bufP)[2:], b)
-	_, err = w.Write((*bufP)[:2+n])
-	return
+	return M.Socksaddr{Addr: metadata.DstIP, Fqdn: metadata.Host, Port: uint16(metadata.DstPort)}
 }
 
 func NewVless(option VlessOption) (*Vless, error) {
@@ -571,7 +542,48 @@ func NewVless(option VlessOption) (*Vless, error) {
 		return nil, err
 	}
 
-	client, err := vless.NewClient(option.UUID)
+	var realityConfig *tls2.RealityConfig
+	if option.RealityOpts.PublicKey != "" {
+		realityConfig = &tls2.RealityConfig{}
+		publicKeyBytes, err := base64.RawURLEncoding.DecodeString(option.RealityOpts.PublicKey)
+		if err != nil || len(publicKeyBytes) != 32 {
+			return nil, errors.New("invalid reality public key")
+		}
+		realityConfig.PublicKey, err = ecdh.X25519().NewPublicKey(publicKeyBytes)
+		if err != nil {
+			return nil, err
+		}
+		if err != nil {
+			return nil, fmt.Errorf("fail to create reality public key: %w", err)
+		}
+
+		n := hex.DecodedLen(len(option.RealityOpts.ShortID))
+		if n > 8 {
+			return nil, errors.New("invalid reality short ID")
+		}
+
+		n, err = hex.Decode(realityConfig.ShortID[:], []byte(option.RealityOpts.ShortID))
+		if err != nil || n > 8 {
+			return nil, errors.New("invalid reality short ID")
+		}
+
+		realityConfig.ClientHelloID = tls2.GetFingerprint(option.ClientFingerprint)
+	}
+
+	switch option.PacketEncoding {
+	case "packetaddr", "packet":
+		option.PacketAddr = true
+		option.XUDP = false
+	default:
+		if !option.PacketAddr {
+			option.XUDP = true
+		}
+	}
+	if option.XUDP {
+		option.PacketAddr = false
+	}
+
+	client, err := vless.NewClient(option.UUID, option.Flow, logger.NOP())
 	if err != nil {
 		return nil, err
 	}
@@ -583,12 +595,15 @@ func NewVless(option VlessOption) (*Vless, error) {
 			tp:    C.Vless,
 			udp:   option.UDP,
 			iface: option.Interface,
+			rmark: option.RoutingMark,
 			dns:   option.RemoteDnsResolve,
 		},
 		client:    client,
 		option:    &option,
 		echConfig: echConfig,
 		lookupECH: lookupECH,
+
+		realityConfig: realityConfig,
 	}
 
 	host := option.Server

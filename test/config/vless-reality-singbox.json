@@ -1,0 +1,39 @@
+{
+  "log": {
+    "level": "debug",
+    "timestamp": true
+  },
+  "inbounds": [
+    {
+      "type": "vless",
+      "tag": "vless-in",
+      "listen": "0.0.0.0",
+      "listen_port": 10002,
+      "users": [
+        {
+          "uuid": "b831381d-6324-4d53-ad4f-8cda48b30811",
+          "flow": "xtls-rprx-vision"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "www.example.com",
+        "reality": {
+          "enabled": true,
+          "handshake": {
+            "server": "www.example.com",
+            "server_port": 443
+          },
+          "private_key": "qGtFnyJsDWBeDwMcpIaz4nAAaIgZv5gncd7AGyxwVkw",
+          "short_id": ["3bf0b2aa3acc4c63"]
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ]
+}

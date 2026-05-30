@@ -19,7 +19,9 @@ require (
 	github.com/oschwald/geoip2-golang/v2 v2.1.0
 	github.com/phuslu/log v1.0.124
 	github.com/quic-go/quic-go v0.59.0
+	github.com/refraction-networking/utls v1.8.2
 	github.com/sagernet/sing v0.8.10
+	github.com/sagernet/sing-vmess v0.2.8-0.20250909125414-3aed155119a1
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.11.1
 	github.com/vishvananda/netlink v1.3.1
@@ -43,9 +45,12 @@ require (
 require (
 	github.com/ajg/form v1.5.1 // indirect
 	github.com/apernet/quic-go v0.59.1-0.20260425001925-6c6cc9bcb716 // indirect
+	github.com/cloudflare/circl v1.3.9 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/gofrs/uuid/v5 v5.3.2 // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/josharian/native v1.1.0 // indirect
+	github.com/metacubex/utls v1.7.3 // indirect
 	github.com/oschwald/maxminddb-golang/v2 v2.1.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.14 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect

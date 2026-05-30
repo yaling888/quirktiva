@@ -1,0 +1,35 @@
+{
+    "inbounds": [
+        {
+            "port": 10002,
+            "listen": "0.0.0.0",
+            "protocol": "vless",
+            "settings": {
+                "clients": [
+                    {
+                        "id": "b831381d-6324-4d53-ad4f-8cda48b30811",
+                        "level": 0,
+                        "email": "ws@example.com",
+                        "flow": "xtls-rprx-vision"
+                    }
+                ],
+                "decryption": "none"
+            },
+            "streamSettings": {
+                "network": "tcp",
+                "security": "reality",
+                "realitySettings": {
+                    "dest": "www.example.com:443",
+                    "serverNames": ["www.example.com"],
+                    "privateKey": "qGtFnyJsDWBeDwMcpIaz4nAAaIgZv5gncd7AGyxwVkw",
+                    "shortIds": ["3bf0b2aa3acc4c63"]
+                }
+            }
+        }
+    ],
+    "outbounds": [
+        {
+            "protocol": "freedom"
+        }
+    ]
+}
