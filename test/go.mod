@@ -45,7 +45,7 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.14 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
-	github.com/quic-go/quic-go v0.59.1 // indirect
+	github.com/quic-go/quic-go v0.60.0 // indirect
 	github.com/sagernet/sing v0.8.10 // indirect
 	github.com/samber/lo v1.53.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
@@ -78,6 +78,6 @@ require (
 )
 
 replace (
-	github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.59.359
+	github.com/apernet/quic-go => github.com/yaling888/quic-hy2 v0.60.0
 	github.com/yaling888/quirktiva => ../
 )
