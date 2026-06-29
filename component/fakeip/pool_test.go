@@ -37,7 +37,7 @@ func createCachefileStore(options Options) (*Pool, string, error) {
 		return nil, "", err
 	}
 
-	db, err := bbolt.Open(f.Name(), 0o666, &bbolt.Options{Timeout: time.Second})
+	db, err := bbolt.Open(f.Name(), 0o666, &bbolt.Options{Timeout: time.Second, NoStatistics: true})
 	if err != nil {
 		return nil, "", err
 	}

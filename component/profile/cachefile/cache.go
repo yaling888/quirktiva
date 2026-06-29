@@ -195,7 +195,7 @@ func (c *CacheFile) SetBucketFakeipKey(key string) {
 
 // Cache return singleton of CacheFile
 var Cache = sync.OnceValue(func() *CacheFile {
-	options := bbolt.Options{Timeout: time.Second}
+	options := bbolt.Options{Timeout: time.Second, NoStatistics: true}
 	db, err := bbolt.Open(C.Path.Cache(), fileMode, &options)
 	switch err {
 	case errors.ErrInvalid, errors.ErrChecksum, errors.ErrVersionMismatch:
