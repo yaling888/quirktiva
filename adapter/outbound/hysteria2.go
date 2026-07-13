@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -45,6 +46,8 @@ type Hysteria2Option struct {
 	HopInterval      time.Duration `proxy:"hop-interval,omitempty"`
 	Up               string        `proxy:"up,omitempty"`
 	Down             string        `proxy:"down,omitempty"`
+	ECHConfig        string        `proxy:"ech-config,omitempty"`
+	ECH              bool          `proxy:"ech,omitempty"`
 	UDP              bool          `proxy:"udp,omitempty"`
 	RemoteDnsResolve bool          `proxy:"remote-dns-resolve,omitempty"`
 }
@@ -58,6 +61,8 @@ type Hysteria2 struct {
 	option *Hysteria2Option
 
 	closeOnce sync.Once
+
+	lookupECH bool
 }
 
 func (h *Hysteria2) DialContext(ctx context.Context, metadata *C.Metadata, _ ...dialer.Option) (C.Conn, error) {
@@ -178,6 +183,19 @@ func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
 	}
 
 	var (
+		echConfig []byte
+		lookupECH = option.ECH
+	)
+	if option.ECHConfig != "" {
+		ech, err := base64.StdEncoding.DecodeString(option.ECHConfig)
+		if err != nil {
+			return nil, fmt.Errorf("invalid ECH config: %w", err)
+		}
+		echConfig = ech
+		lookupECH = false
+	}
+
+	var (
 		pinSHA256 = util.EmptyOr(option.PinSHA256, option.Fingerprint)
 		ob        func(pc net.PacketConn) (net.PacketConn, error)
 		err       error
@@ -225,7 +243,8 @@ func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
 			rmark: option.RoutingMark,
 			dns:   option.RemoteDnsResolve,
 		},
-		option: &option,
+		option:    &option,
+		lookupECH: lookupECH,
 	}
 
 	dial := h.makeDialer()
@@ -270,6 +289,10 @@ func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
 		}
 	}
 
+	if echConfig != nil {
+		config.TLSConfig.ECHConfigList = echConfig
+	}
+
 	cl, err := client.NewReconnectableClient(
 		func() (*client.Config, error) {
 			ip, err := resolver.ResolveProxyServerHost(h.option.Server)
@@ -291,8 +314,26 @@ func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
 				serverAddr = &net.UDPAddr{IP: ip.AsSlice(), Port: h.option.Port}
 			}
 			cfg := new(client.Config)
-			*cfg = *config
 			cfg.ServerAddr = serverAddr
+			cfg.Auth = config.Auth
+			cfg.ConnFactory = config.ConnFactory
+			cfg.TLSConfig = config.TLSConfig
+			cfg.QUICConfig = config.QUICConfig
+			cfg.CongestionConfig = config.CongestionConfig
+			cfg.BandwidthConfig = config.BandwidthConfig
+			cfg.FastOpen = config.FastOpen
+			if h.lookupECH {
+				ech, err := resolver.LookupECHForProxyServer(cfg.TLSConfig.ServerName)
+				if err != nil {
+					if err == resolver.ErrECHNotFound || errors.Is(err, resolver.ErrECHNotSupport) {
+						h.lookupECH = false
+					} else {
+						h.lookupECH = true
+					}
+					return cfg, nil
+				}
+				cfg.TLSConfig.ECHConfigList = ech
+			}
 			return cfg, nil
 		},
 		func(c client.Client, info *client.HandshakeInfo, count int) {

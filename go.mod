@@ -4,8 +4,8 @@ go 1.26.5
 
 require (
 	github.com/andybalholm/brotli v1.2.2
-	github.com/apernet/hysteria/core/v2 v2.9.3
-	github.com/apernet/hysteria/extras/v2 v2.9.3
+	github.com/apernet/hysteria/core/v2 v2.10.0
+	github.com/apernet/hysteria/extras/v2 v2.10.0
 	github.com/cilium/ebpf v0.22.0
 	github.com/dlclark/regexp2/v2 v2.2.2
 	github.com/expr-lang/expr v1.17.8
@@ -27,11 +27,11 @@ require (
 	go.starlark.net v0.0.0-20260630144053-529d8e869a14
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.6.0
-	golang.org/x/crypto v0.53.1-0.20260707170658-d9474cc4853d
-	golang.org/x/net v0.56.1-0.20260707164115-0f748cfbba95
-	golang.org/x/sync v0.21.1-0.20260701172934-1eb64d4bc0cd
-	golang.org/x/sys v0.46.1-0.20260630170731-9e7e939dcafa
-	golang.org/x/text v0.39.0
+	golang.org/x/crypto v0.54.0
+	golang.org/x/net v0.57.0
+	golang.org/x/sync v0.22.0
+	golang.org/x/sys v0.47.0
+	golang.org/x/text v0.40.0
 	golang.org/x/time v0.15.0
 	golang.zx2c4.com/wireguard v0.0.0-20260522210424-ecfc5a8d5446
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b
