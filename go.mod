@@ -7,7 +7,7 @@ require (
 	github.com/apernet/hysteria/core/v2 v2.10.0
 	github.com/apernet/hysteria/extras/v2 v2.10.0
 	github.com/cilium/ebpf v0.22.0
-	github.com/dlclark/regexp2/v2 v2.2.2
+	github.com/dlclark/regexp2/v2 v2.5.0
 	github.com/expr-lang/expr v1.17.8
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/go-chi/cors v1.2.2
@@ -24,7 +24,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/vishvananda/netlink v1.3.1
 	go.etcd.io/bbolt v1.5.0
-	go.starlark.net v0.0.0-20260630144053-529d8e869a14
+	go.starlark.net v0.0.0-20260710210843-dbae659a796e
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.6.0
 	golang.org/x/crypto v0.54.0
@@ -37,7 +37,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20260707220614-138036330864
+	gvisor.dev/gvisor v0.0.0-20260715073107-67db8f16ca32
 )
 
 require (
