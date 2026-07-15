@@ -24,7 +24,7 @@ require (
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/distribution/reference v0.6.0 // indirect
-	github.com/dlclark/regexp2/v2 v2.2.2 // indirect
+	github.com/dlclark/regexp2/v2 v2.5.0 // indirect
 	github.com/docker/go-connections v0.7.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/expr-lang/expr v1.17.8 // indirect
@@ -58,7 +58,7 @@ require (
 	go.opentelemetry.io/otel v1.43.0 // indirect
 	go.opentelemetry.io/otel/metric v1.43.0 // indirect
 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
-	go.starlark.net v0.0.0-20260630144053-529d8e869a14 // indirect
+	go.starlark.net v0.0.0-20260710210843-dbae659a796e // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/goleak v1.3.0 // indirect
 	golang.org/x/crypto v0.54.0 // indirect
@@ -74,7 +74,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	gvisor.dev/gvisor v0.0.0-20260707220614-138036330864 // indirect
+	gvisor.dev/gvisor v0.0.0-20260715073107-67db8f16ca32 // indirect
 )
 
 replace (
