@@ -33,6 +33,7 @@ type proxyProviderSchema struct {
 	DisableUDP      bool                `provider:"disable-udp,omitempty"`
 	DisableDNS      bool                `provider:"disable-dns,omitempty"`
 	RandomHost      bool                `provider:"rand-host,omitempty"`
+	ECH             bool                `provider:"ech,omitempty"`
 	PrefixName      string              `provider:"prefix-name,omitempty"`
 	Header          map[string][]string `provider:"header,omitempty"`
 }
@@ -40,9 +41,8 @@ type proxyProviderSchema struct {
 func ParseProxyProvider(name string, mapping map[string]any, _ bool) (types.ProxyProvider, error) {
 	decoder := structure.NewDecoder(structure.Option{TagName: "provider", WeaklyTypedInput: true})
 
-	globalForceCertVerify := true
 	schema := &proxyProviderSchema{
-		ForceCertVerify: globalForceCertVerify,
+		ForceCertVerify: true,
 		HealthCheck: healthCheckSchema{
 			Lazy: true,
 		},
@@ -71,10 +71,11 @@ func ParseProxyProvider(name string, mapping map[string]any, _ bool) (types.Prox
 		DisableUDP:      schema.DisableUDP,
 		DisableDNS:      schema.DisableDNS,
 		RandomHost:      schema.RandomHost,
+		ECH:             schema.ECH,
 		PrefixName:      schema.PrefixName,
 		AutoCipher:      true,
 	}
-	return NewProxySetProvider(name, interval, filter, vehicle, hc, globalForceCertVerify, option)
+	return NewProxySetProvider(name, interval, filter, vehicle, hc, option)
 }
 
 func newVehicle(schema *proxyProviderSchema) (types.Vehicle, error) {

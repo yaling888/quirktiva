@@ -17,6 +17,7 @@ type ProxyOption struct {
 	DisableDNS      bool
 	AutoCipher      bool
 	RandomHost      bool
+	ECH             bool
 	PrefixName      string
 }
 
@@ -85,6 +86,9 @@ func ParseProxy(mapping map[string]any, option ProxyOption) (C.Proxy, error) {
 		if option.DisableDNS {
 			socksOption.RemoteDnsResolve = false
 		}
+		if option.ECH {
+			socksOption.ECH = true
+		}
 		proxy, err = outbound.NewSocks5(*socksOption)
 	case "http":
 		httpOption := &outbound.HttpOption{RemoteDnsResolve: true}
@@ -97,6 +101,9 @@ func ParseProxy(mapping map[string]any, option ProxyOption) (C.Proxy, error) {
 		}
 		if option.DisableDNS {
 			httpOption.RemoteDnsResolve = false
+		}
+		if option.ECH {
+			httpOption.ECH = true
 		}
 		proxy, err = outbound.NewHttp(*httpOption)
 	case "vmess":
@@ -131,6 +138,9 @@ func ParseProxy(mapping map[string]any, option ProxyOption) (C.Proxy, error) {
 		if option.DisableDNS {
 			vmessOption.RemoteDnsResolve = false
 		}
+		if option.ECH {
+			vmessOption.ECH = true
+		}
 		proxy, err = outbound.NewVmess(*vmessOption)
 	case "vless":
 		vlessOption := &outbound.VlessOption{
@@ -160,6 +170,9 @@ func ParseProxy(mapping map[string]any, option ProxyOption) (C.Proxy, error) {
 		}
 		if option.RandomHost {
 			vlessOption.RandomHost = true
+		}
+		if option.ECH {
+			vlessOption.ECH = true
 		}
 		proxy, err = outbound.NewVless(*vlessOption)
 	case "snell":
@@ -199,6 +212,9 @@ func ParseProxy(mapping map[string]any, option ProxyOption) (C.Proxy, error) {
 		if option.DisableDNS {
 			trojanOption.RemoteDnsResolve = false
 		}
+		if option.ECH {
+			trojanOption.ECH = true
+		}
 		proxy, err = outbound.NewTrojan(*trojanOption)
 	case "wireguard":
 		wireguardOption := &outbound.WireGuardOption{
@@ -229,6 +245,9 @@ func ParseProxy(mapping map[string]any, option ProxyOption) (C.Proxy, error) {
 		if option.DisableDNS {
 			hysteria2Option.RemoteDnsResolve = false
 		}
+		if option.ECH {
+			hysteria2Option.ECH = true
+		}
 		proxy, err = outbound.NewHysteria2(*hysteria2Option)
 	case "anytls":
 		anyTLSOption := outbound.AnyTLSOption{RemoteDnsResolve: true}
@@ -247,6 +266,9 @@ func ParseProxy(mapping map[string]any, option ProxyOption) (C.Proxy, error) {
 		}
 		if option.DisableDNS {
 			anyTLSOption.RemoteDnsResolve = false
+		}
+		if option.ECH {
+			anyTLSOption.ECH = true
 		}
 		proxy, err = outbound.NewAnyTLS(anyTLSOption)
 	default:

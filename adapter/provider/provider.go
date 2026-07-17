@@ -46,7 +46,6 @@ type ProxySetProvider struct {
 	healthCheck *HealthCheck
 	proxies     []C.Proxy
 	groupNames  []string
-	globalFCV   bool
 	tmCheck     *time.Timer
 
 	mux  sync.Mutex // guards following fields
@@ -98,7 +97,7 @@ func (pp *ProxySetProvider) Update() error {
 
 		decoder := structure.NewDecoder(structure.Option{TagName: "provider", WeaklyTypedInput: true})
 
-		schema := &proxyProviderSchema{ForceCertVerify: pp.globalFCV}
+		schema := &proxyProviderSchema{ForceCertVerify: true}
 
 		for name, mapping := range rawCfg.ProxyProvider {
 			if name == pp.name {
@@ -120,13 +119,14 @@ func (pp *ProxySetProvider) Update() error {
 			DisableUDP:      schema.DisableUDP,
 			DisableDNS:      schema.DisableDNS,
 			RandomHost:      schema.RandomHost,
+			ECH:             schema.ECH,
 			PrefixName:      schema.PrefixName,
 			AutoCipher:      true,
 		}
 
 		pp.mux.Lock()
 
-		_, err = newOrUpdateFetcher(pp.name, schema.Interval, schema.Filter, vehicle, nil, pp.globalFCV, option, pp)
+		_, err = newOrUpdateFetcher(pp.name, schema.Interval, schema.Filter, vehicle, nil, option, pp)
 		if err != nil {
 			pp.mux.Unlock()
 			return err
@@ -230,10 +230,9 @@ func NewProxySetProvider(
 	filter string,
 	vehicle types.Vehicle,
 	hc *HealthCheck,
-	globalForceCertVerify bool,
 	option adapter.ProxyOption,
 ) (*ProxySetProvider, error) {
-	return newOrUpdateFetcher(name, interval, filter, vehicle, hc, globalForceCertVerify, option, nil)
+	return newOrUpdateFetcher(name, interval, filter, vehicle, hc, option, nil)
 }
 
 func newOrUpdateFetcher(
@@ -242,7 +241,6 @@ func newOrUpdateFetcher(
 	filter string,
 	vehicle types.Vehicle,
 	hc *HealthCheck,
-	globalForceCertVerify bool,
 	option adapter.ProxyOption,
 	pd *ProxySetProvider,
 ) (*ProxySetProvider, error) {
@@ -263,7 +261,6 @@ func newOrUpdateFetcher(
 		pd = &ProxySetProvider{
 			proxies:     []C.Proxy{},
 			healthCheck: hc,
-			globalFCV:   globalForceCertVerify,
 		}
 	} else {
 		_ = pd.Destroy()
