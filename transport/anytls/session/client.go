@@ -98,7 +98,7 @@ func (c *Client) CreateStream(ctx context.Context, opts ...dialer.Option) (net.C
 			select {
 			case <-c.die.Done():
 				// Now client has been closed
-				go session.Close()
+				_ = session.Close()
 			default:
 				c.idleSessionLock.Lock()
 				session.idleSince = time.Now()

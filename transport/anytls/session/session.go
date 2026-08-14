@@ -15,7 +15,6 @@ import (
 	"github.com/phuslu/log"
 
 	"github.com/yaling888/quirktiva/common/pool"
-	"github.com/yaling888/quirktiva/constant"
 	"github.com/yaling888/quirktiva/transport/anytls/padding"
 	"github.com/yaling888/quirktiva/transport/anytls/util"
 )
@@ -68,7 +67,7 @@ func NewClientSession(conn net.Conn, _padding *atomic.Pointer[padding.PaddingFac
 func (s *Session) Run() {
 	settings := util.StringMap{
 		"v":           "2",
-		"client":      "quirktiva/" + constant.Version,
+		"client":      util.Version,
 		"padding-md5": s.padding.Load().Md5,
 	}
 	f := newFrame(cmdSettings, 0)
@@ -93,6 +92,7 @@ func (s *Session) IsClosed() bool {
 func (s *Session) Close() error {
 	var once bool
 	s.dieOnce.Do(func() {
+		_ = s.conn.SetDeadline(time.Now())
 		close(s.die)
 		once = true
 	})
@@ -353,20 +353,21 @@ func (s *Session) streamClosed(sid uint32) error {
 }
 
 func (s *Session) writeDataFrame(sid uint32, data []byte) (int, error) {
+	const maxLen = 32768
 	dataLen := len(data)
 
-	for remain := min(dataLen, 32768); remain > 0; remain = min(len(data), 32768) {
+	for offset, remain := 0, min(dataLen, maxLen); remain > 0; remain = min(dataLen-offset, maxLen) {
 		buffer := pool.GetBufferWriter()
 		buffer.PutUint8(cmdPSH)
 		buffer.PutUint32be(sid)
 		buffer.PutUint16be(uint16(remain))
-		buffer.PutSlice(data[:remain])
+		buffer.PutSlice(data[offset : offset+remain])
 		_, err := s.writeConn(buffer.Bytes())
 		pool.PutBufferWriter(buffer)
 		if err != nil {
 			return 0, err
 		}
-		data = data[remain:]
+		offset += remain
 	}
 
 	return dataLen, nil
