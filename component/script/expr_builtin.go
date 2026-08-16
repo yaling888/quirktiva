@@ -29,6 +29,7 @@ type shortcutEnvironment struct {
 	ProcessPath  string  `expr:"process_path"`
 	UserAgent    string  `expr:"user_agent"`
 	SpecialProxy string  `expr:"special_proxy"`
+	IsECH        bool    `expr:"is_ech"`
 	Now          nowExpr `expr:"now"`
 
 	ResolveIP          scStringFunc          `expr:"resolve_ip"`
@@ -85,6 +86,7 @@ func parseEnv(mtd *C.Metadata, hasNow bool) shortcutEnvironment {
 		ProcessPath:  mtd.ProcessPath,
 		UserAgent:    mtd.UserAgent,
 		SpecialProxy: mtd.SpecialProxy,
+		IsECH:        mtd.IsECH,
 
 		InCidr:  uInCidr,
 		InIPSet: uInIPSet,

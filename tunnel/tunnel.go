@@ -368,19 +368,34 @@ func needSniffingSNI(metadata *C.Metadata) bool {
 }
 
 func sniffTCP(connCtx C.ConnContext, metadata *C.Metadata) (sniffer.SniffingType, error) {
+	needSniffing := needSniffingSNI(metadata)
+	if !needSniffing && metadata.DstPort != 443 {
+		return sniffer.OFF, nil
+	}
+
+	sniffingType := sniffer.OFF
+	if needSniffing {
+		sniffingType = sniffer.TLS
+	}
+
 	const sniffTLSTimeout = 50 * time.Millisecond
 
-	sniffingType := sniffer.TLS
 	readOnlyConn := sniffer.StreamReadOnlyConn(connCtx.Conn())
 
-	hostname := sniffer.SniffTLS(readOnlyConn, sniffTLSTimeout)
-	if hostname == "" {
+	hostname, isECH := sniffer.SniffTLS(readOnlyConn, sniffTLSTimeout)
+	if hostname == "" && needSniffing {
 		sniffingType = sniffer.HTTP
 		readOnlyConn = sniffer.StreamReadOnlyConn(readOnlyConn)
 		hostname = sniffer.SniffHTTP(readOnlyConn, time.Millisecond)
 	}
 
 	connCtx.InjectConn(readOnlyConn.UnreadConn())
+
+	metadata.IsECH = isECH
+
+	if !needSniffing || isECH {
+		return sniffer.OFF, nil
+	}
 
 	if sniffer.VerifyHostnameInSNI(hostname) {
 		metadata.Host = sniffer.ToLowerASCII(hostname)
@@ -400,19 +415,29 @@ func sniffTCP(connCtx C.ConnContext, metadata *C.Metadata) (sniffer.SniffingType
 }
 
 func sniffUDP(buf []byte, metadata *C.Metadata) (sniffer.SniffingType, error) {
+	needSniffing := needSniffingSNI(metadata)
+	if !needSniffing && metadata.DstPort != 443 {
+		return sniffer.OFF, nil
+	}
+
 	const sniffQUICTimeout = 3 * time.Millisecond
 
 	tried := false
 	r := bytes.NewReader(buf)
 retry:
-	hostname := sniffer.SniffQUIC(sniffer.NewFakePacketConn(r), sniffQUICTimeout)
+	hostname, isECH := sniffer.SniffQUIC(sniffer.NewFakePacketConn(r), sniffQUICTimeout)
 	if hostname == "" && !tried {
 		tried = true
 		r.Reset(buf)
 		goto retry
 	}
 
-	sniffingType := sniffer.QUIC
+	metadata.IsECH = isECH
+
+	if !needSniffing || isECH {
+		return sniffer.OFF, nil
+	}
+
 	if sniffer.VerifyHostnameInSNI(hostname) {
 		metadata.Host = sniffer.ToLowerASCII(hostname)
 		if resolver.MappingEnabled() {
@@ -421,13 +446,11 @@ retry:
 				metadata.DstIP = netip.Addr{}
 			}
 		}
-	} else {
-		sniffingType = sniffer.OFF
-		if resolver.IsFakeIP(metadata.DstIP) {
-			return sniffer.OFF, fmt.Errorf("fake DNS record %s missing", metadata.DstIP)
-		}
+		return sniffer.QUIC, nil
+	} else if resolver.IsFakeIP(metadata.DstIP) {
+		return sniffer.OFF, fmt.Errorf("fake DNS record %s missing", metadata.DstIP)
 	}
-	return sniffingType, nil
+	return sniffer.OFF, nil
 }
 
 func handleUDPConn(packet *inbound.PacketAdapter) {
@@ -498,7 +521,7 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 			cond.Broadcast()
 		}()
 
-		if needSniffingSNI(metadata) && len(*packet.Data()) >= 1200 {
+		if len(*packet.Data()) >= 1200 {
 			logDstIP := metadata.DstIP
 			sType, err := sniffUDP(*packet.Data(), metadata)
 			if err != nil {
@@ -641,21 +664,19 @@ func handleTCPConn(connCtx C.ConnContext) {
 		return
 	}
 
-	if needSniffingSNI(metadata) {
-		logDstIP := metadata.DstIP
-		sType, err := sniffTCP(connCtx, metadata)
-		if err != nil {
-			log.Debug().Err(err).Msg("[Sniffer] sniff failed")
-			return
-		}
-		if sType != sniffer.OFF {
-			if e := log.Debug(); e != nil {
-				e.
-					Str("host", metadata.Host).
-					NetIPAddr("ip", logDstIP).
-					Str("port", metadata.DstPort.String()).
-					Msgf("[Sniffer] update %s", sType.String())
-			}
+	logDstIP := metadata.DstIP
+	sType, err := sniffTCP(connCtx, metadata)
+	if err != nil {
+		log.Debug().Err(err).Msg("[Sniffer] sniff failed")
+		return
+	}
+	if sType != sniffer.OFF {
+		if e := log.Debug(); e != nil {
+			e.
+				Str("host", metadata.Host).
+				NetIPAddr("ip", logDstIP).
+				Str("port", metadata.DstPort.String()).
+				Msgf("[Sniffer] update %s", sType.String())
 		}
 	}
 

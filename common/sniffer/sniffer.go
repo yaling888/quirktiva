@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"slices"
 	"time"
 	"unsafe"
 
@@ -53,37 +54,50 @@ func SniffHTTP(conn net.Conn, timeout time.Duration) string {
 	return hostname
 }
 
-func SniffTLS(conn net.Conn, timeout time.Duration) string {
+const extensionEncryptedClientHello uint16 = 0xfe0d
+
+func SniffTLS(conn net.Conn, timeout time.Duration) (serverName string, isECH bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	serverName := ""
 	tlsConfig := &tls.Config{
 		GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 			serverName = trimLastDot(info.ServerName)
 			cancel()
 			return nil, nil
 		},
+		GetEncryptedClientHelloKeys: func(info *tls.ClientHelloInfo) ([]tls.EncryptedClientHelloKey, error) {
+			serverName = trimLastDot(info.ServerName)
+			isECH = true
+			cancel()
+			return nil, net.ErrClosed
+		},
 	}
 
 	serverConn := tls.Server(conn, tlsConfig)
 	_ = serverConn.HandshakeContext(ctx)
 	_ = serverConn.Close()
-	return serverName
+	return serverName, isECH
 }
 
 var defaultQUICConfig = quic.Config{Allow0RTT: true}
 
-func SniffQUIC(conn net.PacketConn, timeout time.Duration) string {
+func SniffQUIC(conn net.PacketConn, timeout time.Duration) (serverName string, isECH bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	serverName := ""
 	tlsConfig := &tls.Config{
 		GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 			serverName = info.ServerName
+			isECH = slices.Contains(info.Extensions, extensionEncryptedClientHello)
 			cancel()
 			return nil, nil
+		},
+		GetEncryptedClientHelloKeys: func(info *tls.ClientHelloInfo) ([]tls.EncryptedClientHelloKey, error) {
+			serverName = info.ServerName
+			isECH = true
+			cancel()
+			return nil, net.ErrClosed
 		},
 	}
 
@@ -92,7 +106,7 @@ func SniffQUIC(conn net.PacketConn, timeout time.Duration) string {
 		_, _ = l.Accept(ctx)
 		_ = l.Close()
 	}
-	return serverName
+	return serverName, isECH
 }
 
 // VerifyHostnameInSNI reports whether s is a valid hostname.

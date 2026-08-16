@@ -99,6 +99,7 @@ type Metadata struct {
 	ProcessPath  string     `json:"processPath"`
 	UserAgent    string     `json:"userAgent"`
 	SpecialProxy string     `json:"specialProxy"`
+	IsECH        bool       `json:"isECH"`
 
 	OriginDst netip.AddrPort `json:"-"`
 }

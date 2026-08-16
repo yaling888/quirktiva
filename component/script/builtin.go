@@ -206,6 +206,7 @@ func metadataToStringDict(mtd *C.Metadata, dict starlark.StringDict) (starlark.S
 	dict["user_agent"] = starlark.String(mtd.UserAgent)
 	dict["special_proxy"] = starlark.String(mtd.SpecialProxy)
 	dict["inbound_port"] = starlark.MakeUint64(uint64(mtd.OriginDst.Port()))
+	dict["is_ech"] = starlark.Bool(mtd.IsECH)
 
 	return dict, nil
 }
@@ -254,6 +255,10 @@ func metadataToDict(mtd *C.Metadata) (val *starlark.Dict, err error) {
 		return
 	}
 	err = dict.SetKey(starlark.String("inbound_port"), starlark.MakeUint64(uint64(mtd.OriginDst.Port())))
+	if err != nil {
+		return
+	}
+	err = dict.SetKey(starlark.String("is_ech"), starlark.Bool(mtd.IsECH))
 	if err != nil {
 		return
 	}
