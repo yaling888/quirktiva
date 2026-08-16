@@ -528,6 +528,8 @@ type Config struct {
 	SearchDomains  []string
 }
 
+const remoteResolverKey string = "remote-resolver"
+
 func NewResolver(config Config) *Resolver {
 	defaultResolver := &Resolver{
 		main: transform(config.Default, nil),
@@ -558,7 +560,7 @@ func NewResolver(config Config) *Resolver {
 
 	if len(config.Remote) != 0 {
 		remotes := lo.Map(config.Remote, func(item NameServer, _ int) NameServer {
-			item.Proxy = "remote-resolver"
+			item.Proxy = remoteResolverKey
 			return item
 		})
 		r.remote = transform(remotes, defaultResolver)

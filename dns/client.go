@@ -76,7 +76,7 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*rMsg, error) {
 
 	if p, ok := resolver.GetProxy(ctx); ok {
 		ctx = resolver.WithoutProxy(ctx) // clean up context value before dial conn, prevent loop call
-		if proxy == "" && !c.lan {
+		if (proxy == "" || proxy == remoteResolverKey) && !c.lan {
 			proxy = p
 		}
 	}
