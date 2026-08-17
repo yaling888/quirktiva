@@ -190,7 +190,10 @@ func NewSocks5(option Socks5Option) (*Socks5, error) {
 		if option.ECHConfig != "" {
 			ech, err := base64.StdEncoding.DecodeString(option.ECHConfig)
 			if err != nil {
-				return nil, fmt.Errorf("invalid ECH config: %w", err)
+				ech, err = base64.URLEncoding.DecodeString(option.ECHConfig)
+				if err != nil {
+					return nil, fmt.Errorf("invalid ECH config: %w", err)
+				}
 			}
 			tlsConfig.MinVersion = tls.VersionTLS13
 			tlsConfig.InsecureSkipVerify = false

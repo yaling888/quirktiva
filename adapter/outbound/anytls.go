@@ -85,7 +85,10 @@ func NewAnyTLS(option AnyTLSOption) (*AnyTLS, error) {
 	if option.ECHConfig != "" {
 		ech, err := base64.StdEncoding.DecodeString(option.ECHConfig)
 		if err != nil {
-			return nil, fmt.Errorf("invalid ECH config: %w", err)
+			ech, err = base64.URLEncoding.DecodeString(option.ECHConfig)
+			if err != nil {
+				return nil, fmt.Errorf("invalid ECH config: %w", err)
+			}
 		}
 		echConfig = string(ech)
 		lookupECH = false
