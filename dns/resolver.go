@@ -186,11 +186,10 @@ func (r *Resolver) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg, s
 	if hit && time.Now().Before(expireTime) {
 		msg1 := cacheM.Copy()
 		msg = msg1.Msg
-		source = msg1.Source
 		setMsgMaxTTL(msg, uint32(time.Until(expireTime).Seconds()))
-		return
+		return msg, msg1.Source, nil
 	}
-	msg1, err := r.exchangeWithoutCache(ctx, m, q, key, true)
+	msg1, err := r.exchangeRetryECHWithoutCache(ctx, m, q, key, true)
 	if err != nil {
 		return nil, "", err
 	}
@@ -208,11 +207,28 @@ func (r *Resolver) ExchangeContextWithoutCache(ctx context.Context, m *D.Msg) (m
 		key = genMsgCacheKey(ctx, q)
 	)
 
-	msg1, err := r.exchangeWithoutCache(ctx, m, q, key, false)
+	msg1, err := r.exchangeRetryECHWithoutCache(ctx, m, q, key, false)
 	if err != nil {
 		return nil, "", err
 	}
 	return msg1.Msg, msg1.Source, nil
+}
+
+// exchangeRetryECHWithoutCache retry dns request for type HTTPS to against some ugly dns provider returns 1 TTL records.
+func (r *Resolver) exchangeRetryECHWithoutCache(ctx context.Context, m *D.Msg, q D.Question, key string, cache bool) (msg *rMsg, err error) {
+	msg, err = r.exchangeWithoutCache(ctx, m, q, key, cache)
+	if err != nil {
+		return
+	}
+	if q.Qtype == D.TypeHTTPS {
+		if ttl := minECHTTL(msg.Msg.Answer); ttl == 1 {
+			ctx1, cancel1 := context.WithCancel(context.WithoutCancel(ctx))
+			defer cancel1()
+			m1 := m.Copy()
+			msg, err = r.exchangeWithoutCache(ctx1, m1, m1.Question[0], key, cache)
+		}
+	}
+	return
 }
 
 // exchangeWithoutCache a batch of dns request, and it does NOT GET from cache
@@ -220,11 +236,16 @@ func (r *Resolver) exchangeWithoutCache(ctx context.Context, m *D.Msg, q D.Quest
 	domain := strings.TrimSuffix(q.Name, ".")
 	ret, err, shared := r.group.Do(key, func() (res any, err error) {
 		defer func() {
-			if err != nil || !cache {
+			if err != nil {
 				return
 			}
 
 			msg1 := res.(*rMsg)
+			sortAnswer(msg1.Msg.Answer)
+
+			if !cache {
+				return
+			}
 
 			// OPT RRs MUST NOT be cached, forwarded, or stored in or loaded from master files.
 			msg1.Msg.Extra = lo.Filter(msg1.Msg.Extra, func(rr D.RR, index int) bool {
@@ -241,19 +262,11 @@ func (r *Resolver) exchangeWithoutCache(ctx context.Context, m *D.Msg, q D.Quest
 				return
 			}
 
-			if resolver.IsProxyServer(ctx) {
-				var sec uint32
-				if q.Qtype == D.TypeHTTPS {
-					sec = minTTL(msg1.Msg.Answer)
-					if sec == 0 {
-						return
-					}
-				} else {
-					// reset proxy server ip cache expire time to at least 20 minutes
-					sec = max(minTTL(msg1.Msg.Answer), 1200)
+			if resolver.IsProxyServer(ctx) && q.Qtype == D.TypeHTTPS {
+				if sec := minECHTTL(msg1.Msg.Answer); sec > 1 {
+					putMsgToCacheWithExpire(r.lruCache, key, msg1, sec)
+					return
 				}
-				putMsgToCacheWithExpire(r.lruCache, key, msg1, sec)
-				return
 			}
 
 			if msg1.Msg.Rcode == D.RcodeNameError { // Non-Existent Domain
@@ -273,7 +286,7 @@ func (r *Resolver) exchangeWithoutCache(ctx context.Context, m *D.Msg, q D.Quest
 			rst = r.exchangePolicyCombine(ctx, r.remote, m, domain)
 		} else if r.proxyServer != nil && resolver.IsProxyServer(ctx) {
 			rst = r.exchangePolicyCombine(ctx, r.proxyServer, m, domain)
-		} else if r.shouldOnlyQueryFallback(domain) {
+		} else if r.fallback != nil {
 			rst = r.exchangePolicyCombine(ctx, r.fallback, m, domain)
 		} else {
 			rst = r.exchangePolicyCombine(ctx, r.main, m, domain)

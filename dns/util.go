@@ -33,20 +33,19 @@ func putMsgToCache(c *cache.LruCache[string, *rMsg], key string, msg *rMsg) {
 }
 
 func putMsgToCacheWithExpire(c *cache.LruCache[string, *rMsg], key string, msg *rMsg, sec uint32) {
-	sortAnswer(msg.Msg.Answer)
-
 	if sec == 0 {
 		if sec = minTTL(msg.Msg.Answer); sec == 0 {
 			if sec = minTTL(msg.Msg.Ns); sec == 0 {
 				sec = minTTL(msg.Msg.Extra)
 			}
 		}
-		if sec <= 1 {
-			return
-		}
-		if !msg.Lan {
+		q := msg.Msg.Question[0]
+		if sec > 1 && !msg.Lan && (q.Qtype == D.TypeA || q.Qtype == D.TypeAAAA) {
 			sec = max(sec, 300) // at least 5 minutes to cache
 		}
+	}
+	if sec <= 1 {
+		return
 	}
 
 	c.SetWithExpire(key, msg.Copy(), time.Now().Add(time.Duration(sec)*time.Second))
@@ -94,6 +93,18 @@ func setTTL(records []D.RR, ttl uint32, force bool) {
 
 func minTTL(records []D.RR) uint32 {
 	minObj := lo.MinBy(records, func(r1 D.RR, r2 D.RR) bool {
+		return r1.Header().Ttl < r2.Header().Ttl
+	})
+	if minObj != nil {
+		return minObj.Header().Ttl
+	}
+	return 0
+}
+
+func minECHTTL(records []D.RR) uint32 {
+	minObj := lo.MinBy(lo.Filter(records, func(r D.RR, _ int) bool {
+		return r.Header().Rrtype == D.TypeHTTPS
+	}), func(r1 D.RR, r2 D.RR) bool {
 		return r1.Header().Ttl < r2.Header().Ttl
 	})
 	if minObj != nil {
@@ -188,6 +199,9 @@ func msgToIP(msg *D.Msg) []netip.Addr {
 		}
 	}
 
+	slices.SortFunc(ips, func(a, b netip.Addr) int {
+		return a.Compare(b)
+	})
 	return ips
 }
 
