@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"errors"
+	"fmt"
 	"io"
 	"math/rand/v2"
 	"net"
@@ -86,6 +86,8 @@ func (dc *dohClient) ExchangeContext(ctx context.Context, m *D.Msg) (msg *rMsg, 
 		if proxy == "" || proxy == remoteResolverKey {
 			proxy = p
 		}
+	} else if proxy == remoteResolverKey {
+		return nil, fmt.Errorf("doh-client: no proxy for %s", dc.urlLog)
 	}
 	if resolver.IsProxyServer(ctx) {
 		ctx = resolver.WithoutProxyServer(ctx) // clean up context value before dial conn, prevent loop call
@@ -103,13 +105,12 @@ func (dc *dohClient) ExchangeContext(ctx context.Context, m *D.Msg) (msg *rMsg, 
 	// In order to maximize cache friendliness, SHOULD use a DNS ID of 0 in every DNS request.
 	newM := *m
 	newM.Id = 0
-	req, err := dc.newRequest(&newM)
+	req, err := dc.newRequest(ctx, &newM)
 	if err != nil {
 		return msg, err
 	}
 
 	var msg1 *D.Msg
-	req = req.WithContext(ctx)
 	msg1, err = dc.doRequest(ctx, req, proxy)
 	if err == nil {
 		msg1.Id = m.Id
@@ -119,13 +120,13 @@ func (dc *dohClient) ExchangeContext(ctx context.Context, m *D.Msg) (msg *rMsg, 
 }
 
 // newRequest returns a new DoH request given a dns.Msg.
-func (dc *dohClient) newRequest(m *D.Msg) (*http.Request, error) {
+func (dc *dohClient) newRequest(ctx context.Context, m *D.Msg) (*http.Request, error) {
 	buf, err := m.Pack()
 	if err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, dc.url, bytes.NewReader(buf))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, dc.url, bytes.NewReader(buf))
 	if err != nil {
 		return req, err
 	}
@@ -138,7 +139,7 @@ func (dc *dohClient) newRequest(m *D.Msg) (*http.Request, error) {
 
 func (dc *dohClient) doRequest(ctx context.Context, req *http.Request, proxy string) (*D.Msg, error) {
 	if tr, ok := dc.transports.Load(proxy); ok || dc.forceHTTP3 {
-		if tr == nil {
+		if !ok {
 			tr = dc.newTransport(true)
 			if t, loaded := dc.transports.Swap(proxy, tr); loaded {
 				closeTransport(t)
@@ -154,13 +155,10 @@ func (dc *dohClient) batchRoundTrip(ctx context.Context, req *http.Request, prox
 	ctx1, cancel := context.WithCancelCause(ctx)
 	defer cancel(context2.ManualCanceled)
 
-	ch3 := dc.asyncRoundTripWithNewTransport(ctx1, req, proxy, true)
-	ch := dc.asyncRoundTripWithNewTransport(ctx1, req, proxy, false)
-
 	select {
-	case rs := <-ch3:
+	case rs := <-dc.asyncRoundTripWithNewTransport(ctx1, req, proxy, true):
 		return rs.msg, rs.err
-	case rs := <-ch:
+	case rs := <-dc.asyncRoundTripWithNewTransport(ctx1, req, proxy, false):
 		return rs.msg, rs.err
 	case <-req.Context().Done():
 		return nil, req.Context().Err()
@@ -183,21 +181,30 @@ func (dc *dohClient) asyncRoundTripWithNewTransport(ctx context.Context, req *ht
 		}
 
 		tr := dc.newTransport(isH3)
-		if proxy != "" && !isH3 {
-			tr.(*http.Transport).IdleConnTimeout = 10 * time.Minute
+		if proxy != "" {
+			if t, ok := tr.(*http.Transport); ok {
+				t.IdleConnTimeout = 10 * time.Minute
+			}
 		}
 
 		msg, err := roundTrip(ctx, newReq, tr, proxy)
-		if err == nil && isH3 {
-			if t, loaded := dc.transports.Swap(proxy, tr); loaded {
-				closeTransport(t)
-			}
-		} else {
-			if isH3 {
-				closeTransport(tr)
-			} else {
-				if _, loaded := dc.transports.LoadOrStore(proxy, tr); loaded {
-					closeTransport(tr)
+		if err == nil {
+			switch t := tr.(type) {
+			case *http.Transport:
+				if p, loaded := dc.transports.Swap(proxy, t); loaded {
+					if _, ok := p.(*http3Transport); ok {
+						// swap back, priority use http3 transport if server present
+						if p, loaded = dc.transports.Swap(proxy, p); loaded {
+							closeTransport(p)
+						}
+						closeTransport(t)
+					} else {
+						closeTransport(p)
+					}
+				}
+			case *http3Transport:
+				if p, loaded := dc.transports.Swap(proxy, t); loaded {
+					closeTransport(p)
 				}
 			}
 		}
@@ -307,8 +314,9 @@ type http3Transport struct {
 	roundTripper *http3.Transport
 	forceHTTP3   bool
 
-	mux        sync.Mutex
-	transports map[string]*quic.Transport
+	mux       sync.Mutex
+	transport *quic.Transport
+	isUDPConn bool
 }
 
 func (t *http3Transport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -316,15 +324,15 @@ func (t *http3Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func (t *http3Transport) Close() error {
-	_ = t.roundTripper.Close()
+	err := t.roundTripper.Close()
 	t.mux.Lock()
 	defer t.mux.Unlock()
-	for _, tr := range t.transports {
-		_ = tr.Close()
-		_ = tr.Conn.Close()
+	if t.transport != nil {
+		_ = t.transport.Close()
+		_ = t.transport.Conn.Close()
+		t.transport = nil
 	}
-	t.transports = nil
-	return nil
+	return err
 }
 
 func (t *http3Transport) CloseIdleConnections() {
@@ -344,69 +352,36 @@ func (t *http3Transport) makeDialer() func(ctx context.Context, addr string, tls
 		}
 		udpAddr := &net.UDPAddr{IP: ip.AsSlice(), Port: int(p)}
 
-		key := addr
-		proxy, ok := ctx.Value(proxyKey).(string)
-		if ok {
-			key += proxy
+		t.mux.Lock()
+		transport := t.transport
+		if transport == nil {
+			proxy, _ := ctx.Value(proxyKey).(string)
+			pc, err := getPacketConn(ctx, ip, uint16(p), proxy, t.forceHTTP3)
+			if err != nil {
+				t.mux.Unlock()
+				return nil, fmt.Errorf("dial quic earlyConn failed: dial packetconn error: %w, proxy=%s", err, proxy)
+			}
+			_, t.isUDPConn = pc.(*net.UDPConn)
+			t.transport = &quic.Transport{Conn: pc}
+			transport = t.transport
+		}
+		t.mux.Unlock()
+
+		conn, err := transport.DialEarly(ctx, udpAddr, tlsCfg, cfg)
+		if err != nil {
+			err = fmt.Errorf("dial quic earlyConn failed: %w", err)
+		}
+		if t.isUDPConn || err == nil {
+			return conn, err
 		}
 
 		t.mux.Lock()
-		if t.transports == nil {
-			t.transports = make(map[string]*quic.Transport)
-		}
-		transport := t.transports[key]
+		t.transport = nil
 		t.mux.Unlock()
 
-		var conn *quic.Conn
-		if transport != nil {
-			conn, err = transport.DialEarly(ctx, udpAddr, tlsCfg, cfg)
-			if err == nil {
-				return conn, nil
-			}
-
-			t.mux.Lock()
-			if t.transports != nil {
-				delete(t.transports, key)
-			}
-			t.mux.Unlock()
-
-			_ = transport.Close()
-			_ = transport.Conn.Close()
-
-			if nErr, ok := err.(net.Error); (ok && nErr.Timeout()) || errors.Is(err, context.DeadlineExceeded) {
-				return nil, err
-			}
-		}
-
-		pc, err := getPacketConn(ctx, ip, uint16(p), proxy, t.forceHTTP3)
-		if err != nil {
-			return nil, err
-		}
-
-		transport = &quic.Transport{Conn: pc}
-		conn, err = transport.DialEarly(ctx, udpAddr, tlsCfg, cfg)
-		if err == nil {
-			t.mux.Lock()
-			if t.transports != nil {
-				if tr, exist := t.transports[key]; exist {
-					_ = tr.Close()
-					_ = tr.Conn.Close()
-				}
-				t.transports[key] = transport
-				t.mux.Unlock()
-			} else {
-				t.mux.Unlock()
-				_ = conn.CloseWithError(quic.ApplicationErrorCode(http3.ErrCodeNoError), "")
-				_ = transport.Close()
-				_ = transport.Conn.Close()
-				return nil, net.ErrClosed
-			}
-		} else {
-			_ = transport.Close()
-			_ = transport.Conn.Close()
-		}
-
-		return conn, err
+		_ = transport.Close()
+		_ = transport.Conn.Close()
+		return nil, err
 	}
 }
 
