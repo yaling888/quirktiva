@@ -27,6 +27,7 @@ require (
 	go.starlark.net v0.0.0-20260708150628-5395d018f003
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.6.0
+	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/crypto v0.55.0
 	golang.org/x/net v0.58.0
 	golang.org/x/sync v0.22.0
@@ -36,7 +37,6 @@ require (
 	golang.zx2c4.com/wireguard v0.0.0-20260522210424-ecfc5a8d5446
 	golang.zx2c4.com/wireguard/windows v0.5.4-0.20230123132234-dcc0eb72a04b
 	google.golang.org/protobuf v1.36.12
-	gopkg.in/yaml.v3 v3.0.1
 	gvisor.dev/gvisor v0.0.0-20260813023150-bd1459576ab3
 )
 
@@ -58,4 +58,5 @@ require (
 	golang.org/x/mod v0.39.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

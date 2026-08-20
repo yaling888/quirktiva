@@ -13,7 +13,7 @@ import (
 
 	"github.com/phuslu/log"
 	"github.com/samber/lo"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/yaling888/quirktiva/adapter"
 	"github.com/yaling888/quirktiva/adapter/outbound"
