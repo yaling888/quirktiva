@@ -286,7 +286,7 @@ tail:
 }
 
 func add(p unsafe.Pointer, x uintptr) unsafe.Pointer {
-	return unsafe.Pointer(uintptr(p) + x)
+	return unsafe.Add(p, x)
 }
 
 func readUnaligned32(p unsafe.Pointer) uint32 {

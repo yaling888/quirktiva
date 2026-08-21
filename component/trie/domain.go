@@ -72,8 +72,8 @@ func (t *DomainTrie[T]) Insert(domain string, data T) error {
 func (t *DomainTrie[T]) insert(parts []string, data T) {
 	node := t.root
 	// reverse storage domain part to save space
-	for i := len(parts) - 1; i >= 0; i-- {
-		part := parts[i]
+	for _, part := range slices.Backward(parts) {
+
 		if !node.hasChild(part) {
 			node.addChild(part, newNode(lo.Empty[T]()))
 		}

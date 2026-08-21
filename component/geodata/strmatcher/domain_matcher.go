@@ -1,6 +1,9 @@
 package strmatcher
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 func breakDomain(domain string) []string {
 	return strings.Split(domain, ".")
@@ -24,8 +27,8 @@ func (g *DomainMatcherGroup) Add(domain string, value uint32) {
 
 	current := g.root
 	parts := breakDomain(domain)
-	for i := len(parts) - 1; i >= 0; i-- {
-		part := parts[i]
+	for _, part := range slices.Backward(parts) {
+
 		if current.sub == nil {
 			current.sub = make(map[string]*node)
 		}

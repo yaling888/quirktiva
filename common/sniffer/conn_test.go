@@ -181,7 +181,6 @@ func TestQUICECH(t *testing.T) {
 
 	clientConfig, serverConfig := &tls.Config{}, &tls.Config{}
 	clientConfig.InsecureSkipVerify = false
-	clientConfig.Rand = rand.Reader
 	clientConfig.Time = nil
 	clientConfig.MinVersion = tls.VersionTLS13
 	clientConfig.ServerName = "secret.example"
@@ -190,7 +189,6 @@ func TestQUICECH(t *testing.T) {
 	clientConfig.RootCAs.AddCert(publicCert)
 	clientConfig.EncryptedClientHelloConfigList = echConfigList
 	serverConfig.InsecureSkipVerify = false
-	serverConfig.Rand = rand.Reader
 	serverConfig.Time = nil
 	serverConfig.MinVersion = tls.VersionTLS13
 	serverConfig.ServerName = "public.example"

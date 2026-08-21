@@ -23,8 +23,8 @@ func (c *packet) WriteBack(b []byte, addr net.Addr) (n int, err error) {
 		rAddr = netip.AddrPortFrom(rAddr.Addr().Unmap(), rAddr.Port())
 	}
 
-	tc, err := dialUDP("udp", rAddr, c.lAddr)
-	if err != nil {
+	tc, err := dialUDP("udp", rAddr, c.lAddr) //nolint:staticcheck
+	if err != nil {                           //nolint:staticcheck
 		n = 0
 		return
 	}

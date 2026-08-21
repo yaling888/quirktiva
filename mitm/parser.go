@@ -31,7 +31,7 @@ func ParseRewrite(line string) (C.Rewrite, error) {
 	}
 
 	others = strings.Trim(others, " ")
-	first := strings.Split(others, " ")[0]
+	first, _, _ := strings.Cut(others, " ")
 	for k, v := range C.RewriteTypeMapping {
 		if k == others {
 			ruleType = &v

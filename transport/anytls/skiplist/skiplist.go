@@ -40,7 +40,7 @@ type SkipList[K any, V any] struct {
 func NewSkipList[K Ordered, V any]() *SkipList[K, V] {
 	sl := skipListOrdered[K, V]{}
 	sl.init()
-	sl.impl = (skipListImpl[K, V])(&sl)
+	sl.impl = skipListImpl[K, V](&sl)
 	return &sl.SkipList
 }
 

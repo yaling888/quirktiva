@@ -50,8 +50,8 @@ func NewUDP(addr string, in chan<- *inbound.PacketAdapter) (C.Listener, error) {
 		return nil, err
 	}
 
-	err = setsockopt(rc, addr)
-	if err != nil {
+	err = setsockopt(rc, addr) //nolint:staticcheck
+	if err != nil {            //nolint:staticcheck
 		return nil, err
 	}
 
@@ -68,8 +68,8 @@ func NewUDP(addr string, in chan<- *inbound.PacketAdapter) (C.Listener, error) {
 				continue
 			}
 
-			rAddr, err := getOrigDst(oob[:oobn])
-			if err != nil {
+			rAddr, err := getOrigDst(oob[:oobn]) //nolint:staticcheck
+			if err != nil {                      //nolint:staticcheck
 				pool.PutNetBuf(bufP)
 				continue
 			}

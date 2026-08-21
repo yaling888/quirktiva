@@ -24,6 +24,11 @@ formatters:
         - standard
         - prefix(github.com/yaling888/quirktiva)
         - default
+    gofumpt:
+      module-path: github.com/yaling888/quirktiva
+    goimports:
+      local-prefixes:
+        - github.com/yaling888/quirktiva
 
 run:
   concurrency: 4

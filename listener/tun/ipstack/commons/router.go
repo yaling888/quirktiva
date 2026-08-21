@@ -59,8 +59,8 @@ startOver:
 	}
 	tryTimes++
 
-	ifaceM, err := defaultRouteInterface()
-	if err != nil {
+	ifaceM, err := defaultRouteInterface() //nolint:staticcheck
+	if err != nil {                        //nolint:staticcheck
 		if err == errInterfaceNotFound && retryOnFailure {
 			goto startOver
 		} else {
@@ -108,8 +108,8 @@ func SetTunStatus(status C.TUNState) {
 
 //nolint:unused
 func onChangeDefaultRoute() {
-	routeInterface, err := defaultRouteInterface()
-	if err != nil {
+	routeInterface, err := defaultRouteInterface() //nolint:staticcheck
+	if err != nil {                                //nolint:staticcheck
 		if err == errInterfaceNotFound && tunStatus == C.TunEnabled {
 			log.Info().Msg("[Route] lost default interface, pause tun adapter")
 

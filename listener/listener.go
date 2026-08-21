@@ -362,8 +362,8 @@ func ReCreateRedirToTun(ifaceNames []string) {
 		return
 	}
 
-	program, err := ebpf.NewTcEBpfProgram(nicArr, lastTunConf.Device)
-	if err != nil {
+	program, err := ebpf.NewTcEBpfProgram(nicArr, lastTunConf.Device) //nolint:staticcheck
+	if err != nil {                                                   //nolint:staticcheck
 		log.Error().Err(err).Msg("[Inbound] attach redirect to tun tc program failed")
 		return
 	}

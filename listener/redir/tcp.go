@@ -58,8 +58,8 @@ func New(addr string, in chan<- C.ConnContext) (C.Listener, error) {
 }
 
 func handleRedir(conn net.Conn, in chan<- C.ConnContext) {
-	target, err := parserPacket(conn)
-	if err != nil {
+	target, err := parserPacket(conn) //nolint:staticcheck
+	if err != nil {                   //nolint:staticcheck
 		_ = conn.Close()
 		log.Warn().Err(err).Msg("[Redir] handle redirect")
 		return

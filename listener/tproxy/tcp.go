@@ -48,8 +48,8 @@ func New(addr string, in chan<- C.ConnContext) (C.Listener, error) {
 		return nil, err
 	}
 
-	err = setsockopt(rc, addr)
-	if err != nil {
+	err = setsockopt(rc, addr) //nolint:staticcheck
+	if err != nil {            //nolint:staticcheck
 		return nil, err
 	}
 
