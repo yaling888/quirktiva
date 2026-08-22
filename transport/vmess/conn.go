@@ -61,7 +61,7 @@ func (vc *Conn) sendRequest() error {
 	mBuf := pool.BufferWriter{}
 
 	if !vc.isAead {
-		h := hmac.New(md5.New, vc.id.UUID.Bytes())
+		h := hmac.New(md5.New, vc.id.UUID[:])
 		_ = binary.Write(h, binary.BigEndian, uint64(timestamp.Unix()))
 		mBuf.PutSlice(h.Sum(nil))
 	}

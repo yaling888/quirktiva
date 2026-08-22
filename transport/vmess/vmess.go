@@ -5,8 +5,7 @@ import (
 	"math/rand/v2"
 	"net"
 	"runtime"
-
-	"github.com/yaling888/quirktiva/common/uuid"
+	"uuid"
 )
 
 // Version of vmess
@@ -76,7 +75,7 @@ func (c *Client) StreamConn(conn net.Conn, dst *DstAddr) (net.Conn, error) {
 
 // NewClient return Client instance
 func NewClient(config Config) (*Client, error) {
-	uid, err := uuid.ParseStd(config.UUID)
+	uid, err := uuid.Parse(config.UUID)
 	if err != nil {
 		return nil, err
 	}

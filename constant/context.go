@@ -2,8 +2,7 @@ package constant
 
 import (
 	"net"
-
-	"github.com/yaling888/quirktiva/common/uuid"
+	"uuid"
 )
 
 type PlainContext interface {

@@ -2,8 +2,7 @@ package vless
 
 import (
 	"net"
-
-	"github.com/yaling888/quirktiva/common/uuid"
+	"uuid"
 )
 
 // Version of vmess
@@ -42,7 +41,7 @@ func (c *Client) StreamConn(conn net.Conn, dst *DstAddr) (net.Conn, error) {
 
 // NewClient return Client instance
 func NewClient(uuidStr string) (*Client, error) {
-	uid, err := uuid.ParseStd(uuidStr)
+	uid, err := uuid.Parse(uuidStr)
 	if err != nil {
 		return nil, err
 	}

@@ -4,9 +4,9 @@ import (
 	"errors"
 	"io"
 	"net"
+	"uuid"
 
 	"github.com/yaling888/quirktiva/common/pool"
-	"github.com/yaling888/quirktiva/common/uuid"
 )
 
 type Conn struct {
@@ -31,9 +31,9 @@ func (vc *Conn) Read(b []byte) (int, error) {
 func (vc *Conn) sendRequest() error {
 	buf := pool.BufferWriter{}
 
-	buf.PutUint8(Version)       // protocol version
-	buf.PutSlice(vc.id.Bytes()) // 16 bytes of uuid
-	buf.PutUint8(0)             // addon data length. 0 means no addon data
+	buf.PutUint8(Version)  // protocol version
+	buf.PutSlice(vc.id[:]) // 16 bytes of uuid
+	buf.PutUint8(0)        // addon data length. 0 means no addon data
 	// buf.PutString("")           // addon data
 
 	// Command

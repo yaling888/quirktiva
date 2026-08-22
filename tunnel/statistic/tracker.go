@@ -3,11 +3,11 @@ package statistic
 import (
 	"net"
 	"time"
+	"uuid"
 
 	"github.com/samber/lo"
 	"go.uber.org/atomic"
 
-	"github.com/yaling888/quirktiva/common/uuid"
 	C "github.com/yaling888/quirktiva/constant"
 )
 
@@ -60,7 +60,7 @@ func (tt *tcpTracker) Close() error {
 }
 
 func NewTCPTracker(conn C.Conn, manager *Manager, metadata *C.Metadata, rule C.Rule) C.Conn {
-	id := uuid.RandomB64Hlf()
+	id := uuid.New()
 
 	t := &tcpTracker{
 		Conn:    conn,
@@ -117,7 +117,7 @@ func (ut *udpTracker) Close() error {
 }
 
 func NewUDPTracker(conn C.PacketConn, manager *Manager, metadata *C.Metadata, rule C.Rule) C.PacketConn {
-	id := uuid.RandomB64Hlf()
+	id := uuid.New()
 
 	ut := &udpTracker{
 		PacketConn: conn,

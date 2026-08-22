@@ -2,8 +2,8 @@ package context
 
 import (
 	"net"
+	"uuid"
 
-	"github.com/yaling888/quirktiva/common/uuid"
 	C "github.com/yaling888/quirktiva/constant"
 )
 
@@ -14,7 +14,7 @@ type PacketConnContext struct {
 }
 
 func NewPacketConnContext(metadata *C.Metadata) *PacketConnContext {
-	id := uuid.RandomB64Hlf()
+	id := uuid.New()
 	return &PacketConnContext{
 		id:       id,
 		metadata: metadata,
