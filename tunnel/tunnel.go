@@ -38,8 +38,7 @@ import (
 var (
 	tcpQueue     = make(chan C.ConnContext, 512)
 	udpQueue     = make(chan *inbound.PacketAdapter, 1024)
-	natTable     = nat.New[string, C.PacketConn]()
-	addrTable    = nat.New[string, netip.Addr]()
+	natTable     = nat.New[string, *udpNatConn]()
 	rules        []C.Rule
 	proxies      = make(map[string]C.Proxy)
 	providers    map[string]provider.ProxyProvider
@@ -467,8 +466,9 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 	}
 
 	var (
-		fAddr netip.Addr // make a fAddr if request ip is fakeip
-		key   = packet.LocalAddr().String() + metadata.RemoteAddress()
+		fAddr   netip.Addr // make a fAddr if request ip is fakeip
+		key     = packet.LocalAddr().String() + metadata.RemoteAddress()
+		lockKey = key + "-lock"
 	)
 
 	if ip, err := netip.ParseAddr(metadata.Host); err == nil {
@@ -486,39 +486,43 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 		return
 	}
 
-	handle := func() bool {
-		if pc, ok := natTable.Load(key); ok {
-			if metadata.DstIP, ok = addrTable.Load(key); !ok {
-				return false
-			}
-			_ = handleUDPToRemote(packet, pc, metadata)
-			return true
+	if pc, ok := natTable.Load(key); ok {
+		metadata.DstIP = pc.a
+		lock, loaded := natTable.GetLock(lockKey)
+		if !loaded {
+			_ = handleUDPToRemote(packet, pc.c, metadata)
+			packet.Drop()
+			return
 		}
-		return false
-	}
-
-	if handle() {
-		packet.Drop()
+		go func() {
+			lock.Lock()
+			lock.Wait()
+			_ = handleUDPToRemote(packet, pc.c, metadata)
+			lock.Unlock()
+			packet.Drop()
+		}()
 		return
 	}
 
-	lockKey := key + "-lock"
-	cond, loaded := natTable.GetOrCreateLock(lockKey)
+	lock, loaded := natTable.GetOrCreateLock(lockKey, func() { natTable.Delete(lockKey) })
 
 	go func() {
 		defer packet.Drop()
 
 		if loaded {
-			cond.L.Lock()
-			cond.Wait()
-			handle()
-			cond.L.Unlock()
+			lock.Lock()
+			lock.Wait()
+			if pc, ok := natTable.Load(key); ok {
+				metadata.DstIP = pc.a
+				_ = handleUDPToRemote(packet, pc.c, metadata)
+			}
+			lock.Unlock()
 			return
 		}
 
 		defer func() {
-			natTable.Delete(lockKey)
-			cond.Broadcast()
+			lock.TryRelease()
+			lock.Done()
 		}()
 
 		if len(*packet.Data()) >= 1200 {
@@ -640,9 +644,8 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 		oAddr := metadata.DstIP
 		go handleUDPToLocal(packet.UDPPacket, pc, key, oAddr, fAddr)
 
-		addrTable.Set(key, oAddr)
-		natTable.Set(key, pc)
-		handle()
+		natTable.Set(key, &udpNatConn{c: pc, a: oAddr})
+		_ = handleUDPToRemote(packet, pc, metadata)
 	}()
 }
 
@@ -1104,4 +1107,9 @@ func validMethod(method string) bool {
 	return len(method) > 0 && strings.IndexFunc(method, func(r rune) bool {
 		return !httpguts.IsTokenRune(r)
 	}) == -1
+}
+
+type udpNatConn struct {
+	c C.PacketConn
+	a netip.Addr
 }

@@ -35,7 +35,6 @@ func handleUDPToLocal(packet C.UDPPacket, pc net.PacketConn, key string, oAddr, 
 	defer func() {
 		_ = pc.Close()
 		natTable.Delete(key)
-		addrTable.Delete(key)
 		pool.PutNetBuf(bufP)
 	}()
 

@@ -12,6 +12,13 @@ func (t *Table[K, V]) Set(key K, value V) {
 	t.mapping.Store(key, value)
 }
 
+func (t *Table[K, V]) Swap(key K, value V) (v V, loaded bool) {
+	if previous, ok := t.mapping.Swap(key, value); ok {
+		v, loaded = previous.(V)
+	}
+	return
+}
+
 func (t *Table[K, V]) Get(key K) V {
 	item, exist := t.mapping.Load(key)
 	if !exist {
@@ -21,9 +28,16 @@ func (t *Table[K, V]) Get(key K) V {
 	return item.(V)
 }
 
-func (t *Table[K, V]) GetOrCreateLock(key K) (*sync.Cond, bool) {
-	item, loaded := t.mapping.LoadOrStore(key, sync.NewCond(&sync.Mutex{}))
-	return item.(*sync.Cond), loaded
+func (t *Table[K, V]) GetLock(key K) (*Lock, bool) {
+	if item, loaded := t.mapping.Load(key); loaded {
+		return item.(*Lock), true
+	}
+	return nil, false
+}
+
+func (t *Table[K, V]) GetOrCreateLock(key K, f func()) (*Lock, bool) {
+	item, loaded := t.mapping.LoadOrStore(key, NewLocker(f))
+	return item.(*Lock), loaded
 }
 
 func (t *Table[K, V]) Load(key K) (value V, ok bool) {
