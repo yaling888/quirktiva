@@ -20,5 +20,6 @@ func pprofRouter() http.Handler {
 	r.Get("/heap", pprof.Handler("heap").ServeHTTP)
 	r.Get("/mutex", pprof.Handler("mutex").ServeHTTP)
 	r.Get("/threadcreate", pprof.Handler("threadcreate").ServeHTTP)
+	r.Get("/goroutineleak", pprof.Handler("goroutineleak").ServeHTTP)
 	return r
 }
