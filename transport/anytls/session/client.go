@@ -10,9 +10,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/yaling888/quirktiva/common/skiplist"
 	"github.com/yaling888/quirktiva/component/dialer"
 	"github.com/yaling888/quirktiva/transport/anytls/padding"
-	"github.com/yaling888/quirktiva/transport/anytls/skiplist"
 	"github.com/yaling888/quirktiva/transport/anytls/util"
 )
 

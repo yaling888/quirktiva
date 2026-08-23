@@ -91,11 +91,10 @@ func (p *pipe) write(b []byte) (n int, err error) {
 		defer p.wrMu.Unlock()
 	}
 
-	for once := true; once || len(b) > 0; once = false {
+	for once := true; once || len(b[n:]) > 0; once = false {
 		select {
-		case p.wrCh <- b:
+		case p.wrCh <- b[n:]:
 			nw := <-p.rdCh
-			b = b[nw:]
 			n += nw
 		case <-p.done:
 			return n, p.writeCloseError()
@@ -160,6 +159,14 @@ func (r *PipeReader) CloseWithError(err error) error {
 	return r.closeRead(err)
 }
 
+func (r *PipeReader) SetReadDeadline(t time.Time) error {
+	if isClosedChan(r.done) {
+		return io.ErrClosedPipe
+	}
+	r.readDeadline.Set(t)
+	return nil
+}
+
 // A PipeWriter is to write half of a pipe.
 type PipeWriter struct{ r PipeReader }
 
@@ -188,6 +195,14 @@ func (w *PipeWriter) CloseWithError(err error) error {
 	return w.r.closeWrite(err)
 }
 
+func (w *PipeWriter) SetWriteDeadline(t time.Time) error {
+	if isClosedChan(w.r.done) {
+		return io.ErrClosedPipe
+	}
+	w.r.writeDeadline.Set(t)
+	return nil
+}
+
 // Pipe creates a synchronous in-memory pipe.
 // It can be used to connect code expecting an [io.Reader]
 // with code expecting an [io.Writer].
@@ -214,20 +229,4 @@ func Pipe() (*PipeReader, *PipeWriter) {
 		writeDeadline: MakePipeDeadline(),
 	}}}
 	return &pw.r, pw
-}
-
-func (p *PipeReader) SetReadDeadline(t time.Time) error {
-	if isClosedChan(p.done) {
-		return io.ErrClosedPipe
-	}
-	p.readDeadline.Set(t)
-	return nil
-}
-
-func (p *PipeWriter) SetWriteDeadline(t time.Time) error {
-	if isClosedChan(p.r.done) {
-		return io.ErrClosedPipe
-	}
-	p.r.writeDeadline.Set(t)
-	return nil
 }

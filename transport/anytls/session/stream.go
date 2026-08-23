@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yaling888/quirktiva/transport/anytls/pipe"
+	"github.com/yaling888/quirktiva/common/pipe"
 )
 
 // Stream implements net.Conn
