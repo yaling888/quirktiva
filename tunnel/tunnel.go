@@ -474,7 +474,10 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 		return
 	}
 
-	handlePacketLock := func(w *sniPacketWriter) {
+	handlePacketLock := func(w *sniPacketWriter, ch chan struct{}) {
+		if ch != nil {
+			close(ch)
+		}
 		w.hl.Lock()
 		w.hl.Wait()
 		if w.er == nil {
@@ -491,7 +494,7 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 			handleUDPConnNatTable(packet, fAddr, key, lockKey)
 			return
 		}
-		go handlePacketLock(w)
+		go handlePacketLock(w, nil)
 		return
 	}
 
@@ -503,7 +506,9 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 	go func() {
 		if loaded {
 			sw.wl.Lock()
-			go handlePacketLock(sw)
+			locked := make(chan struct{})
+			go handlePacketLock(sw, locked)
+			<-locked
 			sw.wl.Wait()
 			_, _ = sw.w.Write(*packet.Data())
 			sw.wl.Unlock()
