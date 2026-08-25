@@ -4,12 +4,9 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
-	"io"
-	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/netip"
-	"slices"
 	"time"
 	"unsafe"
 
@@ -54,22 +51,20 @@ func SniffHTTP(conn net.Conn, timeout time.Duration) string {
 	return hostname
 }
 
-const extensionEncryptedClientHello uint16 = 0xfe0d
-
 func SniffTLS(conn net.Conn, timeout time.Duration) (serverName string, isECH bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	tlsConfig := &tls.Config{
 		GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
-			serverName = trimLastDot(info.ServerName)
 			cancel()
+			serverName = trimLastDot(info.ServerName)
 			return nil, nil
 		},
 		GetEncryptedClientHelloKeys: func(info *tls.ClientHelloInfo) ([]tls.EncryptedClientHelloKey, error) {
+			cancel()
 			serverName = trimLastDot(info.ServerName)
 			isECH = true
-			cancel()
 			return nil, net.ErrClosed
 		},
 	}
@@ -80,28 +75,28 @@ func SniffTLS(conn net.Conn, timeout time.Duration) (serverName string, isECH bo
 	return serverName, isECH
 }
 
-var defaultQUICConfig = quic.Config{Allow0RTT: true}
+var defaultQUICConfig = quic.Config{Versions: quic.SupportedVersions(), Allow0RTT: true}
 
 func SniffQUIC(conn net.PacketConn, timeout time.Duration) (serverName string, isECH bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS13,
 		GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
-			serverName = info.ServerName
-			isECH = slices.Contains(info.Extensions, extensionEncryptedClientHello)
 			cancel()
+			serverName = info.ServerName
 			return nil, nil
 		},
 		GetEncryptedClientHelloKeys: func(info *tls.ClientHelloInfo) ([]tls.EncryptedClientHelloKey, error) {
+			cancel()
 			serverName = info.ServerName
 			isECH = true
-			cancel()
 			return nil, net.ErrClosed
 		},
 	}
 
-	l, err := quic.Listen(conn, tlsConfig, &defaultQUICConfig)
+	l, err := quic.ListenEarly(conn, tlsConfig, &defaultQUICConfig)
 	if err == nil {
 		_, _ = l.Accept(ctx)
 		_ = l.Close()
@@ -189,39 +184,3 @@ func trimLastDot(host string) string {
 
 //go:linkname readRequest net/http.readRequest
 func readRequest(_ *bufio.Reader) (req *http.Request, err error)
-
-var localAddr = net.TCPAddr{Port: 12000 + rand.IntN(5000)}
-
-var _ net.PacketConn = (*fakePacketConn)(nil)
-
-type fakePacketConn struct {
-	r io.Reader
-}
-
-func (pc *fakePacketConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
-	n, err = pc.r.Read(p)
-	if err == io.EOF {
-		err = context.DeadlineExceeded
-	}
-	return
-}
-
-func (pc *fakePacketConn) WriteTo(p []byte, _ net.Addr) (n int, err error) {
-	n = len(p)
-	return
-}
-
-func (pc *fakePacketConn) LocalAddr() net.Addr {
-	return &localAddr
-}
-
-func (pc *fakePacketConn) Close() error                       { return nil }
-func (pc *fakePacketConn) SetDeadline(_ time.Time) error      { return nil }
-func (pc *fakePacketConn) SetReadDeadline(_ time.Time) error  { return nil }
-func (pc *fakePacketConn) SetWriteDeadline(_ time.Time) error { return nil }
-func (pc *fakePacketConn) SetReadBuffer(_ int) error          { return nil }
-func (pc *fakePacketConn) SetWriteBuffer(_ int) error         { return nil }
-
-func NewFakePacketConn(r io.Reader) net.PacketConn {
-	return &fakePacketConn{r: r}
-}

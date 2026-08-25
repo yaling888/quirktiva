@@ -1,7 +1,6 @@
 package tunnel
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -24,6 +23,7 @@ import (
 
 	"github.com/yaling888/quirktiva/adapter/inbound"
 	N "github.com/yaling888/quirktiva/common/net"
+	"github.com/yaling888/quirktiva/common/pipe"
 	"github.com/yaling888/quirktiva/common/sniffer"
 	"github.com/yaling888/quirktiva/component/nat"
 	P "github.com/yaling888/quirktiva/component/process"
@@ -39,6 +39,7 @@ var (
 	tcpQueue     = make(chan C.ConnContext, 512)
 	udpQueue     = make(chan *inbound.PacketAdapter, 1024)
 	natTable     = nat.New[string, *udpNatConn]()
+	sniTable     = nat.New[string, *sniPacketWriter]()
 	rules        []C.Rule
 	proxies      = make(map[string]C.Proxy)
 	providers    map[string]provider.ProxyProvider
@@ -413,27 +414,14 @@ func sniffTCP(connCtx C.ConnContext, metadata *C.Metadata) (sniffer.SniffingType
 	return sniffingType, nil
 }
 
-func sniffUDP(buf []byte, metadata *C.Metadata) (sniffer.SniffingType, error) {
-	needSniffing := needSniffingSNI(metadata)
-	if !needSniffing && metadata.DstPort != 443 {
-		return sniffer.OFF, nil
-	}
+func sniffUDP(conn net.PacketConn, metadata *C.Metadata) (sniffer.SniffingType, error) {
+	const sniffQUICTimeout = 200 * time.Millisecond
 
-	const sniffQUICTimeout = 3 * time.Millisecond
-
-	tried := false
-	r := bytes.NewReader(buf)
-retry:
-	hostname, isECH := sniffer.SniffQUIC(sniffer.NewFakePacketConn(r), sniffQUICTimeout)
-	if hostname == "" && !tried {
-		tried = true
-		r.Reset(buf)
-		goto retry
-	}
+	hostname, isECH := sniffer.SniffQUIC(conn, sniffQUICTimeout)
 
 	metadata.IsECH = isECH
 
-	if !needSniffing || isECH {
+	if !needSniffingSNI(metadata) || isECH {
 		return sniffer.OFF, nil
 	}
 
@@ -486,6 +474,82 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 		return
 	}
 
+	handlePacketLock := func(w *sniPacketWriter) {
+		w.hl.Lock()
+		w.hl.Wait()
+		if w.er == nil {
+			handleUDPConnNatTable(packet, fAddr, key, lockKey)
+		} else {
+			packet.Drop()
+		}
+		w.hl.Unlock()
+	}
+
+	if natTable.Exist(key) || natTable.Exist(lockKey) || (!needSniffingSNI(metadata) && metadata.DstPort != 443) {
+		w, loaded := sniTable.Load(key)
+		if !loaded {
+			handleUDPConnNatTable(packet, fAddr, key, lockKey)
+			return
+		}
+		go handlePacketLock(w)
+		return
+	}
+
+	sw, loaded := sniTable.LoadOrStore(key, &sniPacketWriter{
+		wl: nat.NewLocker(nil),
+		hl: nat.NewLocker(func() { sniTable.Delete(key) }),
+	})
+
+	go func() {
+		if loaded {
+			sw.wl.Lock()
+			go handlePacketLock(sw)
+			sw.wl.Wait()
+			_, _ = sw.w.Write(*packet.Data())
+			sw.wl.Unlock()
+			return
+		}
+
+		defer func() {
+			sw.hl.TryRelease()
+			sw.hl.Done()
+		}()
+
+		r, w := pipe.Pipe()
+		sw.w = w
+
+		go func() {
+			_, _ = w.Write(*packet.Data())
+			sw.wl.Done()
+		}()
+
+		logHost := metadata.Host
+		logDstIP := metadata.DstIP
+		sType, err := sniffUDP(sniffer.NewReadOnlyPacketConn(r), metadata)
+		_ = r.Close()
+
+		if err != nil {
+			sw.er = err
+			packet.Drop()
+
+			log.Debug().Err(err).Msg("[Sniffer] sniff failed")
+			return
+		}
+		if sType != sniffer.OFF {
+			log.Debug().
+				Str("host", logHost).
+				Str("newHost", metadata.Host).
+				NetIPAddr("ip", logDstIP).
+				Str("port", metadata.DstPort.String()).
+				Msg("[Sniffer] update quic sni")
+		}
+		handleUDPConnNatTable(packet, fAddr, key, lockKey)
+	}()
+}
+
+func handleUDPConnNatTable(packet *inbound.PacketAdapter, fAddr netip.Addr, key, lockKey string) {
+	metadata := packet.Metadata()
+
 	if pc, ok := natTable.Load(key); ok {
 		metadata.DstIP = pc.a
 		lock, loaded := natTable.GetLock(lockKey)
@@ -524,24 +588,6 @@ func handleUDPConn(packet *inbound.PacketAdapter) {
 			lock.TryRelease()
 			lock.Done()
 		}()
-
-		if len(*packet.Data()) >= 1200 {
-			logDstIP := metadata.DstIP
-			sType, err := sniffUDP(*packet.Data(), metadata)
-			if err != nil {
-				log.Debug().Err(err).Msg("[Sniffer] sniff failed")
-				return
-			}
-			if sType != sniffer.OFF {
-				if e := log.Debug(); e != nil {
-					e.
-						Str("host", metadata.Host).
-						NetIPAddr("ip", logDstIP).
-						Str("port", metadata.DstPort.String()).
-						Msg("[Sniffer] update quic sni")
-				}
-			}
-		}
 
 		if e := log.Debug(); e != nil {
 			e.EmbedObject(metadata).Any("inbound", metadata.Type).Msg("[UDP] accept session")
@@ -1112,4 +1158,11 @@ func validMethod(method string) bool {
 type udpNatConn struct {
 	c C.PacketConn
 	a netip.Addr
+}
+
+type sniPacketWriter struct {
+	w  *pipe.PipeWriter
+	wl *nat.Lock // writer lock
+	hl *nat.Lock // handler lock
+	er error
 }

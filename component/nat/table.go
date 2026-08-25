@@ -40,6 +40,11 @@ func (t *Table[K, V]) GetOrCreateLock(key K, f func()) (*Lock, bool) {
 	return item.(*Lock), loaded
 }
 
+func (t *Table[K, V]) Exist(key K) (exist bool) {
+	_, exist = t.mapping.Load(key)
+	return
+}
+
 func (t *Table[K, V]) Load(key K) (value V, ok bool) {
 	item, exist := t.mapping.Load(key)
 	if !exist {

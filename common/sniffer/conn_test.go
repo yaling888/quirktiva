@@ -114,6 +114,9 @@ func (pc *pConn) LocalAddr() net.Addr {
 	}
 }
 
+func (pc *pConn) SetReadBuffer(_ int) error  { return nil }
+func (pc *pConn) SetWriteBuffer(_ int) error { return nil }
+
 func TestQUICECH(t *testing.T) {
 	k, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
