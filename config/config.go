@@ -1334,7 +1334,7 @@ func parseMitm(rawMitm RawMitm) (*Mitm, error) {
 func verifyScriptMatcher(config *Config, matchers map[string]C.Matcher) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("test script code panic: %v", r)
+			err = fmt.Errorf("test script code error: %v", r)
 		}
 	}()
 
@@ -1347,6 +1347,7 @@ func verifyScriptMatcher(config *Config, matchers map[string]C.Matcher) (err err
 		NetWork: C.TCP,
 		Host:    "www.example.com",
 		SrcIP:   netip.MustParseAddr("198.18.0.8"),
+		DstIP:   netip.MustParseAddr("198.18.0.9"), // prevent to resolve ip, the resolver may be stuck when internet unavailable.
 		SrcPort: 12345,
 		DstPort: 443,
 	}
