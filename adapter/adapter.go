@@ -17,6 +17,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/yaling888/quirktiva/common/context2"
+	"github.com/yaling888/quirktiva/common/convert"
 	"github.com/yaling888/quirktiva/common/queue"
 	"github.com/yaling888/quirktiva/component/dialer"
 	"github.com/yaling888/quirktiva/component/resolver"
@@ -153,6 +154,7 @@ func (p *Proxy) URLTest(ctx context.Context, url string) (delay, avgDelay uint16
 	if err != nil {
 		return
 	}
+	convert.SetUserAgent(req.Header)
 
 	transport := &http.Transport{
 		DialContext: func(context.Context, string, string) (net.Conn, error) {
@@ -224,6 +226,7 @@ func (p *Proxy) v6Test(url string) {
 		return
 	}
 	addr.DstIP = ips[0]
+	addr.Host = "" // make DstIP effective
 	resolved = true
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
@@ -240,6 +243,7 @@ func (p *Proxy) v6Test(url string) {
 	if err != nil {
 		return
 	}
+	convert.SetUserAgent(req.Header)
 
 	transport := &http.Transport{
 		DialContext: func(context.Context, string, string) (net.Conn, error) {
