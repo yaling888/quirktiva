@@ -391,6 +391,7 @@ func sniffTCP(connCtx C.ConnContext, metadata *C.Metadata) (sniffer.SniffingType
 
 	connCtx.InjectConn(readOnlyConn.UnreadConn())
 
+	metadata.SNI = hostname
 	metadata.IsECH = attemptECH
 
 	if hostname == metadata.Host {
@@ -427,6 +428,7 @@ func sniffUDP(conn net.PacketConn, metadata *C.Metadata) (sniffer.SniffingType, 
 
 	hostname, attemptECH := sniffer.SniffQUIC(conn, sniffQUICTimeout)
 
+	metadata.SNI = hostname
 	metadata.IsECH = attemptECH
 
 	if hostname == metadata.Host {

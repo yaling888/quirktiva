@@ -99,6 +99,7 @@ type Metadata struct {
 	ProcessPath  string     `json:"processPath"`
 	UserAgent    string     `json:"userAgent"`
 	SpecialProxy string     `json:"specialProxy"`
+	SNI          string     `json:"sni"`
 	IsECH        bool       `json:"isECH"`
 
 	OriginDst netip.AddrPort `json:"-"`
@@ -184,7 +185,14 @@ func (m *Metadata) MarshalObject(e *log.Entry) {
 		}
 	}
 
-	e.Str("rAddr", host+":"+m.DstPort.String()).Str("dnsMode", m.DNSMode.String())
+	e.Str("rAddr", host+":"+m.DstPort.String())
+
+	if m.SNI != "" {
+		e.Str("sni", m.SNI)
+	}
+
+	e.Bool("isECH", m.IsECH)
+	e.Str("dnsMode", m.DNSMode.String())
 
 	if m.Process != "" {
 		e.Str("process", m.Process)

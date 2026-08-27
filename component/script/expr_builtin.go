@@ -29,6 +29,7 @@ type shortcutEnvironment struct {
 	ProcessPath  string  `expr:"process_path"`
 	UserAgent    string  `expr:"user_agent"`
 	SpecialProxy string  `expr:"special_proxy"`
+	SNI          string  `expr:"sni"`
 	IsECH        bool    `expr:"is_ech"`
 	Now          nowExpr `expr:"now"`
 
@@ -86,6 +87,7 @@ func parseEnv(mtd *C.Metadata, hasNow bool) shortcutEnvironment {
 		ProcessPath:  mtd.ProcessPath,
 		UserAgent:    mtd.UserAgent,
 		SpecialProxy: mtd.SpecialProxy,
+		SNI:          mtd.SNI,
 		IsECH:        mtd.IsECH,
 
 		InCidr:  uInCidr,
