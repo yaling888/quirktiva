@@ -29,6 +29,7 @@ var allowKeywords = map[string]bool{
 	"user_agent":    true,
 	"special_proxy": true,
 	"inbound_port":  true,
+	"is_ech":        true,
 }
 
 var parseOption = syntax.LegacyFileOptions()

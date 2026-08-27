@@ -51,20 +51,22 @@ func SniffHTTP(conn net.Conn, timeout time.Duration) string {
 	return hostname
 }
 
-func SniffTLS(conn net.Conn, timeout time.Duration) (serverName string, isECH bool) {
+func SniffTLS(conn net.Conn, timeout time.Duration) (serverName string, attemptECH bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	tlsConfig := &tls.Config{
 		GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 			cancel()
-			serverName = trimLastDot(info.ServerName)
+			if serverName == "" {
+				serverName = trimLastDot(info.ServerName)
+			}
 			return nil, nil
 		},
 		GetEncryptedClientHelloKeys: func(info *tls.ClientHelloInfo) ([]tls.EncryptedClientHelloKey, error) {
 			cancel()
 			serverName = trimLastDot(info.ServerName)
-			isECH = true
+			attemptECH = true
 			return nil, net.ErrClosed
 		},
 	}
@@ -72,12 +74,12 @@ func SniffTLS(conn net.Conn, timeout time.Duration) (serverName string, isECH bo
 	serverConn := tls.Server(conn, tlsConfig)
 	_ = serverConn.HandshakeContext(ctx)
 	_ = serverConn.Close()
-	return serverName, isECH
+	return serverName, attemptECH
 }
 
 var defaultQUICConfig = quic.Config{Versions: quic.SupportedVersions(), Allow0RTT: true}
 
-func SniffQUIC(conn net.PacketConn, timeout time.Duration) (serverName string, isECH bool) {
+func SniffQUIC(conn net.PacketConn, timeout time.Duration) (serverName string, attemptECH bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -91,7 +93,7 @@ func SniffQUIC(conn net.PacketConn, timeout time.Duration) (serverName string, i
 		GetEncryptedClientHelloKeys: func(info *tls.ClientHelloInfo) ([]tls.EncryptedClientHelloKey, error) {
 			cancel()
 			serverName = info.ServerName
-			isECH = true
+			attemptECH = true
 			return nil, net.ErrClosed
 		},
 	}
@@ -101,7 +103,7 @@ func SniffQUIC(conn net.PacketConn, timeout time.Duration) (serverName string, i
 		_, _ = l.Accept(ctx)
 		_ = l.Close()
 	}
-	return serverName, isECH
+	return serverName, attemptECH
 }
 
 // VerifyHostnameInSNI reports whether s is a valid hostname.

@@ -382,7 +382,7 @@ func sniffTCP(connCtx C.ConnContext, metadata *C.Metadata) (sniffer.SniffingType
 
 	readOnlyConn := sniffer.StreamReadOnlyConn(connCtx.Conn())
 
-	hostname, isECH := sniffer.SniffTLS(readOnlyConn, sniffTLSTimeout)
+	hostname, attemptECH := sniffer.SniffTLS(readOnlyConn, sniffTLSTimeout)
 	if hostname == "" && needSniffing {
 		sniffingType = sniffer.HTTP
 		readOnlyConn = sniffer.StreamReadOnlyConn(readOnlyConn)
@@ -391,9 +391,17 @@ func sniffTCP(connCtx C.ConnContext, metadata *C.Metadata) (sniffer.SniffingType
 
 	connCtx.InjectConn(readOnlyConn.UnreadConn())
 
-	metadata.IsECH = isECH
+	metadata.IsECH = attemptECH
 
-	if !needSniffing || isECH {
+	if hostname == metadata.Host {
+		// Client attempts ECH, doesn't mean that ECH is accepted by the remote server.
+		// May use dns resolver to look up the ECH configs.
+		if attemptECH {
+			metadata.IsECH = false
+		}
+		return sniffer.OFF, nil
+	}
+	if !needSniffing || attemptECH {
 		return sniffer.OFF, nil
 	}
 
@@ -417,11 +425,17 @@ func sniffTCP(connCtx C.ConnContext, metadata *C.Metadata) (sniffer.SniffingType
 func sniffUDP(conn net.PacketConn, metadata *C.Metadata) (sniffer.SniffingType, error) {
 	const sniffQUICTimeout = 200 * time.Millisecond
 
-	hostname, isECH := sniffer.SniffQUIC(conn, sniffQUICTimeout)
+	hostname, attemptECH := sniffer.SniffQUIC(conn, sniffQUICTimeout)
 
-	metadata.IsECH = isECH
+	metadata.IsECH = attemptECH
 
-	if !needSniffingSNI(metadata) || isECH {
+	if hostname == metadata.Host {
+		if attemptECH {
+			metadata.IsECH = false
+		}
+		return sniffer.OFF, nil
+	}
+	if !needSniffingSNI(metadata) || attemptECH {
 		return sniffer.OFF, nil
 	}
 
