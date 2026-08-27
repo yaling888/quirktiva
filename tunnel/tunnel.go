@@ -11,13 +11,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/phuslu/log"
-	"github.com/samber/lo"
-	"github.com/samber/lo/mutable"
 	"go.uber.org/atomic"
 	"golang.org/x/net/http/httpguts"
 
@@ -25,6 +24,7 @@ import (
 	N "github.com/yaling888/quirktiva/common/net"
 	"github.com/yaling888/quirktiva/common/pipe"
 	"github.com/yaling888/quirktiva/common/sniffer"
+	"github.com/yaling888/quirktiva/common/util"
 	"github.com/yaling888/quirktiva/component/nat"
 	P "github.com/yaling888/quirktiva/component/process"
 	"github.com/yaling888/quirktiva/component/resolver"
@@ -325,9 +325,9 @@ func resolveDNS(metadata *C.Metadata, proxy, rawProxy C.Proxy) (isRemote bool, e
 			return
 		}
 		if hasV6 {
-			v6 := lo.Filter(rAddrs, func(addr netip.Addr, _ int) bool {
+			v6 := slices.Collect(util.FilterFunc(rAddrs, func(addr netip.Addr) bool {
 				return addr.Is6()
-			})
+			}))
 			if len(v6) > 0 {
 				rAddrs = v6 // priority use ipv6
 			}
@@ -394,7 +394,7 @@ func sniffTCP(connCtx C.ConnContext, metadata *C.Metadata) (sniffer.SniffingType
 	metadata.SNI = hostname
 	metadata.IsECH = attemptECH
 
-	if hostname == metadata.Host {
+	if hostname == metadata.Host { // ignore GREASE ECH
 		// Client attempts ECH, doesn't mean that ECH is accepted by the remote server.
 		// May use dns resolver to look up the ECH configs.
 		if attemptECH {
@@ -402,23 +402,17 @@ func sniffTCP(connCtx C.ConnContext, metadata *C.Metadata) (sniffer.SniffingType
 		}
 		return sniffer.OFF, nil
 	}
-	if !needSniffing || attemptECH {
+	if (!needSniffing || attemptECH) && metadata.Host != "" {
 		return sniffer.OFF, nil
 	}
 
 	if sniffer.VerifyHostnameInSNI(hostname) {
 		metadata.Host = sniffer.ToLowerASCII(hostname)
-		if resolver.MappingEnabled() {
+		if metadata.DNSMode != C.DNSNormal {
 			metadata.DNSMode = C.DNSSniffing
-			if resolver.FakeIPEnabled() {
-				metadata.DstIP = netip.Addr{}
-			}
 		}
 	} else {
 		sniffingType = sniffer.OFF
-		if resolver.IsFakeIP(metadata.DstIP) {
-			return sniffer.OFF, fmt.Errorf("fake DNS record %s missing", metadata.DstIP)
-		}
 	}
 	return sniffingType, nil
 }
@@ -437,21 +431,16 @@ func sniffUDP(conn net.PacketConn, metadata *C.Metadata) (sniffer.SniffingType, 
 		}
 		return sniffer.OFF, nil
 	}
-	if !needSniffingSNI(metadata) || attemptECH {
+	if (!needSniffingSNI(metadata) || attemptECH) && metadata.Host != "" {
 		return sniffer.OFF, nil
 	}
 
 	if sniffer.VerifyHostnameInSNI(hostname) {
 		metadata.Host = sniffer.ToLowerASCII(hostname)
-		if resolver.MappingEnabled() {
+		if metadata.DNSMode != C.DNSNormal {
 			metadata.DNSMode = C.DNSSniffing
-			if resolver.FakeIPEnabled() {
-				metadata.DstIP = netip.Addr{}
-			}
 		}
 		return sniffer.QUIC, nil
-	} else if resolver.IsFakeIP(metadata.DstIP) {
-		return sniffer.OFF, fmt.Errorf("fake DNS record %s missing", metadata.DstIP)
 	}
 	return sniffer.OFF, nil
 }
@@ -679,7 +668,7 @@ func handleUDPConnNatTable(packet *inbound.PacketAdapter, fAddr netip.Addr, key,
 		}
 
 		if len(chains) > 1 {
-			mutable.Reverse(chains)
+			slices.Reverse(chains)
 			rawPc.SetChains(chains)
 		}
 
@@ -825,7 +814,7 @@ func handleTCPConn(connCtx C.ConnContext) {
 	}
 
 	if len(chains) > 1 {
-		mutable.Reverse(chains)
+		slices.Reverse(chains)
 		remoteConn.SetChains(chains)
 	}
 

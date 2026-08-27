@@ -66,7 +66,7 @@ func SniffTLS(conn net.Conn, timeout time.Duration) (serverName string, attemptE
 		GetEncryptedClientHelloKeys: func(info *tls.ClientHelloInfo) ([]tls.EncryptedClientHelloKey, error) {
 			cancel()
 			serverName = trimLastDot(info.ServerName)
-			attemptECH = true
+			attemptECH = !isGREASE(info.SupportedVersions) // this should apply to inner client hello, but...
 			return nil, net.ErrClosed
 		},
 	}
@@ -93,7 +93,7 @@ func SniffQUIC(conn net.PacketConn, timeout time.Duration) (serverName string, a
 		GetEncryptedClientHelloKeys: func(info *tls.ClientHelloInfo) ([]tls.EncryptedClientHelloKey, error) {
 			cancel()
 			serverName = info.ServerName
-			attemptECH = true
+			attemptECH = !isGREASE(info.SupportedVersions)
 			return nil, net.ErrClosed
 		},
 	}
@@ -182,6 +182,20 @@ func trimLastDot(host string) string {
 		host = host[:l-1]
 	}
 	return host
+}
+
+func isGREASE(supportedVersions []uint16) bool {
+	for _, v := range supportedVersions {
+		// Skip GREASE values (values of the form 0x?A0A).
+		// GREASE (Generate Random Extensions And Sustain Extensibility) is a mechanism used by
+		// browsers like Chrome to ensure TLS implementations correctly ignore unknown values.
+		// GREASE values follow a specific pattern: 0x?A0A, where ? can be any hex digit.
+		// These values should be ignored when processing supported TLS versions.
+		if v&0x0F0F == 0x0A0A && v&0xff == v>>8 {
+			return true
+		}
+	}
+	return false
 }
 
 //go:linkname readRequest net/http.readRequest

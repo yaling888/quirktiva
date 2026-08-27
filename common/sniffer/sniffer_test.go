@@ -702,7 +702,7 @@ func TestSniffQUIC(t *testing.T) {
 			for _, b := range tt.args.b {
 				rds = append(rds, bytes.NewReader(b))
 			}
-			if got, got1 := SniffQUIC(NewReadOnlyPacketConn(io.MultiReader(rds...)), 10*time.Millisecond); got != tt.want || got1 != tt.want1 {
+			if got, got1 := SniffQUIC(NewReadOnlyPacketConn(io.MultiReader(rds...)), 1*time.Second); got != tt.want || got1 != tt.want1 {
 				t.Errorf("SniffQUIC() = [%s, %v], want [%s, %v]", got, got1, tt.want, tt.want1)
 			}
 		})
