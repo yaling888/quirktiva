@@ -26,6 +26,7 @@ type ClientConfig struct {
 	Password                 string
 	ALPN                     []string
 	ServerName               string
+	ClientFingerprint        string
 	ECHConfig                string
 	SkipCertVerify           bool
 	LookupECH                bool
@@ -122,7 +123,7 @@ func (c *Client) createOutboundTLSConnection(ctx context.Context, opts ...dialer
 
 	c.setECHConfig(tlsConfig)
 
-	tlsConn, err := tls2.StreamTLSConn(conn, tlsConfig)
+	tlsConn, err := tls2.StreamContextConn(ctx, conn, tlsConfig, c.option.ClientFingerprint)
 	if err != nil {
 		_ = conn.Close()
 		return nil, err

@@ -49,6 +49,43 @@ func TestClash_Trojan(t *testing.T) {
 	testSuit(t, proxy)
 }
 
+func TestClash_Trojan_uTLS(t *testing.T) {
+	cfg := &container.Config{
+		Image:        ImageTrojan,
+		ExposedPorts: defaultExposedPorts,
+	}
+	hostCfg := &container.HostConfig{
+		PortBindings: defaultPortBindings,
+		Binds: []string{
+			fmt.Sprintf("%s:/config/config.json", C.Path.Resolve("trojan.json")),
+			fmt.Sprintf("%s:/path/to/certificate.crt", C.Path.Resolve("example.org.pem")),
+			fmt.Sprintf("%s:/path/to/private.key", C.Path.Resolve("example.org-key.pem")),
+		},
+	}
+
+	id, err := startContainer(cfg, hostCfg, "trojan-utls")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		_ = cleanContainer(id)
+	})
+
+	proxy, err := outbound.NewTrojan(outbound.TrojanOption{
+		Name:              "trojan",
+		Server:            localIP.String(),
+		Port:              10002,
+		Password:          "password",
+		SNI:               "example.org",
+		SkipCertVerify:    true,
+		UDP:               true,
+		ClientFingerprint: "edge",
+	})
+	require.NoError(t, err)
+
+	time.Sleep(waitTime)
+	testSuit(t, proxy)
+}
+
 func TestClash_TrojanGrpc(t *testing.T) {
 	cfg := &container.Config{
 		Image:        ImageXray,
@@ -78,6 +115,46 @@ func TestClash_TrojanGrpc(t *testing.T) {
 		SkipCertVerify: true,
 		UDP:            true,
 		Network:        "grpc",
+		GrpcOpts: outbound.GrpcOptions{
+			GrpcServiceName: "example",
+		},
+	})
+	require.NoError(t, err)
+
+	time.Sleep(waitTime)
+	testSuit(t, proxy)
+}
+
+func TestClash_TrojanGrpc_uTLS(t *testing.T) {
+	cfg := &container.Config{
+		Image:        ImageXray,
+		ExposedPorts: defaultExposedPorts,
+	}
+	hostCfg := &container.HostConfig{
+		PortBindings: defaultPortBindings,
+		Binds: []string{
+			fmt.Sprintf("%s:/etc/xray/config.json", C.Path.Resolve("trojan-grpc.json")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/fullchain.pem", C.Path.Resolve("example.org.pem")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/privkey.pem", C.Path.Resolve("example.org-key.pem")),
+		},
+	}
+
+	id, err := startContainer(cfg, hostCfg, "trojan-grpc-utls")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = cleanContainer(id)
+	})
+
+	proxy, err := outbound.NewTrojan(outbound.TrojanOption{
+		Name:              "trojan",
+		Server:            localIP.String(),
+		Port:              10002,
+		Password:          "example",
+		SNI:               "example.org",
+		SkipCertVerify:    true,
+		UDP:               true,
+		Network:           "grpc",
+		ClientFingerprint: "chrome",
 		GrpcOpts: outbound.GrpcOptions{
 			GrpcServiceName: "example",
 		},
@@ -124,6 +201,43 @@ func TestClash_TrojanWebsocket(t *testing.T) {
 	testSuit(t, proxy)
 }
 
+func TestClash_TrojanWebsocket_uTLS(t *testing.T) {
+	cfg := &container.Config{
+		Image:        ImageTrojanGo,
+		ExposedPorts: defaultExposedPorts,
+	}
+	hostCfg := &container.HostConfig{
+		PortBindings: defaultPortBindings,
+		Binds: []string{
+			fmt.Sprintf("%s:/etc/trojan-go/config.json", C.Path.Resolve("trojan-ws.json")),
+			fmt.Sprintf("%s:/fullchain.pem", C.Path.Resolve("example.org.pem")),
+			fmt.Sprintf("%s:/privkey.pem", C.Path.Resolve("example.org-key.pem")),
+		},
+	}
+
+	id, err := startContainer(cfg, hostCfg, "trojan-ws-utls")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = cleanContainer(id)
+	})
+
+	proxy, err := outbound.NewTrojan(outbound.TrojanOption{
+		Name:              "trojan",
+		Server:            localIP.String(),
+		Port:              10002,
+		Password:          "example",
+		SNI:               "example.org",
+		SkipCertVerify:    true,
+		UDP:               true,
+		Network:           "ws",
+		ClientFingerprint: "chrome",
+	})
+	require.NoError(t, err)
+
+	time.Sleep(waitTime)
+	testSuit(t, proxy)
+}
+
 func TestClash_TrojanHTTP2(t *testing.T) {
 	cfg := &container.Config{
 		Image:        ImageVmess,
@@ -155,6 +269,49 @@ func TestClash_TrojanHTTP2(t *testing.T) {
 		SkipCertVerify: true,
 		UDP:            true,
 		Network:        "h2",
+		HTTP2Opts: outbound.HTTP2Options{
+			Host: []string{"example.org"},
+			Path: "/test",
+		},
+	})
+	require.NoError(t, err)
+
+	time.Sleep(waitTime)
+	testSuit(t, proxy)
+}
+
+func TestClash_TrojanHTTP2_uTLS(t *testing.T) {
+	cfg := &container.Config{
+		Image:        ImageVmess,
+		ExposedPorts: defaultExposedPorts,
+		Entrypoint:   []string{"/usr/bin/v2ray"},
+		Cmd:          []string{"run", "-c", "/etc/v2ray/config.json"},
+	}
+	hostCfg := &container.HostConfig{
+		PortBindings: defaultPortBindings,
+		Binds: []string{
+			fmt.Sprintf("%s:/etc/v2ray/config.json", C.Path.Resolve("trojan-http2.json")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/fullchain.pem", C.Path.Resolve("example.org.pem")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/privkey.pem", C.Path.Resolve("example.org-key.pem")),
+		},
+	}
+
+	id, err := startContainer(cfg, hostCfg, "trojan-http2-utls")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = cleanContainer(id)
+	})
+
+	proxy, err := outbound.NewTrojan(outbound.TrojanOption{
+		Name:              "trojan",
+		Server:            localIP.String(),
+		Port:              10002,
+		Password:          "example",
+		SNI:               "example.org",
+		SkipCertVerify:    true,
+		UDP:               true,
+		Network:           "h2",
+		ClientFingerprint: "firefox",
 		HTTP2Opts: outbound.HTTP2Options{
 			Host: []string{"example.org"},
 			Path: "/test",

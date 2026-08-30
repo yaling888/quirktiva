@@ -50,6 +50,7 @@ type WebsocketConfig struct {
 	MaxEarlyData        int
 	EarlyDataHeaderName string
 	V2rayHTTPUpgrade    bool
+	ClientFingerprint   string
 }
 
 // Read implements net.Conn.Read()
@@ -260,7 +261,7 @@ func streamWebsocketConn(conn net.Conn, c *WebsocketConfig, earlyData *bytes.Buf
 	}
 
 	if c.TLSConfig != nil {
-		conn, err = tls2.StreamTLSConn(conn, c.TLSConfig)
+		conn, err = tls2.StreamConnWithNextProtos(conn, c.TLSConfig, c.ClientFingerprint, c.TLSConfig.NextProtos)
 		if err != nil {
 			return nil, err
 		}

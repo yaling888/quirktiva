@@ -17,6 +17,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/yaling888/quirktiva/common/pool"
+	tls2 "github.com/yaling888/quirktiva/transport/tls"
 )
 
 var (
@@ -49,9 +50,10 @@ type Conn struct {
 }
 
 type Config struct {
-	ServiceName string
-	Host        string
-	DialFn      DialFn
+	ServiceName       string
+	Host              string
+	ClientFingerprint string
+	DialFn            DialFn
 }
 
 func (g *Conn) initRequest() {
@@ -193,8 +195,8 @@ func StreamGunWithTransport(transport *http.Transport, tlsConfig *tls.Config, cf
 		tlsCfg := tlsConfig.Clone()
 		tlsCfg.NextProtos = defaultALPN
 
-		cn := tls.Client(plainConn, tlsCfg)
-		if err = cn.HandshakeContext(ctx); err != nil {
+		cn, err := tls2.StreamContextConn(ctx, plainConn, tlsCfg, cfg.ClientFingerprint)
+		if err != nil {
 			_ = plainConn.Close()
 			return nil, err
 		}
@@ -256,9 +258,10 @@ func StreamGunWithConn(conn net.Conn, tlsConfig *tls.Config, cfg *Config) (net.C
 		return conn, nil
 	}
 	cfg1 := &Config{
-		ServiceName: cfg.ServiceName,
-		Host:        cfg.Host,
-		DialFn:      dialFn,
+		ServiceName:       cfg.ServiceName,
+		Host:              cfg.Host,
+		ClientFingerprint: cfg.ClientFingerprint,
+		DialFn:            dialFn,
 	}
 	transport := NewHTTP2Client()
 	return StreamGunWithTransport(transport, tlsConfig, cfg1)

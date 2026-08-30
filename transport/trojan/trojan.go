@@ -1,7 +1,6 @@
 package trojan
 
 import (
-	"context"
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/binary"
@@ -15,9 +14,9 @@ import (
 
 	"github.com/yaling888/quirktiva/common/pool"
 	"github.com/yaling888/quirktiva/component/resolver"
-	C "github.com/yaling888/quirktiva/constant"
 	"github.com/yaling888/quirktiva/transport/h2"
 	"github.com/yaling888/quirktiva/transport/socks5"
+	tls2 "github.com/yaling888/quirktiva/transport/tls"
 	"github.com/yaling888/quirktiva/transport/vmess"
 )
 
@@ -41,12 +40,13 @@ const (
 )
 
 type Option struct {
-	Password       string
-	ALPN           []string
-	ServerName     string
-	ECHConfig      string
-	SkipCertVerify bool
-	LookupECH      bool
+	Password          string
+	ALPN              []string
+	ServerName        string
+	ECHConfig         string
+	ClientFingerprint string
+	SkipCertVerify    bool
+	LookupECH         bool
 }
 
 type HTTPOptions struct {
@@ -90,16 +90,7 @@ func (t *Trojan) StreamConn(conn net.Conn) (net.Conn, error) {
 
 	t.setECHConfig(tlsConfig)
 
-	tlsConn := tls.Client(conn, tlsConfig)
-
-	// fix tls handshake not timeout
-	ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTLSTimeout)
-	defer cancel()
-	if err := tlsConn.HandshakeContext(ctx); err != nil {
-		return nil, err
-	}
-
-	return tlsConn, nil
+	return tls2.StreamConn(conn, tlsConfig, t.option.ClientFingerprint)
 }
 
 func (t *Trojan) StreamH2Conn(conn net.Conn, h2Option *HTTPOptions) (net.Conn, error) {
@@ -116,11 +107,8 @@ func (t *Trojan) StreamH2Conn(conn net.Conn, h2Option *HTTPOptions) (net.Conn, e
 
 	t.setECHConfig(tlsConfig)
 
-	tlsConn := tls.Client(conn, tlsConfig)
-
-	ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTLSTimeout)
-	defer cancel()
-	if err := tlsConn.HandshakeContext(ctx); err != nil {
+	tlsConn, err := tls2.StreamConn(conn, tlsConfig, t.option.ClientFingerprint)
+	if err != nil {
 		return nil, err
 	}
 
@@ -151,13 +139,14 @@ func (t *Trojan) StreamWebsocketConn(conn net.Conn, wsOptions *WebsocketOption) 
 	t.setECHConfig(tlsConfig)
 
 	return vmess.StreamWebsocketConn(conn, &vmess.WebsocketConfig{
-		Host:             wsOptions.Host,
-		Port:             wsOptions.Port,
-		Path:             wsOptions.Path,
-		Headers:          wsOptions.Headers,
-		V2rayHTTPUpgrade: wsOptions.V2rayHTTPUpgrade,
-		TLS:              true,
-		TLSConfig:        tlsConfig,
+		Host:              wsOptions.Host,
+		Port:              wsOptions.Port,
+		Path:              wsOptions.Path,
+		Headers:           wsOptions.Headers,
+		V2rayHTTPUpgrade:  wsOptions.V2rayHTTPUpgrade,
+		ClientFingerprint: t.option.ClientFingerprint,
+		TLS:               true,
+		TLSConfig:         tlsConfig,
 	})
 }
 

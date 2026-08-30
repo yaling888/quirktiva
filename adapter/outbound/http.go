@@ -17,56 +17,57 @@ import (
 	"github.com/yaling888/quirktiva/component/dialer"
 	"github.com/yaling888/quirktiva/component/resolver"
 	C "github.com/yaling888/quirktiva/constant"
+	tls2 "github.com/yaling888/quirktiva/transport/tls"
 )
 
 var _ C.ProxyAdapter = (*Http)(nil)
 
 type Http struct {
 	*Base
-	user      string
-	pass      string
-	lookupECH bool
-	tlsConfig *tls.Config
-	headers   http.Header
+	user              string
+	pass              string
+	clientFingerprint string
+	lookupECH         bool
+	tlsConfig         *tls.Config
+	headers           http.Header
 }
 
 type HttpOption struct {
 	BasicOption
-	Name             string            `proxy:"name"`
-	Server           string            `proxy:"server"`
-	Port             int               `proxy:"port"`
-	UserName         string            `proxy:"username,omitempty"`
-	Password         string            `proxy:"password,omitempty"`
-	TLS              bool              `proxy:"tls,omitempty"`
-	SNI              string            `proxy:"sni,omitempty"`
-	ECHConfig        string            `proxy:"ech-config,omitempty"`
-	ECH              bool              `proxy:"ech,omitempty"`
-	SkipCertVerify   bool              `proxy:"skip-cert-verify,omitempty"`
-	Headers          map[string]string `proxy:"headers,omitempty"`
-	RemoteDnsResolve bool              `proxy:"remote-dns-resolve,omitempty"`
+	Name              string            `proxy:"name"`
+	Server            string            `proxy:"server"`
+	Port              int               `proxy:"port"`
+	UserName          string            `proxy:"username,omitempty"`
+	Password          string            `proxy:"password,omitempty"`
+	TLS               bool              `proxy:"tls,omitempty"`
+	SNI               string            `proxy:"sni,omitempty"`
+	ClientFingerprint string            `proxy:"client-fingerprint,omitempty"`
+	ECHConfig         string            `proxy:"ech-config,omitempty"`
+	ECH               bool              `proxy:"ech,omitempty"`
+	SkipCertVerify    bool              `proxy:"skip-cert-verify,omitempty"`
+	Headers           map[string]string `proxy:"headers,omitempty"`
+	RemoteDnsResolve  bool              `proxy:"remote-dns-resolve,omitempty"`
 }
 
 // StreamConn implements C.ProxyAdapter
 func (h *Http) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
+	var err error
 	if h.tlsConfig != nil {
-		var cc *tls.Conn
+		var cc tls2.Conn
 		if h.lookupECH {
 			tlsConfig := h.tlsConfig.Clone()
 			h.lookupECH = resolver.SetECHConfigList(tlsConfig)
-			cc = tls.Client(c, tlsConfig)
+			cc, err = tls2.StreamConn(c, tlsConfig, h.clientFingerprint)
 		} else {
-			cc = tls.Client(c, h.tlsConfig)
+			cc, err = tls2.StreamConn(c, h.tlsConfig, h.clientFingerprint)
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTLSTimeout)
-		defer cancel()
-		err := cc.HandshakeContext(ctx)
-		c = cc
 		if err != nil {
 			return nil, fmt.Errorf("%s connect error: %w", h.addr, err)
 		}
+		c = cc
 	}
 
-	if err := h.shakeHand(metadata, c); err != nil {
+	if err = h.shakeHand(metadata, c); err != nil {
 		return nil, err
 	}
 	return c, nil
@@ -192,10 +193,11 @@ func NewHttp(option HttpOption) (*Http, error) {
 			rmark: option.RoutingMark,
 			dns:   option.RemoteDnsResolve,
 		},
-		user:      option.UserName,
-		pass:      option.Password,
-		tlsConfig: tlsConfig,
-		headers:   headers,
-		lookupECH: lookupECH,
+		user:              option.UserName,
+		pass:              option.Password,
+		clientFingerprint: option.ClientFingerprint,
+		tlsConfig:         tlsConfig,
+		headers:           headers,
+		lookupECH:         lookupECH,
 	}, nil
 }

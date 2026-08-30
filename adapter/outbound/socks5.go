@@ -15,33 +15,36 @@ import (
 	"github.com/yaling888/quirktiva/component/resolver"
 	C "github.com/yaling888/quirktiva/constant"
 	"github.com/yaling888/quirktiva/transport/socks5"
+	tls2 "github.com/yaling888/quirktiva/transport/tls"
 )
 
 var _ C.ProxyAdapter = (*Socks5)(nil)
 
 type Socks5 struct {
 	*Base
-	user           string
-	pass           string
-	tls            bool
-	skipCertVerify bool
-	lookupECH      bool
-	tlsConfig      *tls.Config
+	user              string
+	pass              string
+	clientFingerprint string
+	tls               bool
+	skipCertVerify    bool
+	lookupECH         bool
+	tlsConfig         *tls.Config
 }
 
 type Socks5Option struct {
 	BasicOption
-	Name             string `proxy:"name"`
-	Server           string `proxy:"server"`
-	Port             int    `proxy:"port"`
-	UserName         string `proxy:"username,omitempty"`
-	Password         string `proxy:"password,omitempty"`
-	ECHConfig        string `proxy:"ech-config,omitempty"`
-	ECH              bool   `proxy:"ech,omitempty"`
-	TLS              bool   `proxy:"tls,omitempty"`
-	UDP              bool   `proxy:"udp,omitempty"`
-	SkipCertVerify   bool   `proxy:"skip-cert-verify,omitempty"`
-	RemoteDnsResolve bool   `proxy:"remote-dns-resolve,omitempty"`
+	Name              string `proxy:"name"`
+	Server            string `proxy:"server"`
+	Port              int    `proxy:"port"`
+	UserName          string `proxy:"username,omitempty"`
+	Password          string `proxy:"password,omitempty"`
+	ClientFingerprint string `proxy:"client-fingerprint,omitempty"`
+	ECHConfig         string `proxy:"ech-config,omitempty"`
+	ECH               bool   `proxy:"ech,omitempty"`
+	TLS               bool   `proxy:"tls,omitempty"`
+	UDP               bool   `proxy:"udp,omitempty"`
+	SkipCertVerify    bool   `proxy:"skip-cert-verify,omitempty"`
+	RemoteDnsResolve  bool   `proxy:"remote-dns-resolve,omitempty"`
 }
 
 // StreamConn implements C.ProxyAdapter
@@ -94,21 +97,18 @@ func (ss *Socks5) StreamSocks5PacketConn(c net.Conn, pc net.PacketConn, metadata
 
 func (ss *Socks5) streamConn(c net.Conn, metadata *C.Metadata) (_ net.Conn, bindAddr socks5.Addr, err error) {
 	if ss.tls {
-		var cc *tls.Conn
+		var cc tls2.Conn
 		if ss.lookupECH {
 			tlsConfig := ss.tlsConfig.Clone()
 			ss.lookupECH = resolver.SetECHConfigList(tlsConfig)
-			cc = tls.Client(c, tlsConfig)
+			cc, err = tls2.StreamConn(c, tlsConfig, ss.clientFingerprint)
 		} else {
-			cc = tls.Client(c, ss.tlsConfig)
+			cc, err = tls2.StreamConn(c, ss.tlsConfig, ss.clientFingerprint)
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), C.DefaultTLSTimeout)
-		defer cancel()
-		err = cc.HandshakeContext(ctx)
-		c = cc
 		if err != nil {
 			return c, nil, fmt.Errorf("%s connect error: %w", ss.addr, err)
 		}
+		c = cc
 	}
 
 	var user *socks5.User
@@ -218,12 +218,13 @@ func NewSocks5(option Socks5Option) (*Socks5, error) {
 			rmark: option.RoutingMark,
 			dns:   option.RemoteDnsResolve,
 		},
-		user:           option.UserName,
-		pass:           option.Password,
-		tls:            option.TLS,
-		skipCertVerify: option.SkipCertVerify,
-		tlsConfig:      tlsConfig,
-		lookupECH:      lookupECH,
+		user:              option.UserName,
+		pass:              option.Password,
+		tls:               option.TLS,
+		skipCertVerify:    option.SkipCertVerify,
+		clientFingerprint: option.ClientFingerprint,
+		tlsConfig:         tlsConfig,
+		lookupECH:         lookupECH,
 	}, nil
 }
 

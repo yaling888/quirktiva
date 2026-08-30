@@ -34,6 +34,7 @@ type AnyTLSOption struct {
 	Password                 string   `proxy:"password"`
 	ALPN                     []string `proxy:"alpn,omitempty"`
 	SNI                      string   `proxy:"sni,omitempty"`
+	ClientFingerprint        string   `proxy:"client-fingerprint,omitempty"`
 	ECHConfig                string   `proxy:"ech-config,omitempty"`
 	ECH                      bool     `proxy:"ech,omitempty"`
 	SkipCertVerify           bool     `proxy:"skip-cert-verify,omitempty"`
@@ -125,6 +126,7 @@ func NewAnyTLS(option AnyTLSOption) (*AnyTLS, error) {
 		IdleSessionTimeout:       time.Duration(option.IdleSessionTimeout) * time.Second,
 		MinIdleSession:           option.MinIdleSession,
 		SkipCertVerify:           option.SkipCertVerify,
+		ClientFingerprint:        option.ClientFingerprint,
 		ALPN:                     alpn,
 		ServerName:               serverName,
 		ECHConfig:                echConfig,

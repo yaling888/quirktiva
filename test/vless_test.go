@@ -50,6 +50,45 @@ func TestClash_VlessTLS(t *testing.T) {
 	testSuit(t, proxy)
 }
 
+func TestClash_VlessTLS_uTLS(t *testing.T) {
+	cfg := &container.Config{
+		Image:        ImageVmess,
+		ExposedPorts: defaultExposedPorts,
+		Entrypoint:   []string{"/usr/bin/v2ray"},
+		Cmd:          []string{"run", "-c", "/etc/v2ray/config.json"},
+	}
+	hostCfg := &container.HostConfig{
+		PortBindings: defaultPortBindings,
+		Binds: []string{
+			fmt.Sprintf("%s:/etc/v2ray/config.json", C.Path.Resolve("vless-tls.json")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/fullchain.pem", C.Path.Resolve("example.org.pem")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/privkey.pem", C.Path.Resolve("example.org-key.pem")),
+		},
+	}
+
+	id, err := startContainer(cfg, hostCfg, "vless-tls-utls")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = cleanContainer(id)
+	})
+
+	proxy, err := outbound.NewVless(outbound.VlessOption{
+		Name:              "vless",
+		Server:            localIP.String(),
+		Port:              10002,
+		UUID:              "b831381d-6324-4d53-ad4f-8cda48b30811",
+		TLS:               true,
+		SkipCertVerify:    true,
+		ServerName:        "example.org",
+		UDP:               true,
+		ClientFingerprint: "safari",
+	})
+	require.NoError(t, err)
+
+	time.Sleep(waitTime)
+	testSuit(t, proxy)
+}
+
 func TestClash_VlessWSS(t *testing.T) {
 	cfg := &container.Config{
 		Image:        ImageVmess,
@@ -82,6 +121,46 @@ func TestClash_VlessWSS(t *testing.T) {
 		ServerName:     "example.org",
 		Network:        "ws",
 		UDP:            true,
+	})
+	require.NoError(t, err)
+
+	time.Sleep(waitTime)
+	testSuit(t, proxy)
+}
+
+func TestClash_VlessWSS_uTLS(t *testing.T) {
+	cfg := &container.Config{
+		Image:        ImageVmess,
+		ExposedPorts: defaultExposedPorts,
+		Entrypoint:   []string{"/usr/bin/v2ray"},
+		Cmd:          []string{"run", "-c", "/etc/v2ray/config.json"},
+	}
+	hostCfg := &container.HostConfig{
+		PortBindings: defaultPortBindings,
+		Binds: []string{
+			fmt.Sprintf("%s:/etc/v2ray/config.json", C.Path.Resolve("vless-ws.json")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/fullchain.pem", C.Path.Resolve("example.org.pem")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/privkey.pem", C.Path.Resolve("example.org-key.pem")),
+		},
+	}
+
+	id, err := startContainer(cfg, hostCfg, "vless-ws-utls")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = cleanContainer(id)
+	})
+
+	proxy, err := outbound.NewVless(outbound.VlessOption{
+		Name:              "vless",
+		Server:            localIP.String(),
+		Port:              10002,
+		UUID:              "b831381d-6324-4d53-ad4f-8cda48b30811",
+		TLS:               true,
+		SkipCertVerify:    true,
+		ServerName:        "example.org",
+		Network:           "ws",
+		UDP:               true,
+		ClientFingerprint: "ios",
 	})
 	require.NoError(t, err)
 

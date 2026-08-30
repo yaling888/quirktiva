@@ -55,26 +55,27 @@ type Vless struct {
 
 type VlessOption struct {
 	BasicOption
-	Name             string            `proxy:"name"`
-	Server           string            `proxy:"server"`
-	Port             int               `proxy:"port"`
-	UUID             string            `proxy:"uuid"`
-	UDP              bool              `proxy:"udp,omitempty"`
-	Network          string            `proxy:"network,omitempty"`
-	TLS              bool              `proxy:"tls,omitempty"`
-	SkipCertVerify   bool              `proxy:"skip-cert-verify,omitempty"`
-	ALPN             []string          `proxy:"alpn,omitempty"`
-	ServerName       string            `proxy:"servername,omitempty"`
-	ECHConfig        string            `proxy:"ech-config,omitempty"`
-	ECH              bool              `proxy:"ech,omitempty"`
-	HTTPOpts         HTTPOptions       `proxy:"http-opts,omitempty"`
-	HTTP2Opts        HTTP2Options      `proxy:"h2-opts,omitempty"`
-	GrpcOpts         GrpcOptions       `proxy:"grpc-opts,omitempty"`
-	WSOpts           WSOptions         `proxy:"ws-opts,omitempty"`
-	QUICOpts         QUICOptions       `proxy:"quic-opts,omitempty"`
-	AEADOpts         crypto.AEADOption `proxy:"aead-opts,omitempty"`
-	RandomHost       bool              `proxy:"rand-host,omitempty"`
-	RemoteDnsResolve bool              `proxy:"remote-dns-resolve,omitempty"`
+	Name              string            `proxy:"name"`
+	Server            string            `proxy:"server"`
+	Port              int               `proxy:"port"`
+	UUID              string            `proxy:"uuid"`
+	UDP               bool              `proxy:"udp,omitempty"`
+	Network           string            `proxy:"network,omitempty"`
+	TLS               bool              `proxy:"tls,omitempty"`
+	SkipCertVerify    bool              `proxy:"skip-cert-verify,omitempty"`
+	ALPN              []string          `proxy:"alpn,omitempty"`
+	ServerName        string            `proxy:"servername,omitempty"`
+	ClientFingerprint string            `proxy:"client-fingerprint,omitempty"`
+	ECHConfig         string            `proxy:"ech-config,omitempty"`
+	ECH               bool              `proxy:"ech,omitempty"`
+	HTTPOpts          HTTPOptions       `proxy:"http-opts,omitempty"`
+	HTTP2Opts         HTTP2Options      `proxy:"h2-opts,omitempty"`
+	GrpcOpts          GrpcOptions       `proxy:"grpc-opts,omitempty"`
+	WSOpts            WSOptions         `proxy:"ws-opts,omitempty"`
+	QUICOpts          QUICOptions       `proxy:"quic-opts,omitempty"`
+	AEADOpts          crypto.AEADOption `proxy:"aead-opts,omitempty"`
+	RandomHost        bool              `proxy:"rand-host,omitempty"`
+	RemoteDnsResolve  bool              `proxy:"remote-dns-resolve,omitempty"`
 }
 
 // StreamConn implements C.ProxyAdapter
@@ -91,6 +92,7 @@ func (v *Vless) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 			MaxEarlyData:        v.option.WSOpts.MaxEarlyData,
 			EarlyDataHeaderName: v.option.WSOpts.EarlyDataHeaderName,
 			V2rayHTTPUpgrade:    v.option.WSOpts.V2rayHTTPUpgrade,
+			ClientFingerprint:   v.option.ClientFingerprint,
 		}
 
 		if len(v.option.WSOpts.Headers) != 0 {
@@ -150,7 +152,7 @@ func (v *Vless) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 
 			v.setECHConfig(tlsConfig)
 
-			c, err = tls2.StreamTLSConn(c, tlsConfig)
+			c, err = tls2.StreamConn(c, tlsConfig, v.option.ClientFingerprint)
 			if err != nil {
 				return nil, err
 			}
@@ -194,7 +196,7 @@ func (v *Vless) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 
 		v.setECHConfig(tlsConfig)
 
-		c, err = tls2.StreamTLSConn(c, tlsConfig)
+		c, err = tls2.StreamConn(c, tlsConfig, v.option.ClientFingerprint)
 		if err != nil {
 			return nil, err
 		}
@@ -276,7 +278,7 @@ func (v *Vless) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 
 			v.setECHConfig(tlsConfig)
 
-			c, err = tls2.StreamTLSConn(c, tlsConfig)
+			c, err = tls2.StreamConn(c, tlsConfig, v.option.ClientFingerprint)
 		}
 	}
 
@@ -617,9 +619,10 @@ func NewVless(option VlessOption) (*Vless, error) {
 		}
 
 		gunConfig := &gun.Config{
-			ServiceName: v.option.GrpcOpts.GrpcServiceName,
-			Host:        v.option.ServerName,
-			DialFn:      dialFn,
+			ServiceName:       v.option.GrpcOpts.GrpcServiceName,
+			Host:              v.option.ServerName,
+			ClientFingerprint: v.option.ClientFingerprint,
+			DialFn:            dialFn,
 		}
 		tlsConfig := &tls.Config{
 			InsecureSkipVerify: v.option.SkipCertVerify,

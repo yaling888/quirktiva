@@ -39,23 +39,24 @@ type Trojan struct {
 
 type TrojanOption struct {
 	BasicOption
-	Name             string            `proxy:"name"`
-	Server           string            `proxy:"server"`
-	Port             int               `proxy:"port"`
-	Password         string            `proxy:"password"`
-	ALPN             []string          `proxy:"alpn,omitempty"`
-	SNI              string            `proxy:"sni,omitempty"`
-	ECHConfig        string            `proxy:"ech-config,omitempty"`
-	ECH              bool              `proxy:"ech,omitempty"`
-	SkipCertVerify   bool              `proxy:"skip-cert-verify,omitempty"`
-	UDP              bool              `proxy:"udp,omitempty"`
-	Network          string            `proxy:"network,omitempty"`
-	GrpcOpts         GrpcOptions       `proxy:"grpc-opts,omitempty"`
-	WSOpts           WSOptions         `proxy:"ws-opts,omitempty"`
-	HTTP2Opts        HTTP2Options      `proxy:"h2-opts,omitempty"`
-	QUICOpts         QUICOptions       `proxy:"quic-opts,omitempty"`
-	AEADOpts         crypto.AEADOption `proxy:"aead-opts,omitempty"`
-	RemoteDnsResolve bool              `proxy:"remote-dns-resolve,omitempty"`
+	Name              string            `proxy:"name"`
+	Server            string            `proxy:"server"`
+	Port              int               `proxy:"port"`
+	Password          string            `proxy:"password"`
+	ALPN              []string          `proxy:"alpn,omitempty"`
+	SNI               string            `proxy:"sni,omitempty"`
+	ClientFingerprint string            `proxy:"client-fingerprint,omitempty"`
+	ECHConfig         string            `proxy:"ech-config,omitempty"`
+	ECH               bool              `proxy:"ech,omitempty"`
+	SkipCertVerify    bool              `proxy:"skip-cert-verify,omitempty"`
+	UDP               bool              `proxy:"udp,omitempty"`
+	Network           string            `proxy:"network,omitempty"`
+	GrpcOpts          GrpcOptions       `proxy:"grpc-opts,omitempty"`
+	WSOpts            WSOptions         `proxy:"ws-opts,omitempty"`
+	HTTP2Opts         HTTP2Options      `proxy:"h2-opts,omitempty"`
+	QUICOpts          QUICOptions       `proxy:"quic-opts,omitempty"`
+	AEADOpts          crypto.AEADOption `proxy:"aead-opts,omitempty"`
+	RemoteDnsResolve  bool              `proxy:"remote-dns-resolve,omitempty"`
 }
 
 func (t *Trojan) plainStream(conn net.Conn) (net.Conn, error) {
@@ -337,12 +338,13 @@ func NewTrojan(option TrojanOption) (*Trojan, error) {
 	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 
 	tOption := &trojan.Option{
-		Password:       option.Password,
-		ALPN:           option.ALPN,
-		ServerName:     option.Server,
-		ECHConfig:      echConfig,
-		SkipCertVerify: option.SkipCertVerify,
-		LookupECH:      lookupECH,
+		Password:          option.Password,
+		ALPN:              option.ALPN,
+		ServerName:        option.Server,
+		ClientFingerprint: option.ClientFingerprint,
+		ECHConfig:         echConfig,
+		SkipCertVerify:    option.SkipCertVerify,
+		LookupECH:         lookupECH,
 	}
 
 	if option.SNI != "" {
@@ -395,9 +397,10 @@ func NewTrojan(option TrojanOption) (*Trojan, error) {
 
 		t.gunTLSConfig = tlsConfig
 		t.gunConfig = &gun.Config{
-			ServiceName: option.GrpcOpts.GrpcServiceName,
-			Host:        tOption.ServerName,
-			DialFn:      dialFn,
+			ServiceName:       option.GrpcOpts.GrpcServiceName,
+			Host:              tOption.ServerName,
+			ClientFingerprint: tOption.ClientFingerprint,
+			DialFn:            dialFn,
 		}
 	case "quic":
 		quicAEAD, err := crypto.NewAEAD(t.option.QUICOpts.Security, t.option.QUICOpts.Key, "v2ray-quic-salt")

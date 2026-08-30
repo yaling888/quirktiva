@@ -86,6 +86,46 @@ func TestClash_VmessTLS(t *testing.T) {
 	testSuit(t, proxy)
 }
 
+func TestClash_VmessTLS_uTLS(t *testing.T) {
+	cfg := &container.Config{
+		Image:        ImageVmess,
+		ExposedPorts: defaultExposedPorts,
+		Entrypoint:   []string{"/usr/bin/v2ray"},
+		Cmd:          []string{"run", "-c", "/etc/v2ray/config.json"},
+	}
+	hostCfg := &container.HostConfig{
+		PortBindings: defaultPortBindings,
+		Binds: []string{
+			fmt.Sprintf("%s:/etc/v2ray/config.json", C.Path.Resolve("vmess-tls.json")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/fullchain.pem", C.Path.Resolve("example.org.pem")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/privkey.pem", C.Path.Resolve("example.org-key.pem")),
+		},
+	}
+
+	id, err := startContainer(cfg, hostCfg, "vmess-tls-utls")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		cleanContainer(id)
+	})
+
+	proxy, err := outbound.NewVmess(outbound.VmessOption{
+		Name:              "vmess",
+		Server:            localIP.String(),
+		Port:              10002,
+		UUID:              "b831381d-6324-4d53-ad4f-8cda48b30811",
+		Cipher:            "auto",
+		TLS:               true,
+		SkipCertVerify:    true,
+		ServerName:        "example.org",
+		UDP:               true,
+		ClientFingerprint: "chrome",
+	})
+	require.NoError(t, err)
+
+	time.Sleep(waitTime)
+	testSuit(t, proxy)
+}
+
 func TestClash_VmessHTTP2(t *testing.T) {
 	cfg := &container.Config{
 		Image:        ImageVmess,
@@ -119,6 +159,51 @@ func TestClash_VmessHTTP2(t *testing.T) {
 		SkipCertVerify: true,
 		ServerName:     "example.org",
 		UDP:            true,
+		HTTP2Opts: outbound.HTTP2Options{
+			Host: []string{"example.org"},
+			Path: "/test",
+		},
+	})
+	require.NoError(t, err)
+
+	time.Sleep(waitTime)
+	testSuit(t, proxy)
+}
+
+func TestClash_VmessHTTP2_uTLS(t *testing.T) {
+	cfg := &container.Config{
+		Image:        ImageVmess,
+		ExposedPorts: defaultExposedPorts,
+		Entrypoint:   []string{"/usr/bin/v2ray"},
+		Cmd:          []string{"run", "-c", "/etc/v2ray/config.json"},
+	}
+	hostCfg := &container.HostConfig{
+		PortBindings: defaultPortBindings,
+		Binds: []string{
+			fmt.Sprintf("%s:/etc/v2ray/config.json", C.Path.Resolve("vmess-http2.json")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/fullchain.pem", C.Path.Resolve("example.org.pem")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/privkey.pem", C.Path.Resolve("example.org-key.pem")),
+		},
+	}
+
+	id, err := startContainer(cfg, hostCfg, "vmess-http2-utls")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		cleanContainer(id)
+	})
+
+	proxy, err := outbound.NewVmess(outbound.VmessOption{
+		Name:              "vmess",
+		Server:            localIP.String(),
+		Port:              10002,
+		UUID:              "b831381d-6324-4d53-ad4f-8cda48b30811",
+		Cipher:            "auto",
+		Network:           "h2",
+		TLS:               true,
+		SkipCertVerify:    true,
+		ServerName:        "example.org",
+		UDP:               true,
+		ClientFingerprint: "chrome",
 		HTTP2Opts: outbound.HTTP2Options{
 			Host: []string{"example.org"},
 			Path: "/test",
@@ -256,6 +341,46 @@ func TestClash_VmessWebsocketTLS(t *testing.T) {
 	testSuit(t, proxy)
 }
 
+func TestClash_VmessWebsocketTLS_uTLS(t *testing.T) {
+	cfg := &container.Config{
+		Image:        ImageVmess,
+		ExposedPorts: defaultExposedPorts,
+		Entrypoint:   []string{"/usr/bin/v2ray"},
+		Cmd:          []string{"run", "-c", "/etc/v2ray/config.json"},
+	}
+	hostCfg := &container.HostConfig{
+		PortBindings: defaultPortBindings,
+		Binds: []string{
+			fmt.Sprintf("%s:/etc/v2ray/config.json", C.Path.Resolve("vmess-ws-tls.json")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/fullchain.pem", C.Path.Resolve("example.org.pem")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/privkey.pem", C.Path.Resolve("example.org-key.pem")),
+		},
+	}
+
+	id, err := startContainer(cfg, hostCfg, "vmess-ws-tls-utls")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		cleanContainer(id)
+	})
+
+	proxy, err := outbound.NewVmess(outbound.VmessOption{
+		Name:              "vmess",
+		Server:            localIP.String(),
+		Port:              10002,
+		UUID:              "b831381d-6324-4d53-ad4f-8cda48b30811",
+		Cipher:            "auto",
+		Network:           "ws",
+		TLS:               true,
+		SkipCertVerify:    true,
+		UDP:               true,
+		ClientFingerprint: "chrome",
+	})
+	require.NoError(t, err)
+
+	time.Sleep(waitTime)
+	testSuit(t, proxy)
+}
+
 func TestClash_VmessWebsocketTLSZero(t *testing.T) {
 	cfg := &container.Config{
 		Image:        ImageVmess,
@@ -328,6 +453,50 @@ func TestClash_VmessGrpc(t *testing.T) {
 		SkipCertVerify: true,
 		UDP:            true,
 		ServerName:     "example.org",
+		GrpcOpts: outbound.GrpcOptions{
+			GrpcServiceName: "example!",
+		},
+	})
+	require.NoError(t, err)
+
+	time.Sleep(waitTime)
+	testSuit(t, proxy)
+}
+
+func TestClash_VmessGrpc_uTLS(t *testing.T) {
+	cfg := &container.Config{
+		Image:        ImageVmess,
+		ExposedPorts: defaultExposedPorts,
+		Entrypoint:   []string{"/usr/bin/v2ray"},
+		Cmd:          []string{"run", "-c", "/etc/v2ray/config.json"},
+	}
+	hostCfg := &container.HostConfig{
+		PortBindings: defaultPortBindings,
+		Binds: []string{
+			fmt.Sprintf("%s:/etc/v2ray/config.json", C.Path.Resolve("vmess-grpc.json")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/fullchain.pem", C.Path.Resolve("example.org.pem")),
+			fmt.Sprintf("%s:/etc/ssl/v2ray/privkey.pem", C.Path.Resolve("example.org-key.pem")),
+		},
+	}
+
+	id, err := startContainer(cfg, hostCfg, "vmess-grpc-utls")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		cleanContainer(id)
+	})
+
+	proxy, err := outbound.NewVmess(outbound.VmessOption{
+		Name:              "vmess",
+		Server:            localIP.String(),
+		Port:              10002,
+		UUID:              "b831381d-6324-4d53-ad4f-8cda48b30811",
+		Cipher:            "auto",
+		Network:           "grpc",
+		TLS:               true,
+		SkipCertVerify:    true,
+		UDP:               true,
+		ServerName:        "example.org",
+		ClientFingerprint: "chrome",
 		GrpcOpts: outbound.GrpcOptions{
 			GrpcServiceName: "example!",
 		},
