@@ -46,6 +46,7 @@ type Hysteria2Option struct {
 	HopInterval      time.Duration `proxy:"hop-interval,omitempty"`
 	Up               string        `proxy:"up,omitempty"`
 	Down             string        `proxy:"down,omitempty"`
+	BBRProfile       string        `proxy:"bbr-profile,omitempty"`
 	ECHConfig        string        `proxy:"ech-config,omitempty"`
 	ECH              bool          `proxy:"ech,omitempty"`
 	UDP              bool          `proxy:"udp,omitempty"`
@@ -236,6 +237,19 @@ func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
 		}
 	}
 
+	bbrType := "bbr"
+	bbrProfile := strings.ToLower(option.BBRProfile)
+	switch bbrProfile {
+	case "":
+		bbrProfile = "standard"
+	case "reno":
+		bbrType = "reno"
+		bbrProfile = ""
+	case "standard", "conservative", "aggressive":
+	default:
+		return nil, fmt.Errorf("unsupported BBR profile: %s", bbrProfile)
+	}
+
 	h := &Hysteria2{
 		Base: &Base{
 			name:  option.Name,
@@ -274,6 +288,10 @@ func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
 		BandwidthConfig: client.BandwidthConfig{
 			MaxTx: up,
 			MaxRx: down,
+		},
+		CongestionConfig: client.CongestionConfig{
+			Type:       bbrType,
+			BBRProfile: bbrProfile,
 		},
 	}
 
