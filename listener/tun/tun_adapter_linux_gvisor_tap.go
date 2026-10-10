@@ -103,7 +103,7 @@ func newFDAdapter(tunConf *C.Tun, tcpIn chan<- C.ConnContext, udpIn chan<- *inbo
 	gVisorGSOEnabled := false
 	if gsoMaxSize == 0 && gso {
 		// Host GSO is disabled. Let's enable gVisor GSO.
-		gsoMaxSize = stack.GVisorGSOMaxSize
+		gsoMaxSize = tcpip.GVisorGSOMaxSize
 		gVisorGSOEnabled = true
 	}
 
