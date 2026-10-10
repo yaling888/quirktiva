@@ -164,7 +164,7 @@ google.golang.org/protobuf v1.36.12 h1:pJOKDDOyeXErUroCihFAd5LQuwXBSpVnKGrj5o/fw
 google.golang.org/protobuf v1.36.12/go.mod h1:HTf+CrKn2C3g5S8VImy6tdcUvCska2kB7j23XfzDpco=
 gotest.tools/v3 v3.5.2 h1:7koQfIKdy+I8UTetycgUqXWSDwpgv193Ka+qRsmBY8Q=
 gotest.tools/v3 v3.5.2/go.mod h1:LtdLGcnqToBH83WByAAi/wiwSFCArdFIUV/xxN4pcjA=
-gvisor.dev/gvisor v0.0.0-20261008234726-4fdbe18cf294 h1:F77L7BJ3Jq95oU5zB6tjfNj6TWLgTMq/Ws3WsIf2J6M=
-gvisor.dev/gvisor v0.0.0-20261008234726-4fdbe18cf294/go.mod h1:LOvux1Z/goEJudXUp4E7WwCxxJeeMf5kVoprLEZvOHo=
+gvisor.dev/gvisor v0.0.0-20261010064756-cd110d9dec04 h1:iVC12KE9T4FE4+ygenM2M0GGtZ5RLIGrXmY9T5UPdZk=
+gvisor.dev/gvisor v0.0.0-20261010064756-cd110d9dec04/go.mod h1:LOvux1Z/goEJudXUp4E7WwCxxJeeMf5kVoprLEZvOHo=
 pgregory.net/rapid v1.2.0 h1:keKAYRcjm+e1F0oAuU5F5+YPAWcyxNNRK2wud503Gnk=
 pgregory.net/rapid v1.2.0/go.mod h1:PY5XlDGj0+V1FCq0o192FdRhpKHGTRIWBgqjDBTrq04=
